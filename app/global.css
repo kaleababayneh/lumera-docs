@@ -26,6 +26,42 @@
   --fd-ring: 174 50% 40%;
 }
 
+/* Sidebar: hide "..." links menu in header, show GitHub icon in footer on desktop */
+@media (min-width: 768px) {
+  #nd-sidebar [aria-haspopup="dialog"] {
+    display: none !important;
+  }
+
+  #nd-sidebar [aria-label="GitHub"] {
+    display: inline-flex !important;
+  }
+
+  #nd-sidebar [data-theme-toggle] {
+    order: 0 !important;
+  }
+
+  /* Hide the default collapse trigger in sidebar footer (moved to header) */
+  #nd-sidebar > div > div:last-child [aria-label="Collapse Sidebar"] {
+    display: none !important;
+  }
+
+  /* Hide the default floating collapse trigger (replaced by custom floating bar) */
+  #nd-docs-layout > [aria-label="Collapse Sidebar"] {
+    display: none !important;
+  }
+
+  /* Only show the custom floating bar when sidebar is collapsed */
+  #collapsed-floating-bar {
+    display: none;
+    border-color: hsl(var(--fd-border));
+    background-color: hsl(var(--fd-card));
+  }
+
+  #collapsed-floating-bar:has([data-collapsed="true"]) {
+    display: flex;
+  }
+}
+
 /* Dark Mode */
 .dark {
   --fd-background: 180 15% 5.5%;

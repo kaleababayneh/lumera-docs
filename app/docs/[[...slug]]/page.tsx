@@ -8,6 +8,10 @@ import {
 import { notFound } from "next/navigation";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { type Metadata } from "next";
+import { CopyMarkdownButton, OpenPopover } from "@/lib/page-actions";
+
+const owner = "kaleababayneh";
+const repo = "lumera-docs";
 
 export default async function Page(props: {
   params: Promise<{ slug?: string[] }>;
@@ -17,11 +21,26 @@ export default async function Page(props: {
   if (!page) notFound();
 
   const MDX = page.data.body;
+  const filePath = `content/docs/${page.file.path}`;
+  const githubUrl = `https://github.com/${owner}/${repo}/blob/main/${filePath}`;
+  const pageSlug = params.slug?.join("/") ?? "";
+  const pageUrl = `/docs${pageSlug ? `/${pageSlug}` : ""}`;
 
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage
+      toc={page.data.toc}
+      full={page.data.full}
+      tableOfContent={{
+        style: "clerk",
+      }}
+      lastUpdate={page.data.lastModified}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
+      <div className="flex flex-row flex-wrap items-center gap-2 border-b border-fd-foreground/10 pb-6">
+        <CopyMarkdownButton markdownUrl={`/api/mdx?path=${encodeURIComponent(filePath)}`} />
+        <OpenPopover githubUrl={githubUrl} pageUrl={pageUrl} />
+      </div>
       <DocsBody>
         <MDX components={{ ...defaultMdxComponents }} />
       </DocsBody>
