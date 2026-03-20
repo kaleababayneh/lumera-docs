@@ -1,0 +1,208 @@
+---
+title: SN-API Reference
+description: REST API endpoints for the Supernode API (SN-API) that handles Cascade file operations.
+---
+
+## Base URLs
+
+| Network | Endpoint |
+|---------|----------|
+| Testnet | `https://snapi.testnet.lumera.io` |
+| Mainnet | `https://snapi.lumera.io` |
+
+The SDK client automatically selects the correct endpoint based on your `preset` configuration.
+
+## Authentication
+
+All endpoints require an **ADR-036 signature** for authentication. The SDK handles this automatically, but if you are calling the API directly:
+
+1. Sign the relevant data (action ID for downloads, data hash for uploads) using ADR-036 `signArbitrary`
+2. Include the base64-encoded signature in the request body
+
+## Upload Endpoints
+
+### Start Cascade Upload
+
+```
+POST /api/v1/actions/cascade
+Content-Type: multipart/form-data
+```
+
+**Form Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `action_id` | `string` | Action ID from on-chain registration |
+| `signature` | `string` | Base64 ADR-036 auth signature |
+| `file` | `binary` | File data |
+
+**Response:**
+
+```json
+{
+  "task_id": "uuid-task-id"
+}
+```
+
+**Status Codes:**
+
+| Code | Meaning |
+|------|---------|
+| 200 | Upload started |
+| 400 | Invalid request (missing fields, bad signature) |
+| 404 | Action not found (may need retry — eventual consistency) |
+| 500 | Server error |
+
+<Callout type="info">
+The SDK retries this endpoint up to 5 times with 3-second delays. After on-chain registration, Supernodes need time to index the action.
+</Callout>
+
+---
+
+### Get Task Details
+
+```
+GET /api/v1/actions/cascade/tasks/{task_id}
+```
+
+**Response:**
+
+```json
+{
+  "task_id": "uuid",
+  "status": "processing",
+  "progress": 45,
+  "created_at": "2024-01-01T00:00:00Z"
+}
+```
+
+---
+
+### Get Task Status
+
+```
+GET /api/v1/actions/cascade/tasks/{task_id}/status
+```
+
+Returns a simplified status response for lightweight polling.
+
+---
+
+## Download Endpoints
+
+### Request Download
+
+```
+POST /api/v1/actions/cascade/{action_id}/downloads
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "signature": "base64-encoded ADR-036 signature of the action_id"
+}
+```
+
+**Response:**
+
+```json
+{
+  "task_id": "uuid-download-task-id"
+}
+```
+
+---
+
+### Watch Download Status (SSE)
+
+```
+GET /api/v1/downloads/cascade/{task_id}/status
+Accept: text/event-stream
+```
+
+Server-Sent Events stream with progress updates:
+
+```
+data: {"status": "processing", "progress": 0}
+
+data: {"status": "processing", "progress": 50}
+
+data: {"status": "completed", "progress": 100}
+```
+
+In browser environments, use `EventSource`:
+
+```ts
+const es = new EventSource(
+  `https://snapi.testnet.lumera.io/api/v1/downloads/cascade/${taskId}/status`
+);
+
+es.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log(`Progress: ${data.progress}%`);
+  if (data.status === "completed") {
+    es.close();
+  }
+};
+```
+
+---
+
+### Download File
+
+```
+GET /api/v1/downloads/cascade/{task_id}/file
+```
+
+**Response:**
+
+- `Content-Type: application/octet-stream`
+- Binary file data (streamed)
+
+The response can be consumed as a `ReadableStream` for efficient memory usage with large files.
+
+---
+
+## Version Fallback
+
+The SDK tries versioned endpoints first (`/api/v1/...`), then falls back to legacy paths (`/api/...`) on 404 responses. This ensures compatibility across SN-API versions.
+
+If calling the API directly, prefer the `/api/v1/` prefix.
+
+## Error Handling
+
+Common error responses:
+
+```json
+{
+  "error": "action not found",
+  "code": "NOT_FOUND"
+}
+```
+
+```json
+{
+  "error": "invalid signature",
+  "code": "UNAUTHORIZED"
+}
+```
+
+```json
+{
+  "error": "supernodes unavailable",
+  "code": "SERVICE_UNAVAILABLE"
+}
+```
+
+## Rate Limits
+
+The public SN-API endpoints may have rate limits during high traffic. For production applications with high throughput, consider running your own Supernode.
+
+## Next Steps
+
+<Cards>
+  <Card title="Network Configuration" href="/docs/reference/network-config" />
+  <Card title="Troubleshooting" href="/docs/reference/troubleshooting" />
+</Cards>

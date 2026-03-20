@@ -1,0 +1,276 @@
+---
+title: SDK Methods
+description: Complete API reference for the @lumera-protocol/sdk-js package.
+---
+
+## createLumeraClient
+
+Factory function that creates a fully configured Lumera client.
+
+```ts
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+
+const client = await createLumeraClient({
+  preset: "testnet",       // "testnet" | "mainnet"
+  signer: wallet,          // OfflineSigner (CosmJS wallet or Keplr)
+  address: "lumera1...",   // Sender address
+  gasPrice: "0.025ulume",  // Gas price for fee estimation
+});
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `preset` | `"testnet" \| "mainnet"` | No | Use preset endpoints |
+| `rpcEndpoint` | `string` | No | Custom RPC endpoint |
+| `lcdEndpoint` | `string` | No | Custom LCD/REST endpoint |
+| `snapiEndpoint` | `string` | No | Custom SN-API endpoint |
+| `signer` | `OfflineSigner` | No | Wallet signer (required for write operations) |
+| `address` | `string` | No | Sender address (required for write operations) |
+| `gasPrice` | `string` | No | Gas price string (e.g., `"0.025ulume"`) |
+
+**Returns:** `Promise<LumeraClient>`
+
+---
+
+## Cascade Uploader
+
+### uploadFile
+
+Unified upload method that runs prepare, register, and send phases.
+
+```ts
+const result = await client.Cascade.uploader.uploadFile(fileBytes, {
+  fileName: "document.pdf",
+  isPublic: true,
+  expirationTime: "1742553600", // Unix timestamp (optional)
+  taskOptions: {
+    pollInterval: 2000,         // ms between status polls
+    timeout: 300000,            // ms before timeout
+  },
+});
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `fileBytes` | `Uint8Array` | Yes | File content as bytes |
+| `options.fileName` | `string` | No | Filename metadata |
+| `options.isPublic` | `boolean` | No | Whether the file is publicly downloadable |
+| `options.expirationTime` | `string` | No | Unix timestamp for expiration |
+| `options.taskOptions.pollInterval` | `number` | No | Polling interval in ms (default: 2000) |
+| `options.taskOptions.timeout` | `number` | No | Timeout in ms (default: 300000) |
+
+**Returns:** `Promise<UploadResult>` containing `action_id` and `taskId`
+
+---
+
+### prepareFile
+
+Converts input to bytes and computes the BLAKE3 hash.
+
+```ts
+const { fileBytes, dataHash } = await client.Cascade.uploader.prepareFile(file);
+```
+
+**Parameters:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file` | `Uint8Array \| File \| Blob` | Input file |
+
+**Returns:** `Promise<{ fileBytes: Uint8Array; dataHash: string }>`
+
+---
+
+### registerAction
+
+Registers the Cascade action on-chain (generates layout, signs, broadcasts transaction).
+
+```ts
+const { actionId, authSignature } = await client.Cascade.uploader.registerAction(
+  { fileBytes, dataHash },
+  options
+);
+```
+
+**Returns:** `Promise<{ actionId: string; authSignature: string }>`
+
+<Callout type="warn">
+This method requires WASM (RaptorQ) support. It works in browsers but has [known issues in Node.js](/docs/guides/node-js).
+</Callout>
+
+---
+
+### makeAuthSignature
+
+Creates an authentication signature for an existing action (useful if you need to re-upload).
+
+```ts
+const authSig = await client.Cascade.uploader.makeAuthSignature(actionId, dataHash);
+```
+
+---
+
+### sendFileToSupernodes
+
+Sends the file to the SN-API after on-chain registration.
+
+```ts
+const uploadResult = await client.Cascade.uploader.sendFileToSupernodes(
+  actionId,
+  authSignature,
+  fileBytes,
+  { taskOptions: { pollInterval: 2000, timeout: 300000 } }
+);
+```
+
+Retries up to 5 times with 3-second delays for SN-API indexing delays.
+
+---
+
+## Cascade Downloader
+
+### download
+
+Downloads a file by action ID. Returns a readable stream.
+
+```ts
+const stream: ReadableStream<Uint8Array> = await client.Cascade.downloader.download(actionId);
+```
+
+**Parameters:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `actionId` | `string` | The action ID from upload |
+| `taskOptions` | `object` | Optional polling configuration |
+
+**Returns:** `Promise<ReadableStream<Uint8Array>>`
+
+---
+
+### downloadFile
+
+Full download with explicit options.
+
+```ts
+const stream = await client.Cascade.downloader.downloadFile({
+  actionId: "your-action-id",
+  taskOptions: {
+    pollInterval: 2000,
+    timeout: 120000,
+  },
+});
+```
+
+---
+
+### downloadPrivate
+
+Identical to `download` — authentication is always applied via ADR-036 signature.
+
+```ts
+const stream = await client.Cascade.downloader.downloadPrivate(actionId);
+```
+
+---
+
+## Blockchain Queries
+
+### getActionParams
+
+Returns current chain parameters for Cascade actions.
+
+```ts
+const params = await client.Blockchain.getActionParams();
+// { max_raptor_q_symbols: number, ... }
+```
+
+Results are cached for 5 minutes.
+
+---
+
+### getAction
+
+Looks up a registered action by ID.
+
+```ts
+const action = await client.Blockchain.getAction(actionId);
+// { creator, actionType, dataHash, state, ... }
+```
+
+---
+
+### getActionFee
+
+Estimates the storage fee for a given file size.
+
+```ts
+const fee = await client.Blockchain.getActionFee(fileSizeBytes);
+// { fee: string } in ulume
+```
+
+---
+
+### getSupernodes
+
+Lists all registered Supernodes.
+
+```ts
+const nodes = await client.Blockchain.getSupernodes();
+```
+
+---
+
+## Wallet Helpers
+
+### getKeplrSigner
+
+Returns a universal signer from the Keplr browser extension.
+
+```ts
+import { getKeplrSigner } from "@lumera-protocol/sdk-js";
+
+const signer = await getKeplrSigner("lumera-testnet-2");
+```
+
+The returned signer supports `signDirect`, `signAmino`, and `signArbitrary` (ADR-036).
+
+---
+
+### getLeapSigner
+
+Same interface for the Leap browser extension.
+
+```ts
+import { getLeapSigner } from "@lumera-protocol/sdk-js";
+
+const signer = await getLeapSigner("lumera-testnet-2");
+```
+
+---
+
+## Task Status Values
+
+| Status | Category | Meaning |
+|--------|----------|---------|
+| `sdk:completed` | Success | Operation completed |
+| `sdk:upload_completed` | Success | Upload confirmed |
+| `sdk:download_completed` | Success | Download ready |
+| `sdk:failed` | Failure | Generic failure |
+| `sdk:supernodes_unavailable` | Failure | No Supernodes accepted the task |
+| `sdk:registration_failure` | Failure | On-chain registration failed |
+| `sdk:upload_failed` | Failure | File transfer failed |
+| `sdk:processing_failed` | Failure | SN-API processing failed |
+| `sdk:processing_timeout` | Failure | Processing exceeded timeout |
+| `sdk:download_failure` | Failure | Download reconstruction failed |
+
+## Next Steps
+
+<Cards>
+  <Card title="SN-API Reference" href="/docs/reference/sn-api" />
+  <Card title="Network Configuration" href="/docs/reference/network-config" />
+</Cards>

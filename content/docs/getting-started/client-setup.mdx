@@ -1,0 +1,172 @@
+---
+title: Client Setup
+description: Initialize the Lumera client for browser and Node.js environments.
+---
+
+## Creating a Client
+
+The `createLumeraClient` factory is the entry point for all Cascade operations. It connects to the Lumera blockchain and configures the Supernode API client.
+
+### Browser with Keplr Wallet
+
+```ts title="browser-client.ts"
+import { createLumeraClient, getKeplrSigner } from "@lumera-protocol/sdk-js";
+
+const CHAIN_ID = "lumera-testnet-2";
+
+// Connect Keplr wallet
+await window.keplr.experimentalSuggestChain({
+  chainId: CHAIN_ID,
+  chainName: "Lumera Testnet",
+  rpc: "https://rpc.testnet.lumera.io",
+  rest: "https://lcd.testnet.lumera.io",
+  bip44: { coinType: 118 },
+  bech32Config: {
+    bech32PrefixAccAddr: "lumera",
+    bech32PrefixAccPub: "lumerapub",
+    bech32PrefixValAddr: "lumeravaloper",
+    bech32PrefixValPub: "lumeravaloperpub",
+    bech32PrefixConsAddr: "lumeravalcons",
+    bech32PrefixConsPub: "lumeravalconspub",
+  },
+  currencies: [{ coinDenom: "LUME", coinMinimalDenom: "ulume", coinDecimals: 6 }],
+  feeCurrencies: [
+    {
+      coinDenom: "LUME",
+      coinMinimalDenom: "ulume",
+      coinDecimals: 6,
+      gasPriceStep: { low: 0.025, average: 0.03, high: 0.04 },
+    },
+  ],
+  stakeCurrency: { coinDenom: "LUME", coinMinimalDenom: "ulume", coinDecimals: 6 },
+});
+
+await window.keplr.enable(CHAIN_ID);
+
+const signer = await getKeplrSigner(CHAIN_ID);
+const accounts = await signer.getAccounts();
+const address = accounts[0].address;
+
+const client = await createLumeraClient({
+  preset: "testnet",
+  signer,
+  address,
+  gasPrice: "0.025ulume",
+});
+```
+
+### Browser with Leap Wallet
+
+```ts title="leap-client.ts"
+import { createLumeraClient, getLeapSigner } from "@lumera-protocol/sdk-js";
+
+// Leap uses the same chain suggestion format as Keplr
+await window.leap.experimentalSuggestChain({ /* same config as above */ });
+await window.leap.enable("lumera-testnet-2");
+
+const signer = await getLeapSigner("lumera-testnet-2");
+const accounts = await signer.getAccounts();
+
+const client = await createLumeraClient({
+  preset: "testnet",
+  signer,
+  address: accounts[0].address,
+  gasPrice: "0.025ulume",
+});
+```
+
+### Node.js with Mnemonic
+
+```ts title="node-client.ts"
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+
+const wallet = await DirectSecp256k1HdWallet.fromMnemonic(
+  process.env.LUMERA_MNEMONIC!,
+  { prefix: "lumera" }
+);
+const [account] = await wallet.getAccounts();
+
+const client = await createLumeraClient({
+  preset: "testnet",
+  signer: wallet,
+  address: account.address,
+  gasPrice: "0.025ulume",
+});
+```
+
+<Callout type="warn">
+**Security**: Never hardcode mnemonics. Use environment variables or a secrets manager. For browser apps, always use wallet extensions (Keplr/Leap) which keep private keys in the extension sandbox.
+</Callout>
+
+## Client Configuration Options
+
+```ts
+interface CreateLumeraClientOptions {
+  // Use a preset for testnet or mainnet endpoints
+  preset?: "testnet" | "mainnet";
+
+  // Or specify endpoints manually
+  rpcEndpoint?: string;
+  lcdEndpoint?: string;
+  snapiEndpoint?: string;
+
+  // Signer (wallet or DirectSecp256k1HdWallet)
+  signer?: OfflineSigner;
+
+  // Sender address
+  address?: string;
+
+  // Gas price for transaction fee estimation
+  gasPrice?: string;
+}
+```
+
+### Presets
+
+| Preset | Chain ID | RPC | LCD | SN-API |
+|--------|----------|-----|-----|--------|
+| `testnet` | `lumera-testnet-2` | `https://rpc.testnet.lumera.io` | `https://lcd.testnet.lumera.io` | `https://snapi.testnet.lumera.io` |
+| `mainnet` | `lumera-mainnet-1` | `https://rpc.lumera.io` | `https://lcd.lumera.io` | `https://snapi.lumera.io` |
+
+### Custom Endpoints
+
+For local development or self-hosted nodes:
+
+```ts
+const client = await createLumeraClient({
+  rpcEndpoint: "http://localhost:26657",
+  lcdEndpoint: "http://localhost:1317",
+  snapiEndpoint: "http://localhost:8080",
+  signer: wallet,
+  address: account.address,
+  gasPrice: "0.025ulume",
+});
+```
+
+## Client Structure
+
+Once created, the client exposes two primary sub-clients:
+
+```ts
+// Blockchain operations
+client.Blockchain.getActionParams();
+client.Blockchain.getAction(actionId);
+client.Blockchain.getActionFee(dataSizeBytes);
+client.Blockchain.getSupernodes();
+
+// Cascade storage operations
+client.Cascade.uploader.uploadFile(file, options);
+client.Cascade.uploader.prepareFile(file);
+client.Cascade.uploader.registerAction(prepared, options);
+client.Cascade.uploader.sendFileToSupernodes(actionId, sig, file, options);
+client.Cascade.downloader.download(actionId);
+client.Cascade.downloader.downloadFile(options);
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="Upload Lifecycle" href="/docs/concepts/upload-lifecycle" />
+  <Card title="Build a Browser App" href="/docs/guides/browser-app" />
+</Cards>

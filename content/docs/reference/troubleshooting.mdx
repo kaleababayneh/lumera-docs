@@ -1,0 +1,204 @@
+---
+title: Troubleshooting
+description: Common issues and solutions when building with the Lumera Cascade SDK.
+---
+
+## WASM Loading Errors
+
+### `RaptorQ WASM module failed to load`
+
+**Environment:** Node.js
+
+The RaptorQ WASM module uses `createRequire` to resolve the `.wasm` binary path, which fails in certain Node.js configurations (ESM-only projects, bundled environments).
+
+**Solution:** Use the browser environment for uploads. Node.js currently supports downloads only. See [Node.js Environment](/docs/guides/node-js) for details.
+
+---
+
+### `Cannot find module '@bokuweb/zstd-wasm'`
+
+**Environment:** Vite (browser)
+
+The Zstd WASM module must be excluded from Vite's dependency optimizer.
+
+**Solution:**
+
+```ts title="vite.config.ts"
+export default defineConfig({
+  optimizeDeps: {
+    exclude: ["undici", "@bokuweb/zstd-wasm"],
+  },
+});
+```
+
+---
+
+### `window is not defined`
+
+**Environment:** Node.js / SSR
+
+The RaptorQ WASM library expects a `window` global. The SDK polyfills this, but the polyfill can conflict with SSR frameworks.
+
+**Solution:** Ensure Cascade operations only run client-side:
+
+```ts
+// Next.js: only import in client components
+"use client";
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+```
+
+For Vite, add to your config:
+
+```ts
+define: {
+  "process.env": "{}",
+  global: "globalThis",
+},
+```
+
+---
+
+## Wallet Issues
+
+### `Keplr extension not found`
+
+The user hasn't installed Keplr or the page loaded before the extension injected `window.keplr`.
+
+**Solution:** Wait for the `keplr_keystorechange` event or check with a delay:
+
+```ts
+async function waitForKeplr(timeout = 3000): Promise<boolean> {
+  if (window.keplr) return true;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeout);
+    window.addEventListener("keplr_keystorechange", () => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
+}
+```
+
+---
+
+### `Request rejected` during signArbitrary
+
+The user declined the signing request in Keplr. Cascade requires ADR-036 signatures for authentication.
+
+**Solution:** Explain to users that the signature is for authentication, not a transaction. Consider showing a pre-sign dialog explaining what is being signed.
+
+---
+
+### `Account does not exist on chain`
+
+The wallet address has no balance on Lumera testnet.
+
+**Solution:** Get tokens from the [Lumera Discord faucet](https://discord.com/invite/qudewKS3kp). Then verify:
+
+```ts
+const balance = await client.Blockchain.getBalance(address, "ulume");
+console.log("Balance:", balance);
+```
+
+---
+
+## Upload Issues
+
+### `Action not found` (404 from SN-API)
+
+The on-chain action was registered, but the Supernode hasn't indexed it yet.
+
+**Solution:** The SDK retries automatically (5 attempts, 3-second delays). If the issue persists:
+1. Verify the action exists on-chain: check the explorer at `https://portal.testnet.lumera.io`
+2. Increase the timeout in `taskOptions`
+3. Try a different SN-API endpoint
+
+---
+
+### `Upload timeout`
+
+The file upload or processing took longer than the configured timeout.
+
+**Solution:** Increase the timeout:
+
+```ts
+const result = await client.Cascade.uploader.uploadFile(fileBytes, {
+  taskOptions: {
+    pollInterval: 3000,
+    timeout: 600000, // 10 minutes
+  },
+});
+```
+
+Large files naturally take longer to encode and distribute across Supernodes.
+
+---
+
+### `Supernodes unavailable`
+
+No Supernodes accepted the upload task. This can happen during network upgrades or if the testnet is under load.
+
+**Solution:**
+1. Check the Lumera Discord for network status
+2. Retry after a few minutes
+3. Verify Supernode availability: `client.Blockchain.getSupernodes()`
+
+---
+
+## Download Issues
+
+### `Download failed` or empty stream
+
+The Supernodes could not reconstruct the file. This can happen with very recent uploads (Supernodes are still processing) or if the action has expired.
+
+**Solution:**
+1. Wait a few minutes after upload before attempting download
+2. Verify the action status: `client.Blockchain.getAction(actionId)`
+3. Check that `state === "ACTION_STATE_DONE"`
+
+---
+
+## Build Issues
+
+### `libsodium-sumo` resolution errors (Vite)
+
+**Solution:** Add a custom resolve alias and exclude from pre-bundling:
+
+```ts title="vite.config.ts"
+export default defineConfig({
+  resolve: {
+    alias: {
+      "libsodium-sumo":
+        "node_modules/libsodium-sumo/dist/modules/libsodium-sumo.js",
+    },
+  },
+  optimizeDeps: {
+    exclude: ["libsodium-sumo", "libsodium-wrappers-sumo"],
+  },
+});
+```
+
+---
+
+### TypeScript errors with SDK return types
+
+The SDK's `uploadFile` return type may not perfectly match expected fields.
+
+**Solution:** Use a type assertion to access the action ID:
+
+```ts
+const result = await client.Cascade.uploader.uploadFile(fileBytes, options);
+
+const actionId =
+  (result as any).action_id ||
+  result.taskId ||
+  `fallback-${Date.now()}`;
+```
+
+---
+
+## Getting Help
+
+- **Discord**: [discord.com/invite/qudewKS3kp](https://discord.com/invite/qudewKS3kp)
+- **GitHub Issues**: [LumeraProtocol/sdk-js/issues](https://github.com/LumeraProtocol/sdk-js/issues)
+- **Explorer**: [portal.testnet.lumera.io](https://portal.testnet.lumera.io/lumera-testnet-2)

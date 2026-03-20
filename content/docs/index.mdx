@@ -1,0 +1,94 @@
+---
+title: Introduction
+description: Lumera Cascade — permanent, decentralized file storage for the Cosmos ecosystem.
+---
+
+## What is Cascade?
+
+Cascade is a **permanent decentralized storage protocol** built into the [Lumera Protocol](https://lumera.io) (formerly Pastel Network) — a Cosmos SDK Layer-1 blockchain. It enables developers to store files on a distributed network of Supernodes with a single on-chain transaction.
+
+Unlike traditional storage solutions that charge recurring fees, Cascade follows a **pay-once, store-forever** model. Files are chunked, encoded with [RaptorQ](https://en.wikipedia.org/wiki/Raptor_code) (RFC 6330) erasure coding, and distributed across the Supernode network, guaranteeing data availability even if individual nodes go offline.
+
+## Why Cascade?
+
+| Feature | Cascade | IPFS | Arweave |
+|---------|---------|------|---------|
+| **Persistence model** | Permanent (enforced by protocol) | Pin-dependent | Permanent (endowment) |
+| **Redundancy** | Reed-Solomon erasure coding across Supernodes | None (depends on pinning services) | Blockweave replication |
+| **Cosmos native** | Yes — IBC-compatible, Interchain Accounts | No | No |
+| **Fee model** | One-time on-chain fee | Free (pinning costs extra) | One-time token fee |
+| **Data availability** | Protocol-guaranteed via Supernode consensus | Best-effort | Protocol-guaranteed |
+
+## Key Capabilities
+
+- **Permanent storage**: Upload files once, retrieve them forever. No subscriptions, no renewals.
+- **Erasure coding**: Files are encoded with RaptorQ, so any sufficient subset of Supernodes can reconstruct the original data.
+- **Cosmos interoperability**: Any IBC-connected chain can use Cascade storage via [Interchain Accounts (ICS-27)](/docs/concepts/interchain-accounts).
+- **Multi-SDK support**: Official SDKs for [TypeScript](/docs/getting-started/javascript-sdk), [Go](https://github.com/LumeraProtocol/sdk-go), and [Rust](https://github.com/LumeraProtocol/sdk-rs).
+- **Wallet integration**: Browser-based apps can use [Keplr](/docs/guides/browser-app) and Leap wallets for signing.
+
+## Architecture at a Glance
+
+```
+┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
+│  Your App   │────▶│  Lumera SDK  │────▶│  Lumera Chain    │
+│  (Browser/  │     │  (JS/Go/Rust)│     │  (Cosmos SDK L1) │
+│   Node.js)  │     └──────┬───────┘     └────────┬─────────┘
+└─────────────┘            │                      │
+                           │ File upload          │ MsgRequestAction
+                           ▼                      ▼
+                    ┌──────────────┐     ┌──────────────────┐
+                    │  SN-API      │────▶│  Supernode Mesh  │
+                    │  (REST API)  │     │  (RaptorQ chunks)│
+                    └──────────────┘     └──────────────────┘
+```
+
+1. Your application calls the SDK to upload a file.
+2. The SDK registers an **action** on-chain via `MsgRequestAction`, which records metadata and fees.
+3. The file is sent to the **SN-API** (Supernode API), which distributes encoded chunks across the Supernode mesh.
+4. To download, the SDK authenticates via ADR-036 signature and streams the reconstructed file back.
+
+## Quick Start
+
+Get up and running in under 5 minutes:
+
+```package-install
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
+```
+
+```ts title="upload.ts"
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+
+const wallet = await DirectSecp256k1HdWallet.fromMnemonic(
+  "your mnemonic here",
+  { prefix: "lumera" }
+);
+const [account] = await wallet.getAccounts();
+
+const client = await createLumeraClient({
+  preset: "testnet",
+  signer: wallet,
+  address: account.address,
+  gasPrice: "0.025ulume",
+});
+
+// Upload a file
+const file = new Uint8Array(/* your file bytes */);
+const result = await client.Cascade.uploader.uploadFile(file, {
+  fileName: "my-document.pdf",
+  isPublic: true,
+  taskOptions: { pollInterval: 2000, timeout: 300000 },
+});
+
+console.log("Stored permanently with action ID:", result.action_id);
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="Installation" href="/docs/getting-started/installation" />
+  <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
+  <Card title="Build a Browser App" href="/docs/guides/browser-app" />
+  <Card title="SDK Reference" href="/docs/reference/sdk-methods" />
+</Cards>

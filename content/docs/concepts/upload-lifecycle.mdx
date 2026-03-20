@@ -1,0 +1,176 @@
+---
+title: Upload Lifecycle
+description: Step-by-step breakdown of how files are uploaded and permanently stored via Cascade.
+---
+
+## Overview
+
+A Cascade upload consists of three phases: **prepare**, **register**, and **send**. The SDK's `uploadFile` method handles all three, but you can also run them individually for fine-grained control.
+
+## Phase 1: Prepare
+
+```ts
+const { fileBytes, dataHash } = await client.Cascade.uploader.prepareFile(file);
+```
+
+1. The input file (a `Uint8Array`, `File`, or `Blob`) is converted to a `Uint8Array`
+2. A **BLAKE3 hash** is computed over the file bytes — this becomes the permanent content identifier stored on-chain
+
+## Phase 2: Register Action On-Chain
+
+```ts
+const { actionId, authSignature } = await client.Cascade.uploader.registerAction(
+  { fileBytes, dataHash },
+  {
+    fileName: "paper.pdf",
+    isPublic: true,
+    taskOptions: { pollInterval: 2000, timeout: 300000 },
+  }
+);
+```
+
+This phase involves multiple sub-steps:
+
+### 2a. Fetch Action Parameters
+
+The SDK queries the chain for current parameters:
+
+```ts
+const actionParams = await client.Blockchain.getActionParams();
+// Returns: { max_raptor_q_symbols, ... }
+```
+
+These parameters determine the RaptorQ encoding configuration. Results are cached for 5 minutes.
+
+### 2b. Generate RaptorQ Layout
+
+The file is processed through the RaptorQ WASM module to generate an erasure-coding **layout**:
+
+- `rq_ids_ic` — a random counter seed in `[0, max_raptor_q_symbols)`
+- The layout contains block-level encoding metadata that Supernodes need to store and reconstruct the file
+- The layout JSON is compacted (no whitespace) to match the Go reference implementation
+
+### 2c. Sign the Layout (ADR-036)
+
+The compacted layout bytes are signed using ADR-036 `signArbitrary`:
+
+```
+signer.signArbitrary(chainId, address, layoutBytes)
+```
+
+This signature proves the layout was created by the account that registered the action.
+
+### 2d. Derive Layout IDs (LEP-1)
+
+Layout IDs are deterministic identifiers derived from the layout and its signature. The algorithm must match the on-chain Go implementation exactly:
+
+```
+For each i in [0, rq_ids_max):
+  counter = rq_ids_ic + i
+  input   = Base64(layout) + "." + Base64(signature) + "." + decimal(counter)
+  compressed = zstd(input, level=3)
+  hash    = BLAKE3(compressed)
+  id      = Base58(hash)
+```
+
+These IDs are included in the on-chain action and allow Supernodes to verify data integrity.
+
+### 2e. Build LEP-1 Index File
+
+```json
+{
+  "version": 1,
+  "layout_ids": ["7K9x...", "3Jm2...", ...],
+  "layout_signature": "base64..."
+}
+```
+
+The index file is signed with ADR-036 and included in the on-chain registration.
+
+### 2f. Create Auth Signature
+
+A separate signature over the `dataHash` is created — this is used to authenticate the file upload to SN-API.
+
+### 2g. Broadcast MsgRequestAction
+
+The SDK simulates the transaction to estimate gas, then signs and broadcasts:
+
+```ts
+// Simplified — the SDK handles this internally
+const msg = {
+  typeUrl: "/lumera.action.v1.MsgRequestAction",
+  value: {
+    creator: address,
+    actionType: "ACTION_TYPE_CASCADE",
+    dataHash: dataHash,
+    rqIds: layoutIds,
+    // ... other fields
+  },
+};
+```
+
+The chain validates the message, escrows fees, and emits an `action_registered` event. The SDK extracts the `action_id` from the event attributes.
+
+## Phase 3: Send File to Supernodes
+
+```ts
+const uploadResult = await client.Cascade.uploader.sendFileToSupernodes(
+  actionId,
+  authSignature,
+  fileBytes,
+  { taskOptions: { pollInterval: 2000, timeout: 300000 } }
+);
+```
+
+1. The file is sent as multipart form data to `POST /api/v1/actions/cascade`:
+   ```
+   FormData {
+     action_id: string
+     signature: string (auth signature)
+     file: Blob
+   }
+   ```
+2. The SN-API distributes chunks to the Supernode mesh
+3. The SDK polls `GET /api/v1/actions/cascade/tasks/{task_id}` at the configured interval
+4. Upload completes when the task reaches a terminal status
+
+## Unified Upload
+
+For most use cases, call `uploadFile` to run all three phases:
+
+```ts
+const result = await client.Cascade.uploader.uploadFile(fileBytes, {
+  fileName: "document.pdf",
+  isPublic: true,
+  taskOptions: {
+    pollInterval: 2000,  // Check every 2 seconds
+    timeout: 300000,     // Fail after 5 minutes
+  },
+});
+
+console.log(result.action_id); // Use this to download later
+```
+
+## Task States
+
+| Status | Phase | Meaning |
+|--------|-------|---------|
+| `sdk:completed` | Upload | File successfully stored |
+| `sdk:upload_completed` | Upload | Upload confirmed |
+| `sdk:failed` | Upload | Generic failure |
+| `sdk:supernodes_unavailable` | Upload | No Supernodes accepted the task |
+| `sdk:registration_failure` | Register | On-chain registration failed |
+| `sdk:upload_failed` | Upload | File transfer to SN-API failed |
+| `sdk:processing_failed` | Upload | SN-API could not process the file |
+| `sdk:processing_timeout` | Upload | Processing exceeded timeout |
+
+## Retry Behavior
+
+The SDK automatically retries the SN-API upload up to 5 times with a 3-second delay between attempts. This handles the case where the Supernode has not yet indexed the on-chain action (eventual consistency between chain and SN-API).
+
+## Next Steps
+
+<Cards>
+  <Card title="Download Lifecycle" href="/docs/concepts/download-lifecycle" />
+  <Card title="Erasure Coding" href="/docs/concepts/erasure-coding" />
+</Cards>

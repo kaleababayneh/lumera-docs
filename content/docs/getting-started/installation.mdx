@@ -1,0 +1,115 @@
+---
+title: Installation
+description: Install the Lumera SDK and its dependencies.
+---
+
+## Prerequisites
+
+- **Node.js** >= 18.0.0
+- **npm**, **pnpm**, or **yarn**
+- A Lumera wallet (mnemonic for programmatic signing or [Keplr](https://www.keplr.app/) for browser apps)
+- Testnet tokens (`ulume`) from the [Lumera Discord faucet](https://discord.com/invite/qudewKS3kp)
+
+## Install the SDK
+
+The JavaScript/TypeScript SDK is the primary way to interact with Cascade from web and Node.js applications.
+
+```package-install
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
+```
+
+`@cosmjs/proto-signing` and `@cosmjs/stargate` are **peer dependencies** required for wallet and transaction handling.
+
+## Platform-Specific Dependencies
+
+The SDK uses conditional exports to load platform-appropriate implementations for cryptographic operations. No additional configuration is needed in most cases, but here is what runs under the hood:
+
+| Operation | Browser | Node.js |
+|-----------|---------|---------|
+| BLAKE3 hashing | `blake3/browser-async` (WASM) | `blake3` (native binding) |
+| Zstd compression | `@bokuweb/zstd-wasm` | `@mongodb-js/zstd` |
+| RaptorQ encoding | WASM (ESM import) | WASM (via `createRequire`) |
+| HTTP client | `window.fetch` | `undici` (keep-alive pool) |
+| SSE streaming | `EventSource` | Fetch-based stream parser |
+
+## Browser Bundler Configuration
+
+If you are using **Vite**, you may need polyfills for Node.js globals:
+
+```package-install
+npm install vite-plugin-node-polyfills vite-plugin-wasm vite-plugin-top-level-await
+```
+
+```ts title="vite.config.ts"
+import { defineConfig } from "vite";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
+import wasm from "vite-plugin-wasm";
+import topLevelAwait from "vite-plugin-top-level-await";
+
+export default defineConfig({
+  plugins: [
+    wasm(),
+    topLevelAwait(),
+    nodePolyfills({
+      include: ["buffer", "process"],
+      globals: { Buffer: true, global: true, process: true },
+    }),
+  ],
+  optimizeDeps: {
+    exclude: ["undici", "@bokuweb/zstd-wasm"],
+  },
+  define: {
+    "process.env": "{}",
+  },
+});
+```
+
+For **webpack** (Next.js), add fallbacks in `next.config.js`:
+
+```js title="next.config.js"
+/** @type {import('next').NextConfig} */
+module.exports = {
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
+    };
+    return config;
+  },
+};
+```
+
+## Verify Installation
+
+```ts title="verify.ts"
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+
+// This should not throw — it validates that all WASM modules load correctly
+const client = await createLumeraClient({ preset: "testnet" });
+console.log("SDK loaded successfully");
+```
+
+<Callout type="warn">
+**Node.js environment limitations**: The SDK currently has known issues in Node.js environments related to WASM module loading for RaptorQ encoding. Browser environments work reliably. See the [Node.js guide](/docs/guides/node-js) for current status and workarounds.
+</Callout>
+
+## Other SDKs
+
+Lumera also provides official SDKs for Go and Rust:
+
+| SDK | Install | Repository |
+|-----|---------|------------|
+| **Go** | `go get github.com/LumeraProtocol/sdk-go` | [LumeraProtocol/sdk-go](https://github.com/LumeraProtocol/sdk-go) |
+| **Rust** | `lumera-sdk-rs = "0.1"` | [LumeraProtocol/sdk-rs](https://github.com/LumeraProtocol/sdk-rs) |
+| **TypeScript** | `npm install @lumera-protocol/sdk-js` | [LumeraProtocol/sdk-js](https://github.com/LumeraProtocol/sdk-js) |
+
+This documentation focuses on the TypeScript SDK. For Go and Rust, refer to the respective repository READMEs.
+
+## Next Steps
+
+<Cards>
+  <Card title="JavaScript SDK Overview" href="/docs/getting-started/javascript-sdk" />
+  <Card title="Client Setup" href="/docs/getting-started/client-setup" />
+</Cards>

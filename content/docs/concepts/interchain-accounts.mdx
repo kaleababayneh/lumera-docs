@@ -1,0 +1,106 @@
+---
+title: Interchain Accounts
+description: Use Cascade storage from any IBC-connected Cosmos chain via ICS-27.
+---
+
+## Overview
+
+Cascade storage is not limited to applications running directly on the Lumera chain. Any **IBC-connected Cosmos chain** can use Cascade via [Interchain Accounts (ICS-27)](https://ibc.cosmos.network/v8/apps/interchain-accounts/overview/).
+
+This enables powerful cross-chain use cases:
+- A DeFi protocol on Injective can store trade receipts permanently on Cascade
+- An NFT marketplace on Osmosis can use Cascade for immutable media storage
+- A DAO on Cosmos Hub can archive governance proposals
+
+## How It Works
+
+```
+┌───────────────────┐           IBC            ┌──────────────────┐
+│  Controller Chain  │◄─────────────────────────│   Lumera Chain   │
+│  (e.g., Injective) │                          │  (Host Chain)    │
+│                     │   MsgSendTx (ICS-27)    │                  │
+│  ┌───────────────┐  │──────────────────────────│  ┌────────────┐ │
+│  │ ICA Controller │  │                          │  │ ICA Host   │ │
+│  │               │  │                          │  │            │ │
+│  │ Packs         │  │  Channel / Connection    │  │ Executes   │ │
+│  │ MsgRequest    │  │                          │  │ MsgRequest │ │
+│  └───────────────┘  │                          │  └────────────┘ │
+└───────────────────┘                           └────────┬─────────┘
+                                                          │
+                                                ┌─────────▼────────┐
+                                                │   Supernode Mesh │
+                                                │   (File Upload)  │
+                                                └──────────────────┘
+```
+
+### Step-by-Step Flow
+
+1. **Controller chain** submits `MsgSendTx` containing a packed `MsgRequestAction`
+2. The IBC relayer delivers the packet to **Lumera (host chain)**
+3. Lumera's ICA host module unpacks and executes the `MsgRequestAction`
+4. An **ICA address** on Lumera pays the escrow fee (must be pre-funded)
+5. The action is registered on-chain with the `action_id`
+6. The **application** uploads the file directly to SN-API using the `action_id`
+
+### Application-Level Keypairs
+
+A key challenge with ICA is that the ICA address on the host chain has no user-held private key — it is controlled by the controller chain. To solve this, Cascade supports an `app_pubkey` field in `MsgRequestAction`:
+
+- The application generates a keypair on the controller side
+- The public key is included in the action registration
+- The private key is used to sign file uploads to SN-API
+- This separates the **control plane** (IBC messages) from the **data plane** (file transfers)
+
+## Using the Go SDK for ICA
+
+The [Go SDK](https://github.com/LumeraProtocol/sdk-go) provides helpers for ICA-based Cascade:
+
+```go
+import "github.com/LumeraProtocol/sdk-go/client"
+
+// Pack a MsgRequestAction for ICA submission
+packedMsg := client.PackRequestForICA(msg)
+
+// Pack a MsgApproveAction for ICA submission
+packedApprove := client.PackApproveForICA(approveMsg)
+
+// Extract action IDs from IBC acknowledgement
+actionIDs := client.ExtractRequestActionIDsFromAck(ackData)
+```
+
+Configure the SDK client for ICA:
+
+```go
+cfg := &client.Config{
+    ICAOwnerKeyName: "ica-controller-key",
+    ICAOwnerHRP:     "cosmos", // Bech32 prefix of controller chain
+}
+```
+
+## ICA Client CLI
+
+The [Lumera ICA Client](https://github.com/LumeraProtocol/lumera-ica-client) provides a reference CLI:
+
+```bash
+# Upload a file via ICA
+lumera-ica-client upload --file document.pdf --controller-chain cosmos
+
+# Check action status
+lumera-ica-client action status --action-id <id>
+
+# Download a file
+lumera-ica-client download --action-id <id>
+```
+
+## Security Considerations
+
+- **Control-plane isolation**: IBC messages only handle metadata and fee escrow. File data never touches the IBC channel.
+- **Data-plane authentication**: File uploads to SN-API use application-level signatures, independent of the ICA address.
+- **Fee pre-funding**: The ICA address must be funded with `ulume` before registering actions. Monitor balances to prevent failures.
+
+## Next Steps
+
+<Cards>
+  <Card title="Build a Browser App" href="/docs/guides/browser-app" />
+  <Card title="Network Configuration" href="/docs/reference/network-config" />
+</Cards>

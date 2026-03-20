@@ -1,0 +1,97 @@
+---
+title: JavaScript SDK
+description: Overview of the @lumera-protocol/sdk-js architecture and modules.
+---
+
+## SDK Architecture
+
+The `@lumera-protocol/sdk-js` SDK follows a layered architecture that separates blockchain operations from storage operations:
+
+```
+┌────────────────────────────────────────────────┐
+│               LumeraClient                      │
+│  ┌──────────────────┐  ┌─────────────────────┐ │
+│  │   Blockchain      │  │     Cascade         │ │
+│  │   ─────────       │  │     ───────         │ │
+│  │   SigningClient    │  │   CascadeUploader   │ │
+│  │   ActionQuery      │  │   CascadeDownloader │ │
+│  │   SupernodeQuery   │  │   SNApiClient       │ │
+│  │   MsgRequestAction │  │   TaskManager       │ │
+│  └──────────────────┘  └─────────────────────┘ │
+│                                                  │
+│  ┌──────────────────┐  ┌─────────────────────┐ │
+│  │   Wallets         │  │     WASM            │ │
+│  │   ───────         │  │     ────            │ │
+│  │   KeplrSigner     │  │   RaptorQ proxy     │ │
+│  │   LeapSigner      │  │   LEP-1 layout      │ │
+│  │   NodeSigner      │  │   ID derivation     │ │
+│  └──────────────────┘  └─────────────────────┘ │
+└────────────────────────────────────────────────┘
+```
+
+### Blockchain Layer
+
+Wraps [CosmJS](https://github.com/cosmos/cosmjs) to provide typed access to Lumera-specific modules:
+
+- **Action module**: Query action parameters, fees, and registered actions
+- **Supernode module**: Query Supernode registration and status
+- **Transaction handling**: Simulate gas, sign, and broadcast `MsgRequestAction` messages
+
+### Cascade Layer
+
+Handles the full file storage lifecycle:
+
+- **CascadeUploader**: Prepares files, registers on-chain actions, uploads to Supernodes
+- **CascadeDownloader**: Authenticates, requests downloads, streams files back
+- **SNApiClient**: Typed REST client for the Supernode API (SN-API)
+- **TaskManager**: Polls task status or monitors via Server-Sent Events (SSE)
+
+### WASM Layer
+
+Runs platform-specific WebAssembly modules:
+
+- **RaptorQ proxy**: Erasure coding operations via `rq-library-wasm`
+- **LEP-1 helpers**: Deterministic layout ID generation that must match the on-chain Go implementation
+
+### Wallet Layer
+
+Unified signer interface supporting:
+
+- **Keplr**: Browser extension wallet (supports `signDirect`, `signAmino`, `signArbitrary`)
+- **Leap**: Browser extension wallet (same interface as Keplr)
+- **NodeSigner**: Programmatic signing from a mnemonic via `DirectSecp256k1HdWallet`
+
+## Module Exports
+
+The SDK exports everything from a single entry point:
+
+```ts
+import {
+  // Client factory
+  createLumeraClient,
+
+  // Types
+  type LumeraClient,
+  type CascadeUploadResult,
+  type CascadeDownloadResult,
+  type TaskStatus,
+
+  // Wallet helpers
+  getKeplrSigner,
+  getLeapSigner,
+
+  // Codegen (Telescope-generated protobuf types)
+  // lumera.action.v1, lumera.supernode.v1, etc.
+} from "@lumera-protocol/sdk-js";
+```
+
+## Type Safety
+
+The SDK is fully typed with TypeScript. All SN-API responses are validated against [OpenAPI-generated types](https://github.com/LumeraProtocol/sdk-js/blob/master/src/types/snapi.gen.ts), and blockchain messages use Telescope-generated protobuf codecs.
+
+## Next Steps
+
+<Cards>
+  <Card title="Client Setup" href="/docs/getting-started/client-setup" />
+  <Card title="Upload Lifecycle" href="/docs/concepts/upload-lifecycle" />
+</Cards>

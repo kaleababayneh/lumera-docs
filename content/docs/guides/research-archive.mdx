@@ -1,0 +1,209 @@
+---
+title: "Example: Research Archive"
+description: A real-world decentralized academic publishing platform built on Cascade.
+---
+
+## Overview
+
+The [Lumera Research Archive](https://github.com/kaleababayneh/Lumera-Research-Archive) is an open-source decentralized academic publishing platform that demonstrates a production-grade integration with Cascade. It supports:
+
+- **Public paper publishing** — permanently archived on Cascade
+- **Encrypted private drafts** — wallet-based encryption with XChaCha20-Poly1305
+- **Secure collaboration** — share draft access via wallet-derived key exchange
+- **Discovery** — papers indexed via Lumescope, the Cascade action indexer
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Runtime | Vite (vanilla TypeScript SPA) |
+| Blockchain SDK | `@lumera-protocol/sdk-js` v0.2.7 |
+| Cosmos | `@cosmjs/proto-signing`, `@cosmjs/stargate` |
+| Encryption | `libsodium-wrappers-sumo` (XChaCha20-Poly1305) |
+| Wallet | Keplr browser extension |
+| Indexer | Lumescope API |
+| Chain | `lumera-testnet-2` |
+
+## Architecture
+
+```
+┌───────────────────────────────────────────────────────┐
+│                    Browser SPA                         │
+│                                                        │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
+│  │  UI      │  │  Crypto  │  │  Cascade │            │
+│  │  (DOM)   │  │  (libsod)│  │  (SDK)   │            │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘            │
+│       │              │             │                   │
+│  ┌────▼──────────────▼─────────────▼─────────────┐    │
+│  │              Application Logic                 │    │
+│  │  ┌─────────┐  ┌──────────┐  ┌──────────────┐ │    │
+│  │  │ Wallet  │  │  Drafts  │  │  Papers      │ │    │
+│  │  │ (Keplr) │  │ (encrypt)│  │ (plaintext)  │ │    │
+│  │  └─────────┘  └──────────┘  └──────────────┘ │    │
+│  └───────────────────────────────────────────────┘    │
+└───────┬───────────────┬───────────────┬───────────────┘
+        │               │               │
+        ▼               ▼               ▼
+   Lumera Chain     SN-API          Lumescope
+   (on-chain tx)   (file I/O)     (action index)
+```
+
+Key design decision: **no backend server**. The entire application runs in the browser, communicating directly with the Lumera blockchain via RPC and with the SN-API for file storage.
+
+## Three Types of Cascade Files
+
+The app stores three distinct file types on Cascade, distinguished by filename conventions:
+
+### 1. Published Papers
+
+Public, unencrypted academic papers permanently archived on Cascade:
+
+```ts
+const manifest = {
+  title: "My Research Paper",
+  abstract: "A study on...",
+  authors: ["lumera1abc..."],
+  keywords: ["blockchain", "storage"],
+  content: btoa(paperContent), // Base64-encoded plaintext
+  publishedAt: new Date().toISOString(),
+};
+
+const result = await client.Cascade.uploader.uploadFile(
+  new TextEncoder().encode(JSON.stringify(manifest)),
+  {
+    fileName: `${manifest.title}.json`,
+    isPublic: true,
+    taskOptions: { pollInterval: 2000, timeout: 300000 },
+  }
+);
+```
+
+### 2. Encrypted Drafts
+
+Private drafts encrypted with a per-document key:
+
+```ts
+const manifest = {
+  type: "draft",
+  draftId: crypto.randomUUID(),
+  title: "Work in Progress", // Public metadata (not encrypted)
+  version: 1,
+  encrypted: true,
+  nonce: sodium.to_base64(nonce),
+  ciphertext: sodium.to_base64(encryptedContent),
+  encryptedDocumentKey: sodium.to_base64(encKeyForOwner),
+  keyNonce: sodium.to_base64(keyNonce),
+};
+
+await client.Cascade.uploader.uploadFile(manifestBytes, {
+  fileName: `draft_${draftId}_v${version}.json`,
+  isPublic: true, // Encrypted, so publicly accessible but unreadable
+});
+```
+
+### 3. Collaboration Invitations
+
+Key-exchange files that grant draft access to collaborators:
+
+```ts
+const invitation = {
+  type: "invitation",
+  draftId: draftId,
+  from: ownerAddress,
+  to: collaboratorAddress,
+  encryptedDocumentKey: sodium.to_base64(reEncryptedKey),
+  nonce: sodium.to_base64(inviteNonce),
+};
+
+await client.Cascade.uploader.uploadFile(invitationBytes, {
+  fileName: `invitation_${collaboratorAddress}_${draftId}.json`,
+  isPublic: true,
+});
+```
+
+## Discovery with Lumescope
+
+The app uses [Lumescope](https://github.com/LumeraProtocol), a Cascade action indexer, to discover files without scanning the entire blockchain:
+
+```ts
+// Fetch all actions by a specific creator
+const response = await fetch(
+  `${LUMESCOPE_API}/v1/actions?creator=${address}&limit=10000&type=ACTION_TYPE_CASCADE`
+);
+const actions = await response.json();
+
+// Filter by state and filename pattern
+const papers = actions.filter(
+  (a) => a.state === "ACTION_STATE_DONE" && !a.fileName?.startsWith("draft_")
+);
+```
+
+## Collaboration Flow
+
+```
+ Owner                          Collaborator
+   │                                 │
+   │  1. Create draft               │
+   │  2. Generate document key      │
+   │  3. Encrypt with doc key       │
+   │  4. Upload to Cascade          │
+   │                                 │
+   │  5. Create invitation          │
+   │  6. Re-encrypt doc key with    │
+   │     collaborator's wallet key  │
+   │  7. Upload invitation to       │
+   │     Cascade                    │
+   │                                 │
+   │  8. Share link with doc key    │
+   │     in URL hash fragment       │
+   │─────────────────────────────────│
+   │                                 │
+   │                   9. Open link  │
+   │                  10. Download   │
+   │                      invitation │
+   │                  11. Store doc  │
+   │                      key locally│
+   │                  12. Decrypt    │
+   │                      draft      │
+```
+
+The URL hash fragment (`#key=...`) is never sent to servers — it stays in the browser, making it safe for key transmission via any messaging channel.
+
+## Expiration Time
+
+Cascade actions have an expiration time set at upload. The Research Archive uses:
+
+```ts
+const expirationTime = Math.floor(Date.now() / 1000) + 90000 * 30; // ~31.25 days
+```
+
+For permanent papers, set this to a far-future value. For drafts, a shorter expiration is acceptable since they are working documents.
+
+## Local State Management
+
+The app uses `localStorage` for:
+- Draft metadata (IDs, titles, versions)
+- Encrypted document keys (wrapped with the wallet-derived key)
+- Collaboration invitations
+
+Cascade is the **source of truth** for file content; localStorage is a cache for keys and metadata.
+
+## Lessons Learned
+
+1. **Browser-first is the right call**: The SDK works flawlessly in the browser with Keplr. No Node.js workarounds needed.
+2. **Client-side encryption over access control**: Upload everything as `isPublic: true` and handle confidentiality with encryption. This simplifies the architecture.
+3. **Filename conventions for discovery**: Use predictable filename patterns (`draft_*`, `invitation_*`) so Lumescope queries can filter actions efficiently.
+4. **Wallet-derived keys eliminate password management**: Users only need their Keplr wallet — no separate passwords to remember or store.
+5. **Stream downloads for large files**: Always use the `ReadableStream` API to avoid loading entire files into memory.
+
+## Source Code
+
+Browse the full implementation: [github.com/kaleababayneh/Lumera-Research-Archive](https://github.com/kaleababayneh/Lumera-Research-Archive)
+
+## Next Steps
+
+<Cards>
+  <Card title="SDK Method Reference" href="/docs/reference/sdk-methods" />
+  <Card title="SN-API Reference" href="/docs/reference/sn-api" />
+</Cards>
