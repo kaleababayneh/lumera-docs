@@ -1,0 +1,1 @@
+https://pastelnetwork.notion.site/Community-and-Developer-Resources-271df11fee14808b8b29e3acb684317b
