@@ -1,11 +1,11 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
-import { LumeraLogo } from "@/lib/logo";
+import { LumeraIcon } from "@/lib/logo";
 
 export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
       <>
-        <LumeraLogo className="size-6" />
+        <LumeraIcon className="size-6" />
         <span className="font-semibold">Lumera Cascade</span>
       </>
     ),

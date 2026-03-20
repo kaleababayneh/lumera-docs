@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   },
   description:
     "Developer documentation for building decentralized applications with Lumera Cascade permanent storage protocol.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function Layout({ children }: { children: ReactNode }) {
