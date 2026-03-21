@@ -1,0 +1,71 @@
+---
+title: Quick Start
+description: Upload your first file to Cascade in under 5 minutes.
+icon: Zap
+---
+
+## Architecture at a Glance
+
+```
+┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
+│  Your App   │────▶│  Lumera SDK  │────▶│  Lumera Chain    │
+│  (Browser/  │     │  (JS/Go/Rust)│     │  (Cosmos SDK L1) │
+│   Node.js)  │     └──────┬───────┘     └────────┬─────────┘
+└─────────────┘            │                      │
+                           │ File upload          │ MsgRequestAction
+                           ▼                      ▼
+                    ┌──────────────┐     ┌──────────────────┐
+                    │  SN-API      │────▶│  Supernode Mesh  │
+                    │  (REST API)  │     │  (RaptorQ chunks)│
+                    └──────────────┘     └──────────────────┘
+```
+
+1. Your application calls the SDK to upload a file.
+2. The SDK registers an **action** on-chain via `MsgRequestAction`, which records metadata and fees.
+3. The file is sent to the **SN-API** (Supernode API), which distributes encoded chunks across the Supernode mesh.
+4. To download, the SDK authenticates via ADR-036 signature and streams the reconstructed file back.
+
+## Install Dependencies
+
+```package-install
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
+```
+
+## Upload a File
+
+```ts title="upload.ts"
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+
+const wallet = await DirectSecp256k1HdWallet.fromMnemonic(
+  "your mnemonic here",
+  { prefix: "lumera" }
+);
+const [account] = await wallet.getAccounts();
+
+const client = await createLumeraClient({
+  preset: "testnet",
+  signer: wallet,
+  address: account.address,
+  gasPrice: "0.025ulume",
+});
+
+// Upload a file
+const file = new Uint8Array(/* your file bytes */);
+const result = await client.Cascade.uploader.uploadFile(file, {
+  fileName: "my-document.pdf",
+  isPublic: true,
+  taskOptions: { pollInterval: 2000, timeout: 300000 },
+});
+
+console.log("Stored permanently with action ID:", result.action_id);
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="Installation" href="/docs/getting-started/installation" />
+  <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
+  <Card title="Build a Browser App" href="/docs/guides/browser-app" />
+  <Card title="SDK Reference" href="/docs/reference/sdk-methods" />
+</Cards>

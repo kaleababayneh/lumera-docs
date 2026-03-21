@@ -1,5 +1,5 @@
 {
   "title": "Getting Started",
   "icon": "Rocket",
-  "pages": ["installation", "javascript-sdk", "client-setup"]
+  "pages": ["quickstart", "installation", "javascript-sdk", "client-setup"]
 }
