@@ -1,0 +1,50 @@
+---
+title: Quick Start
+description: Upload your first file to Cascade in under five minutes.
+icon: Zap
+---
+
+## Install Dependencies
+
+```package-install
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
+```
+
+## Upload a File
+
+```ts title="upload.ts"
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+
+const wallet = await DirectSecp256k1HdWallet.fromMnemonic(
+  "your mnemonic here",
+  { prefix: "lumera" }
+);
+const [account] = await wallet.getAccounts();
+
+const client = await createLumeraClient({
+  preset: "testnet",
+  signer: wallet,
+  address: account.address,
+  gasPrice: "0.025ulume",
+});
+
+// Upload a file
+const file = new Uint8Array(/* your file bytes */);
+const result = await client.Cascade.uploader.uploadFile(file, {
+  fileName: "my-document.pdf",
+  isPublic: true,
+  taskOptions: { pollInterval: 2000, timeout: 300000 },
+});
+
+console.log("Stored permanently with action ID:", result.action_id);
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="Installation" href="/docs/getting-started/installation" />
+  <Card title="SDK Architecture" href="/docs/getting-started/javascript-sdk" />
+  <Card title="Build a Browser App" href="/docs/guides/browser-app" />
+  <Card title="SDK Reference" href="/docs/reference/sdk-methods" />
+</Cards>

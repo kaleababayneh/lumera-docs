@@ -1,59 +1,60 @@
 ---
 title: How Cascade Works
-description: Understand Cascade's architecture and upload flow at a glance.
+description: Understand Cascade's architecture and the five-step upload flow.
 icon: Workflow
 ---
 
 ## Architecture at a Glance
 
+Cascade separates concerns into a **control plane** (the Lumera blockchain) and a **data plane** (the Supernode network). The SDK orchestrates both so your app only needs a single function call.
+
 <Diagram name="how-cascade-works" />
 
-1. Your application calls the SDK to upload a file.
-2. The SDK registers an **action** on-chain via `MsgRequestAction`, which records metadata and fees.
-3. The file is sent to the **SN-API** (Supernode API), which distributes encoded chunks across the Supernode mesh.
-4. To download, the SDK authenticates via ADR-036 signature and streams the reconstructed file back.
+### Step ① — Register the action on-chain
 
-## Install Dependencies
+Your app calls the SDK, which does significant preparation before touching the chain:
 
-```package-install
-npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
-```
+1. Computes a **BLAKE3 hash** of the file (the `data_hash` that will be stored on-chain)
+2. Generates a **RaptorQ layout** via WASM — this is metadata describing how the file will be encoded, not the encoding itself
+3. **Signs** the layout, derives deterministic **layout IDs** (LEP-1: zstd compress → BLAKE3 hash → Base58 encode), and builds a signed **index file**
 
-## Upload a File
+Once preparation is complete, the SDK submits a **`MsgRequestAction`** transaction to the Lumera chain. This message includes the `data_hash`, `file_name`, layout signatures, and a one-time storage fee in `ulume`.
 
-```ts title="upload.ts"
-import { createLumeraClient } from "@lumera-protocol/sdk-js";
-import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+### Step ② — Receive the action ID
 
-const wallet = await DirectSecp256k1HdWallet.fromMnemonic(
-  "your mnemonic here",
-  { prefix: "lumera" }
-);
-const [account] = await wallet.getAccounts();
+The chain validates the transaction, escrows the fee, and emits an `action_registered` event containing the **`action_id`**. The SDK extracts this from the transaction response. This ID is the permanent on-chain reference for the stored file.
 
-const client = await createLumeraClient({
-  preset: "testnet",
-  signer: wallet,
-  address: account.address,
-  gasPrice: "0.025ulume",
-});
+### Step ③ — Upload the file to SN-API
 
-// Upload a file
-const file = new Uint8Array(/* your file bytes */);
-const result = await client.Cascade.uploader.uploadFile(file, {
-  fileName: "my-document.pdf",
-  isPublic: true,
-  taskOptions: { pollInterval: 2000, timeout: 300000 },
-});
+With the `action_id` in hand, the SDK sends a **multipart POST** to the SN-API at `/api/v1/actions/cascade` with three fields:
 
-console.log("Stored permanently with action ID:", result.action_id);
-```
+- `action_id` — the on-chain reference from step ②
+- `signature` — an ADR-036 auth signature of the `data_hash`
+- `file` — the raw file bytes
+
+The SN-API runs inside each Supernode and returns a `task_id` that the SDK polls for progress.
+
+### Step ④ — Supernodes encode and distribute
+
+The Supernode that received the file:
+
+1. **Verifies** the action exists on-chain, the fee is valid, the BLAKE3 hash matches, and all signatures are correct
+2. **Encodes** the file with RaptorQ erasure coding — producing redundant symbols that allow reconstruction from any sufficient subset
+3. **Distributes** the encoded chunks across the Supernode mesh via a Kademlia DHT, ensuring no single point of failure
+
+### Step ⑤ — Finalize on-chain
+
+After encoding and distribution are complete, the Supernode submits a **`MsgFinalizeAction`** transaction back to the chain. This transitions the action state from `PENDING` to `DONE`, permanently recording that the file is stored and retrievable. The escrowed fee is then distributed to the participating Supernodes.
+
+---
+
+At this point your file is **permanently stored**. To retrieve it, the SDK authenticates via an ADR-036 signature and streams the reconstructed file from any available Supernode.
 
 ## Next Steps
 
 <Cards>
+  <Card title="Quick Start" href="/docs/getting-started/quick-start" />
   <Card title="Installation" href="/docs/getting-started/installation" />
   <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
   <Card title="Build a Browser App" href="/docs/guides/browser-app" />
-  <Card title="SDK Reference" href="/docs/reference/sdk-methods" />
 </Cards>
