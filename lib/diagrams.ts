@@ -150,7 +150,7 @@ const howCascadeWorks: DiagramDef = {
   viewBox: "0 0 2260 880",
   title: "How Cascade Works",
   labelSize: 45,
-  arrowLabelSize: 40,
+  arrowLabelSize: 42,
   labelLineHeight: 50,
   pad: 20,
   borderRadius: 24,
