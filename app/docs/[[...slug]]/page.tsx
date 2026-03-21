@@ -36,7 +36,7 @@ export default async function Page(props: {
       lastUpdate={page.data.lastModified}
     >
       <DocsTitle>{page.data.title}</DocsTitle>
-      <DocsDescription>{page.data.description}</DocsDescription>
+      <DocsDescription className="mb-2">{page.data.description}</DocsDescription>
       <div className="flex flex-row flex-wrap items-center gap-2 border-b border-fd-foreground/10 pb-6">
         <CopyMarkdownButton markdownUrl={`/api/mdx?path=${encodeURIComponent(filePath)}`} />
         <OpenPopover githubUrl={githubUrl} pageUrl={pageUrl} />

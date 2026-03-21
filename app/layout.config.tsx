@@ -5,8 +5,8 @@ export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
       <>
-        <LumeraIcon className="size-5 mb-2 mr-0 ml-3" />
-        <span className="-ml-1 font-semibold">Lumera Cascade</span>
+        <LumeraIcon className="size-6 mb-2 mr-0 ml-3" />
+        <span className="ml-0 font-semibold text-xl">Cascade</span>
       </>
     ),
   },
