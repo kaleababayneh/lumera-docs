@@ -147,7 +147,7 @@ const architecture: DiagramDef = {
 };
 
 const howCascadeWorks: DiagramDef = {
-  viewBox: "0 0 2260 880",
+  viewBox: "0 0 2300 960",
   title: "How Cascade Works",
   labelSize: 45,
   arrowLabelSize: 42,
@@ -157,23 +157,23 @@ const howCascadeWorks: DiagramDef = {
   strokeWidth: 6,
   arrowWidth: 3,
   elements: [
-    // Row 1: App → SDK ⇄ Chain
+    // Row 1: App → SDK ⇄ Chain  (180px gap App→SDK, 560px gap SDK→Chain)
     {
       type: "box",
       id: "app",
       x: 40,
       y: 40,
-      w: 500,
+      w: 420,
       h: 220,
       label: "Your App\n(Browser / Node.js)",
     },
-    { type: "arrow", id: "a1", points: [[540, 150], [800, 150]] },
+    { type: "arrow", id: "a1", points: [[460, 150], [640, 150]] },
     {
       type: "box",
       id: "sdk",
-      x: 800,
+      x: 640,
       y: 40,
-      w: 500,
+      w: 420,
       h: 220,
       label: "Lumera SDK\n(JS / Go / Rust)",
     },
@@ -181,50 +181,50 @@ const howCascadeWorks: DiagramDef = {
     {
       type: "arrow",
       id: "a2",
-      points: [[1300, 115], [1560, 115]],
+      points: [[1060, 115], [1620, 115]],
       label: "① MsgRequestAction",
-      labelPos: [1430, 80],
+      labelPos: [1340, 75],
     },
     // ② Chain returns action_id to SDK
     {
       type: "arrow",
       id: "a2b",
-      points: [[1560, 185], [1300, 185]],
+      points: [[1620, 185], [1060, 185]],
       label: "② action_id",
-      labelPos: [1430, 225],
+      labelPos: [1340, 230],
     },
     {
       type: "box",
       id: "chain",
-      x: 1560,
+      x: 1620,
       y: 40,
-      w: 500,
+      w: 420,
       h: 220,
       label: "Lumera Chain\n(Cosmos SDK L1)",
     },
-    // ③ SDK uploads file to SN-API
+    // ③ SDK uploads file to SN-API  (360px vertical gap)
     {
       type: "arrow",
       id: "a3",
-      points: [[1050, 260], [1050, 530]],
+      points: [[850, 280], [850, 590]],
       label: "③ File upload",
-      labelPos: [1050, 400],
+      labelPos: [850, 440],
     },
     // ⑤ Supernodes finalize action back to chain
     {
       type: "arrow",
       id: "a4",
-      points: [[1810, 530], [1810, 260]],
+      points: [[1830, 570], [1830, 260]],
       label: "⑤ MsgFinalizeAction",
-      labelPos: [1810, 400],
+      labelPos: [1830, 440],
     },
-    // Row 2: SN-API → Supernode Mesh
+    // Row 2: SN-API → Supernode Mesh  (y=590)
     {
       type: "box",
       id: "snapi",
-      x: 800,
-      y: 550,
-      w: 500,
+      x: 640,
+      y: 590,
+      w: 420,
       h: 220,
       label: "SN-API\n(REST API)",
       variant: "accent",
@@ -232,16 +232,16 @@ const howCascadeWorks: DiagramDef = {
     {
       type: "arrow",
       id: "a5",
-      points: [[1300, 660], [1560, 660]],
+      points: [[1060, 730], [1620, 730]],
       label: "④ RaptorQ encode",
-      labelPos: [1430, 620],
+      labelPos: [1340, 690],
     },
     {
       type: "box",
       id: "mesh",
-      x: 1560,
-      y: 550,
-      w: 500,
+      x: 1620,
+      y: 590,
+      w: 420,
       h: 220,
       label: "Supernode Mesh\n(RaptorQ chunks)",
     },
