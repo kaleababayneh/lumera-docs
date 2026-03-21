@@ -8,27 +8,7 @@ icon: Code
 
 The `@lumera-protocol/sdk-js` SDK follows a layered architecture that separates blockchain operations from storage operations:
 
-```
-┌────────────────────────────────────────────────┐
-│               LumeraClient                      │
-│  ┌──────────────────┐  ┌─────────────────────┐ │
-│  │   Blockchain      │  │     Cascade         │ │
-│  │   ─────────       │  │     ───────         │ │
-│  │   SigningClient    │  │   CascadeUploader   │ │
-│  │   ActionQuery      │  │   CascadeDownloader │ │
-│  │   SupernodeQuery   │  │   SNApiClient       │ │
-│  │   MsgRequestAction │  │   TaskManager       │ │
-│  └──────────────────┘  └─────────────────────┘ │
-│                                                  │
-│  ┌──────────────────┐  ┌─────────────────────┐ │
-│  │   Wallets         │  │     WASM            │ │
-│  │   ───────         │  │     ────            │ │
-│  │   KeplrSigner     │  │   RaptorQ proxy     │ │
-│  │   LeapSigner      │  │   LEP-1 layout      │ │
-│  │   NodeSigner      │  │   ID derivation     │ │
-│  └──────────────────┘  └─────────────────────┘ │
-└────────────────────────────────────────────────┘
-```
+<Diagram name="sdk-architecture" />
 
 ### Blockchain Layer
 

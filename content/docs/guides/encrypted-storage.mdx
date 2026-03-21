@@ -12,23 +12,7 @@ This pattern is used in the [Lumera Research Archive](/docs/guides/research-arch
 
 ## Architecture
 
-```
-┌───────────────┐      ┌──────────────┐      ┌─────────────┐
-│  Plaintext    │─────▶│  Encrypt     │─────▶│  Cascade    │
-│  File         │      │  (XChaCha20) │      │  (Encrypted)│
-└───────────────┘      └──────┬───────┘      └─────────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │  Document Key     │
-                    │  (random 256-bit) │
-                    └─────────┬─────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │  Wallet-Derived   │
-                    │  Encryption Key   │
-                    │  (ADR-036 + BLAKE2b)│
-                    └───────────────────┘
-```
+<Diagram name="encrypted-storage" />
 
 ## Dependencies
 

@@ -15,24 +15,7 @@ This enables powerful cross-chain use cases:
 
 ## How It Works
 
-```
-┌───────────────────┐           IBC            ┌──────────────────┐
-│  Controller Chain  │◄─────────────────────────│   Lumera Chain   │
-│  (e.g., Injective) │                          │  (Host Chain)    │
-│                     │   MsgSendTx (ICS-27)    │                  │
-│  ┌───────────────┐  │──────────────────────────│  ┌────────────┐ │
-│  │ ICA Controller │  │                          │  │ ICA Host   │ │
-│  │               │  │                          │  │            │ │
-│  │ Packs         │  │  Channel / Connection    │  │ Executes   │ │
-│  │ MsgRequest    │  │                          │  │ MsgRequest │ │
-│  └───────────────┘  │                          │  └────────────┘ │
-└───────────────────┘                           └────────┬─────────┘
-                                                          │
-                                                ┌─────────▼────────┐
-                                                │   Supernode Mesh │
-                                                │   (File Upload)  │
-                                                └──────────────────┘
-```
+<Diagram name="interchain-accounts" />
 
 ### Step-by-Step Flow
 

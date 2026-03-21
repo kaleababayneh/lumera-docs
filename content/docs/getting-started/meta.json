@@ -1,5 +1,5 @@
 {
   "title": "Getting Started",
   "icon": "Rocket",
-  "pages": ["quickstart", "installation", "javascript-sdk", "client-setup"]
+  "pages": ["how-cascade-works", "installation", "javascript-sdk", "client-setup"]
 }

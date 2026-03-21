@@ -1,24 +1,12 @@
 ---
-title: Quick Start
-description: Upload your first file to Cascade in under 5 minutes.
-icon: Zap
+title: How Cascade Works
+description: Understand Cascade's architecture and upload flow at a glance.
+icon: Workflow
 ---
 
 ## Architecture at a Glance
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
-│  Your App   │────▶│  Lumera SDK  │────▶│  Lumera Chain    │
-│  (Browser/  │     │  (JS/Go/Rust)│     │  (Cosmos SDK L1) │
-│   Node.js)  │     └──────┬───────┘     └────────┬─────────┘
-└─────────────┘            │                      │
-                           │ File upload          │ MsgRequestAction
-                           ▼                      ▼
-                    ┌──────────────┐     ┌──────────────────┐
-                    │  SN-API      │────▶│  Supernode Mesh  │
-                    │  (REST API)  │     │  (RaptorQ chunks)│
-                    └──────────────┘     └──────────────────┘
-```
+<Diagram name="how-cascade-works" />
 
 1. Your application calls the SDK to upload a file.
 2. The SDK registers an **action** on-chain via `MsgRequestAction`, which records metadata and fees.

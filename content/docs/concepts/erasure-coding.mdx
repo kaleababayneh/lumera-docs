@@ -17,22 +17,7 @@ Cascade uses **RaptorQ** (RFC 6330), a fountain code that:
 
 ### Encoding (Upload)
 
-```
-Original File (K source symbols)
-         |
-         v
-  ┌──────────────────┐
-  │  RaptorQ Encoder │
-  │  (WASM module)   │
-  └────────┬─────────┘
-           |
-           v
-  N encoded symbols (N > K)
-           |
-    ┌──────┼──────┬──────┐
-    v      v      v      v
-  SN#1   SN#2   SN#3   SN#4 ...
-```
+<Diagram name="erasure-coding" />
 
 1. The SDK loads the file into the RaptorQ WASM module (`rq-library-wasm`)
 2. The encoder produces a **layout** describing source blocks and encoding parameters

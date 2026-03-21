@@ -7,6 +7,7 @@ import {
 } from "fumadocs-ui/page";
 import { notFound } from "next/navigation";
 import defaultMdxComponents from "fumadocs-ui/mdx";
+import { Diagram } from "@/components/diagram";
 import { type Metadata } from "next";
 import { CopyMarkdownButton, OpenPopover } from "@/lib/page-actions";
 
@@ -42,7 +43,7 @@ export default async function Page(props: {
         <OpenPopover githubUrl={githubUrl} pageUrl={pageUrl} />
       </div>
       <DocsBody>
-        <MDX components={{ ...defaultMdxComponents }} />
+        <MDX components={{ ...defaultMdxComponents, Diagram }} />
       </DocsBody>
     </DocsPage>
   );

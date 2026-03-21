@@ -27,28 +27,7 @@ The [Lumera Research Archive](https://github.com/kaleababayneh/Lumera-Research-A
 
 ## Architecture
 
-```
-┌───────────────────────────────────────────────────────┐
-│                    Browser SPA                         │
-│                                                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
-│  │  UI      │  │  Crypto  │  │  Cascade │            │
-│  │  (DOM)   │  │  (libsod)│  │  (SDK)   │            │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘            │
-│       │              │             │                   │
-│  ┌────▼──────────────▼─────────────▼─────────────┐    │
-│  │              Application Logic                 │    │
-│  │  ┌─────────┐  ┌──────────┐  ┌──────────────┐ │    │
-│  │  │ Wallet  │  │  Drafts  │  │  Papers      │ │    │
-│  │  │ (Keplr) │  │ (encrypt)│  │ (plaintext)  │ │    │
-│  │  └─────────┘  └──────────┘  └──────────────┘ │    │
-│  └───────────────────────────────────────────────┘    │
-└───────┬───────────────┬───────────────┬───────────────┘
-        │               │               │
-        ▼               ▼               ▼
-   Lumera Chain     SN-API          Lumescope
-   (on-chain tx)   (file I/O)     (action index)
-```
+<Diagram name="research-archive" />
 
 Key design decision: **no backend server**. The entire application runs in the browser, communicating directly with the Lumera blockchain via RPC and with the SN-API for file storage.
 
@@ -142,32 +121,7 @@ const papers = actions.filter(
 
 ## Collaboration Flow
 
-```
- Owner                          Collaborator
-   │                                 │
-   │  1. Create draft               │
-   │  2. Generate document key      │
-   │  3. Encrypt with doc key       │
-   │  4. Upload to Cascade          │
-   │                                 │
-   │  5. Create invitation          │
-   │  6. Re-encrypt doc key with    │
-   │     collaborator's wallet key  │
-   │  7. Upload invitation to       │
-   │     Cascade                    │
-   │                                 │
-   │  8. Share link with doc key    │
-   │     in URL hash fragment       │
-   │─────────────────────────────────│
-   │                                 │
-   │                   9. Open link  │
-   │                  10. Download   │
-   │                      invitation │
-   │                  11. Store doc  │
-   │                      key locally│
-   │                  12. Decrypt    │
-   │                      draft      │
-```
+<Diagram name="collaboration-flow" />
 
 The URL hash fragment (`#key=...`) is never sent to servers — it stays in the browser, making it safe for key transmission via any messaging channel.
 

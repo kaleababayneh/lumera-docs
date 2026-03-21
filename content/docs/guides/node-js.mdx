@@ -50,20 +50,7 @@ Despite the RaptorQ issue, several SDK operations work in Node.js:
 
 Build your application as a browser SPA or SSR app where Cascade operations run client-side:
 
-```
-┌──────────────┐     ┌──────────────┐     ┌─────────────┐
-│   Browser    │────▶│  Lumera SDK  │────▶│  Cascade    │
-│   (Vite/CRA) │     │  (works!)    │     │  (SN-API)   │
-└──────────────┘     └──────────────┘     └─────────────┘
-       │
-       │ API calls (metadata only)
-       ▼
-┌──────────────┐
-│  Your API    │
-│  (Node.js)   │
-│  (no Cascade)│
-└──────────────┘
-```
+<Diagram name="node-architecture" />
 
 Your Node.js backend handles business logic, databases, and authentication. The browser frontend handles all Cascade interactions directly.
 
