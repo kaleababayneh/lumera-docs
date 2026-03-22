@@ -62,6 +62,11 @@
   }
 }
 
+/* Let code blocks expand fully — scroll the page, not the block */
+.fd-codeblock [data-radix-scroll-area-viewport] {
+  max-height: none !important;
+}
+
 /* Dark Mode */
 .dark {
   --fd-background: 180 15% 5.5%;

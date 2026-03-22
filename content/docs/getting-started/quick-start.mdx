@@ -15,29 +15,62 @@ npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
 ```ts title="upload.ts"
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+import { Secp256k1HdWallet, makeSignDoc as makeAminoSignDoc } from "@cosmjs/amino";
 
-const wallet = await DirectSecp256k1HdWallet.fromMnemonic(
-  "your mnemonic here",
-  { prefix: "lumera" }
-);
-const [account] = await wallet.getAccounts();
+const MNEMONIC = "your twelve word mnemonic goes here";
 
-const client = await createLumeraClient({
-  preset: "testnet",
-  signer: wallet,
-  address: account.address,
-  gasPrice: "0.025ulume",
-});
+async function main() {
+  const directWallet = await DirectSecp256k1HdWallet.fromMnemonic(MNEMONIC, { prefix: "lumera" });
+  const aminoWallet = await Secp256k1HdWallet.fromMnemonic(MNEMONIC, { prefix: "lumera" });
+  const [account] = await directWallet.getAccounts();
 
-// Upload a file
-const file = new Uint8Array(/* your file bytes */);
-const result = await client.Cascade.uploader.uploadFile(file, {
-  fileName: "my-document.pdf",
-  isPublic: true,
-  taskOptions: { pollInterval: 2000, timeout: 300000 },
-});
+  // Combine direct + amino wallets and add signArbitrary (ADR-036) for Cascade
+  const signer = {
+    getAccounts: () => directWallet.getAccounts(),
+    signDirect: (addr: string, doc: any) => directWallet.signDirect(addr, doc),
+    signAmino: (addr: string, doc: any) => aminoWallet.signAmino(addr, doc),
+    async signArbitrary(chainId: string, signerAddress: string, data: string) {
+      const signDoc = makeAminoSignDoc(
+        [{
+          type: "sign/MsgSignData",
+          value: {
+            signer: signerAddress,
+            data: Buffer.from(data).toString("base64"),
+          },
+        }],
+        { gas: "0", amount: [] },
+        "",  // ADR-036 requires empty chain_id
+        "",
+        0,
+        0
+      );
+      const { signature } = await aminoWallet.signAmino(signerAddress, signDoc);
+      return { signed: data, signature: signature.signature, pub_key: signature.pub_key };
+    },
+  };
 
-console.log("Stored permanently with action ID:", result.action_id);
+  const client = await createLumeraClient({
+    preset: "testnet",
+    signer: signer as any,
+    address: account.address,
+    gasPrice: "0.025ulume",
+  });
+
+  // Upload a file
+  const file = new TextEncoder().encode("Hello, Lumera!");
+  const expirationTime = String(Math.floor(Date.now() / 1000) + 24 * 60 * 60); // 1 day from now
+
+  const result = await client.Cascade.uploader.uploadFile(file, {
+    fileName: "my.txt",
+    isPublic: true,
+    expirationTime,
+    taskOptions: { pollInterval: 2000, timeout: 300000 },
+  });
+
+  console.log("Upload complete:", result);
+}
+
+main();
 ```
 
 ## Next Steps

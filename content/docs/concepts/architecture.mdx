@@ -73,7 +73,7 @@ message MsgRequestAction {
 ### Upload Path
 
 1. **Client** computes BLAKE3 hash of the file
-2. **Client** generates RaptorQ layout via WASM and derives deterministic layout IDs (LEP-1 algorithm)
+2. **Client** generates RaptorQ layout and derives deterministic layout IDs (LEP-1 algorithm)
 3. **Client** signs the layout with ADR-036 (`signArbitrary`)
 4. **Client** broadcasts `MsgRequestAction` to the chain (simulates gas, signs, broadcasts)
 5. **Chain** validates the message, escrows the fee, emits `action_registered` event with `action_id`
