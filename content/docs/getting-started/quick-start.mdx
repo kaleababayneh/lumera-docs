@@ -58,7 +58,7 @@ async function main() {
 
   // Upload a file
   const file = new TextEncoder().encode("Hello, Lumera!");
-  const expirationTime = String(Math.floor(Date.now() / 1000) + 24 * 60 * 60); // 1 day from now
+  const expirationTime = String(Math.floor(Date.now() / 1000) + 5 * 60); //  5 minutes from now
 
   const result = await client.Cascade.uploader.uploadFile(file, {
     fileName: "my.txt",
