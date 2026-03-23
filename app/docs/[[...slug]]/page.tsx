@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Diagram } from "@/components/diagram";
 import { type Metadata } from "next";
+import { Edit } from "lucide-react";
 import { CopyMarkdownButton, OpenPopover } from "@/lib/page-actions";
 
 const owner = "kaleababayneh";
@@ -24,6 +25,7 @@ export default async function Page(props: {
   const MDX = page.data.body;
   const filePath = `content/docs/${page.file.path}`;
   const githubUrl = `https://github.com/${owner}/${repo}/blob/main/${filePath}`;
+  const editUrl = `https://github.com/${owner}/${repo}/edit/main/${filePath}`;
   const pageSlug = params.slug?.join("/") ?? "";
   const pageUrl = `/docs${pageSlug ? `/${pageSlug}` : ""}`;
 
@@ -45,6 +47,15 @@ export default async function Page(props: {
       <DocsBody>
         <MDX components={{ ...defaultMdxComponents, Diagram }} />
       </DocsBody>
+      <a
+        href={editUrl}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="inline-flex items-center gap-1.5 text-sm text-fd-muted-foreground hover:text-fd-foreground transition-colors mt-6"
+      >
+        <Edit className="size-3.5" />
+        Edit this page
+      </a>
     </DocsPage>
   );
 }
