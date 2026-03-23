@@ -32,31 +32,58 @@ Handles the full file storage lifecycle:
 
 Unified signer interface supporting:
 
-- **Keplr**: Browser extension wallet (supports `signDirect`, `signAmino`, `signArbitrary`)
-- **Leap**: Browser extension wallet (same interface as Keplr)
-- **NodeSigner**: Programmatic signing from a mnemonic via `DirectSecp256k1HdWallet`
+- **Keplr**: Browser extension wallet via `getKeplrSigner()` (supports `signDirect`, `signAmino`, `signArbitrary`)
+- **`DirectSecp256k1HdWallet`**: Programmatic signing from a mnemonic for Node.js and CLI tools
 
-## Module Exports
+## Client Shape
 
-The SDK exports everything from a single entry point:
+`createLumeraClient()` returns a `LumeraClient` with two top-level properties:
+
+```ts
+const client = await createLumeraClient({ preset: "testnet", signer, address, gasPrice: "0.025ulume" });
+
+// Blockchain queries and transactions
+client.Blockchain.Action     // getParams(), getAction(), getActionFee()
+client.Blockchain.Supernode  // getParams(), getSupernode(), listSupernodes()
+client.Blockchain.Tx         // signAndBroadcast(), simulate(), getTx()
+
+// Cascade file operations
+client.Cascade.uploader      // uploadFile(), prepareFile(), registerAction()
+client.Cascade.downloader    // download(), downloadFile(), downloadPrivate()
+```
+
+## Key Exports
 
 ```ts
 import {
-  // Client factory
+  // Client
   createLumeraClient,
-
-  // Types
   type LumeraClient,
-  type CascadeUploadResult,
-  type CascadeDownloadResult,
+  CHAIN_PRESETS,
+
+  // Cascade
+  CascadeUploader,
+  CascadeDownloader,
+  SNApiClient,
+  TaskManager,
+  type UploadParams,
+  type DownloadParams,
   type TaskStatus,
 
-  // Wallet helpers
-  getKeplrSigner,
-  getLeapSigner,
+  // Blockchain utilities
+  buildBatchMessages,
+  estimateGas,
+  calculateCascadeFee,
+  BlockchainActionAdapter,
 
-  // Codegen (Telescope-generated protobuf types)
-  // lumera.action.v1, lumera.supernode.v1, etc.
+  // LEP-1 (advanced — used internally by CascadeUploader)
+  createSingleBlockLayout,
+  generateIds,
+  buildIndexFile,
+
+  // Wallet
+  getKeplrSigner,
+  isKeplrAvailable,
 } from "@lumera-protocol/sdk-js";
 ```
 

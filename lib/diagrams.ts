@@ -553,7 +553,7 @@ const sdkArchitecture: DiagramDef = {
       label: "Wallet Layer",
       variant: "accent",
       items: [
-        "Keplr · Leap (browser extensions)",
+        "Keplr (browser extension)",
         "DirectSecp256k1HdWallet (Node.js)",
         "signDirect · signAmino · signArbitrary",
       ],
