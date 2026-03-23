@@ -8,8 +8,8 @@ icon: Download
 
 - **Node.js** >= 18.0.0
 - **npm**, **pnpm**, or **yarn**
-- A Lumera wallet (mnemonic for programmatic signing or [Keplr](https://www.keplr.app/) for browser apps)
-- Testnet tokens (`ulume`) from the [Lumera Discord faucet](https://discord.com/invite/qudewKS3kp)
+- A Lumera wallet (mnemonic for programmatic signing, [Keplr](https://www.keplr.app/) or [Leap](https://www.leapwallet.io/) for browser apps)
+- Testnet tokens (`ulume`) from the [Lumera faucet](https://faucet.astrostake.xyz/lumera)
 
 ## Install the SDK
 
@@ -21,6 +21,7 @@ npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
 
 `@cosmjs/proto-signing` and `@cosmjs/stargate` are **peer dependencies** required for wallet and transaction handling.
 
+{/*
 ## Platform-Specific Dependencies
 
 The SDK uses conditional exports to load platform-appropriate implementations for cryptographic operations. No additional configuration is needed in most cases, but here is what runs under the hood:
@@ -32,6 +33,8 @@ The SDK uses conditional exports to load platform-appropriate implementations fo
 | RaptorQ encoding | WASM (ESM import) | WASM (via `createRequire`) |
 | HTTP client | `window.fetch` | `undici` (keep-alive pool) |
 | SSE streaming | `EventSource` | Fetch-based stream parser |
+
+*/}
 
 ## Browser Bundler Configuration
 
@@ -92,10 +95,6 @@ const client = await createLumeraClient({ preset: "testnet" });
 console.log("SDK loaded successfully");
 ```
 
-<Callout type="warn">
-**Node.js environment limitations**: The SDK currently has known issues in Node.js environments related to WASM module loading for RaptorQ encoding. Browser environments work reliably. See the [Node.js guide](/docs/guides/node-js) for current status and workarounds.
-</Callout>
-
 ## Other SDKs
 
 Lumera also provides official SDKs for Go and Rust:
@@ -106,7 +105,6 @@ Lumera also provides official SDKs for Go and Rust:
 | **Rust** | `lumera-sdk-rs = "0.1"` | [LumeraProtocol/sdk-rs](https://github.com/LumeraProtocol/sdk-rs) |
 | **TypeScript** | `npm install @lumera-protocol/sdk-js` | [LumeraProtocol/sdk-js](https://github.com/LumeraProtocol/sdk-js) |
 
-This documentation focuses on the TypeScript SDK. For Go and Rust, refer to the respective repository READMEs.
 
 ## Next Steps
 

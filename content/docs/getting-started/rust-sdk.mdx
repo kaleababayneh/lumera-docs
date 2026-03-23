@@ -1,0 +1,116 @@
+---
+title: Rust SDK
+description: Overview of the official Lumera Rust SDK for server-side and CLI applications.
+icon: Code
+---
+
+## Installation
+
+```toml title="Cargo.toml"
+[dependencies]
+lumera-sdk-rs = "0.1"
+tokio = { version = "1", features = ["full"] }
+```
+
+## Architecture
+
+The Rust SDK is organized into three core modules:
+
+| Module | Purpose |
+|---|---|
+| **`chain`** | On-chain operations — action parameters, fee lookups, transaction registration |
+| **`snapi`** | SN-API interaction — upload, download, status polling |
+| **`cascade`** | High-level orchestration — deterministic payload generation, ticket registration |
+
+## Client Setup
+
+Configure via environment variables or explicit config:
+
+```rust
+use lumera_sdk_rs::chain::ChainConfig;
+use lumera_sdk_rs::{CascadeConfig, CascadeSdk};
+
+let chain_cfg = ChainConfig::new(
+    "lumera-testnet-2",
+    "https://grpc.testnet.lumera.io",
+    "https://rpc.testnet.lumera.io",
+    "https://lcd.testnet.lumera.io",
+    "0.025ulume",
+);
+let cfg = CascadeConfig::new(chain_cfg, "https://snapi.testnet.lumera.io");
+let sdk = CascadeSdk::new(cfg);
+```
+
+Or use environment variables:
+
+```rust
+use lumera_sdk_rs::{CascadeSdk, SdkSettings};
+
+let settings = SdkSettings::from_env();
+let sdk = CascadeSdk::new(settings.to_cascade_config());
+```
+
+### Environment Variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LUMERA_CHAIN_ID` | `lumera-devnet` | Chain identifier |
+| `LUMERA_GRPC` | `http://127.0.0.1:9090` | gRPC endpoint |
+| `LUMERA_RPC` | `http://127.0.0.1:26657` | RPC endpoint |
+| `LUMERA_REST` | `http://127.0.0.1:1317` | REST/LCD endpoint |
+| `LUMERA_GAS_PRICE` | — | Gas price (e.g. `0.025ulume`) |
+| `SNAPI_BASE` | `http://127.0.0.1:8080` | SN-API server base URL |
+| `LUMERA_MNEMONIC` | — | Wallet mnemonic |
+| `LUMERA_CREATOR` | — | Creator bech32 address |
+
+## Upload and Download
+
+```rust
+use lumera_sdk_rs::{CascadeSdk, RegisterTicketRequest};
+use std::path::PathBuf;
+
+// 1. Derive signing keys from mnemonic
+let (chain_sk, arb_sk) = derive_signing_keys(&mnemonic)?;
+
+// 2. Register on-chain action
+let registered = sdk.register_ticket(
+    &chain_sk,
+    &arb_sk,
+    &creator,
+    &PathBuf::from("./my-document.pdf"),
+    RegisterTicketRequest {
+        file_name: "my-document.pdf".to_string(),
+        is_public: true,
+        expiration_time: expiration.to_string(),
+    },
+).await?;
+
+// 3. Upload file to SN-API
+let task = sdk.upload_via_snapi(
+    &registered.action_id,
+    &registered.auth_signature,
+    &PathBuf::from("./my-document.pdf"),
+).await?;
+
+// 4. Poll upload status
+let status = sdk.snapi.upload_status(&task).await?;
+
+// 5. Download
+let down_task = sdk.request_download(&registered.action_id, &arb_sk).await?;
+let bytes = sdk.snapi.download_file(&down_task).await?;
+```
+
+## Key Dependencies
+
+- `cosmrs` — Cosmos SDK signing and gRPC
+- `reqwest` — HTTP client with rustls
+- `tokio` — Async runtime
+- `blake3` — File integrity verification
+- `prost` — Protobuf encoding
+
+## Next Steps
+
+<Cards>
+  <Card title="How Cascade Works" href="/docs/getting-started/how-cascade-works" />
+  <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
+</Cards>

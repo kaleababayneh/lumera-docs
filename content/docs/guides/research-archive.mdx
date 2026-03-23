@@ -146,7 +146,7 @@ Cascade is the **source of truth** for file content; localStorage is a cache for
 
 ## Lessons Learned
 
-1. **Browser-first is the right call**: The SDK works flawlessly in the browser with Keplr. No Node.js workarounds needed.
+1. **Browser + Keplr is a great combo**: The SDK works flawlessly in the browser with Keplr for a seamless user experience.
 2. **Client-side encryption over access control**: Upload everything as `isPublic: true` and handle confidentiality with encryption. This simplifies the architecture.
 3. **Filename conventions for discovery**: Use predictable filename patterns (`draft_*`, `invitation_*`) so Lumescope queries can filter actions efficiently.
 4. **Wallet-derived keys eliminate password management**: Users only need their Keplr wallet — no separate passwords to remember or store.

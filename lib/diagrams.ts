@@ -149,7 +149,7 @@ const architecture: DiagramDef = {
 const howCascadeWorks: DiagramDef = {
   viewBox: "0 0 2300 960",
   title: "How Cascade Works",
-  labelSize: 45,
+  labelSize: 42,
   arrowLabelSize: 42,
   labelLineHeight: 50,
   pad: 20,

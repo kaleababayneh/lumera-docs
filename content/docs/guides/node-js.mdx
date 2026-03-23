@@ -1,130 +1,103 @@
 ---
 title: Node.js Environment
-description: Current status, known limitations, and workarounds for using the Lumera SDK in Node.js.
+description: Using the Lumera JS SDK in Node.js for server-side applications, CLI tools, and backend services.
 icon: Terminal
 ---
 
-<Callout type="error">
-**Known Issue**: The Lumera JS SDK currently has compatibility issues in Node.js environments. The **browser environment is the recommended target** for production applications. This page documents the current state and available workarounds.
-</Callout>
+## Overview
 
-## The Problem
+The `@lumera-protocol/sdk-js` SDK works in both **browser** and **Node.js** environments. This guide covers the Node.js setup for server-side applications, CLI tools, and backend services where programmatic signing with `DirectSecp256k1HdWallet` replaces browser wallet extensions.
 
-The SDK relies on several WASM modules that behave differently in Node.js vs browser environments:
+## Setup
 
-| Module | Browser | Node.js |
-|--------|---------|---------|
-| `rq-library-wasm` (RaptorQ) | Works via ESM WASM import | Fails — `createRequire` + WASM file path resolution issues |
-| `@bokuweb/zstd-wasm` (Zstd) | Works via WASM loader | Works via `@mongodb-js/zstd` native binding |
-| `blake3` | Works via `blake3/browser-async` | Works via native binding |
-
-The primary failure point is the **RaptorQ WASM proxy** (`raptorq-proxy.node.ts`), which uses `createRequire` to load the WASM binary from disk. In some environments (bundlers, ESM-only projects, certain Node.js configurations), this fails to locate or instantiate the WASM file.
-
-Additionally, the RaptorQ WASM module expects a `window` global, which the SDK polyfills:
-
-```ts
-if (typeof (globalThis as any).window === "undefined") {
-  (globalThis as any).window = globalThis;
-}
+```package-install
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate @cosmjs/amino
 ```
 
-This polyfill can cause side effects with other libraries that check for `window` to detect browser environments.
+## Programmatic Signing
 
-## What Works in Node.js
+In Node.js there is no Keplr or Leap wallet. Instead, use `DirectSecp256k1HdWallet` for transaction signing and build a custom signer that supports `signArbitrary` (ADR-036) for Cascade's off-chain signatures:
 
-Despite the RaptorQ issue, several SDK operations work in Node.js:
-
-- **Client creation**: `createLumeraClient()` connects to RPC and LCD endpoints
-- **Blockchain queries**: `client.Blockchain.getAction()`, `getActionParams()`, etc.
-- **Downloads**: `client.Cascade.downloader.download()` — downloading does not require RaptorQ encoding
-- **Signing**: `DirectSecp256k1HdWallet` works for all signing operations
-
-## What Does Not Work
-
-- **Uploads**: The full upload pipeline requires RaptorQ layout generation, which depends on the WASM module
-- Specifically, `client.Cascade.uploader.uploadFile()` and `client.Cascade.uploader.registerAction()` fail at the layout generation step
-
-## Workarounds
-
-### 1. Browser-First Architecture (Recommended)
-
-Build your application as a browser SPA or SSR app where Cascade operations run client-side:
-
-<Diagram name="node-architecture" />
-
-Your Node.js backend handles business logic, databases, and authentication. The browser frontend handles all Cascade interactions directly.
-
-### 2. Source Code Patching
-
-If you need Node.js uploads (e.g., for a CLI tool or backend service), you can fork `@lumera-protocol/sdk-js` and patch the WASM loading:
-
-```bash
-git clone https://github.com/LumeraProtocol/sdk-js.git
-cd sdk-js
-```
-
-The key file to modify is `src/wasm/raptorq-proxy.node.ts`. The issue is typically in how the WASM binary path is resolved. Potential fixes:
-
-1. **Inline the WASM as base64**: Convert the `.wasm` file to a base64 string and load it via `WebAssembly.instantiate`
-2. **Use an absolute path**: Replace the `createRequire` approach with a known absolute path to the WASM file
-3. **Use the browser WASM loader in Node.js**: Force the browser import path which uses standard ESM WASM imports
-
-After patching, build the SDK locally:
-
-```bash
-npm run build
-npm link
-# In your project:
-npm link @lumera-protocol/sdk-js
-```
-
-### 3. Use the Go or Rust SDK
-
-For server-side applications, the Go and Rust SDKs have full Node/server compatibility without WASM issues:
-
-**Go SDK:**
-```go
-import "github.com/LumeraProtocol/sdk-go/client"
-
-cfg := &client.Config{
-    ChainID:     "lumera-testnet-2",
-    GRPCAddress: "grpc.testnet.lumera.io:443",
-    RPCAddress:  "https://rpc.testnet.lumera.io",
-    SnApiURL:    "https://snapi.testnet.lumera.io",
-}
-
-c, err := client.New(cfg)
-// Full upload and download support
-```
-
-**Rust SDK:**
-```toml
-[dependencies]
-lumera-sdk-rs = "0.1"
-```
-
-### 4. Download-Only Node.js Service
-
-If your Node.js service only needs to **read** files from Cascade (not upload), the SDK works without issues:
-
-```ts title="download-service.ts"
-import { createLumeraClient } from "@lumera-protocol/sdk-js";
+```ts title="signer.ts"
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+import { Secp256k1HdWallet, makeSignDoc as makeAminoSignDoc } from "@cosmjs/amino";
 
-const wallet = await DirectSecp256k1HdWallet.fromMnemonic(
-  process.env.LUMERA_MNEMONIC!,
-  { prefix: "lumera" }
-);
-const [account] = await wallet.getAccounts();
+export async function createNodeSigner(mnemonic: string) {
+  const directWallet = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic, { prefix: "lumera" });
+  const aminoWallet = await Secp256k1HdWallet.fromMnemonic(mnemonic, { prefix: "lumera" });
+  const [account] = await directWallet.getAccounts();
+
+  const signer = {
+    getAccounts: () => directWallet.getAccounts(),
+    signDirect: (addr: string, doc: any) => directWallet.signDirect(addr, doc),
+    signAmino: (addr: string, doc: any) => aminoWallet.signAmino(addr, doc),
+    async signArbitrary(chainId: string, signerAddress: string, data: string) {
+      const signDoc = makeAminoSignDoc(
+        [{
+          type: "sign/MsgSignData",
+          value: {
+            signer: signerAddress,
+            data: Buffer.from(data).toString("base64"),
+          },
+        }],
+        { gas: "0", amount: [] },
+        "",
+        "",
+        0,
+        0
+      );
+      const { signature } = await aminoWallet.signAmino(signerAddress, signDoc);
+      return { signed: data, signature: signature.signature, pub_key: signature.pub_key };
+    },
+  };
+
+  return { signer, account };
+}
+```
+
+## Upload a File
+
+```ts title="upload.ts"
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+import { createNodeSigner } from "./signer";
+
+const { signer, account } = await createNodeSigner(process.env.LUMERA_MNEMONIC!);
 
 const client = await createLumeraClient({
   preset: "testnet",
-  signer: wallet,
+  signer: signer as any,
   address: account.address,
   gasPrice: "0.025ulume",
 });
 
-// This works in Node.js!
+const file = await fs.promises.readFile("./my-document.pdf");
+const expirationTime = String(Math.floor(Date.now() / 1000) + 24 * 60 * 60);
+
+const result = await client.Cascade.uploader.uploadFile(new Uint8Array(file), {
+  fileName: "my-document.pdf",
+  isPublic: true,
+  expirationTime,
+  taskOptions: { pollInterval: 2000, timeout: 300000 },
+});
+
+console.log("Stored with action ID:", result.action_id);
+```
+
+## Download a File
+
+```ts title="download.ts"
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+import { createNodeSigner } from "./signer";
+
+const { signer, account } = await createNodeSigner(process.env.LUMERA_MNEMONIC!);
+
+const client = await createLumeraClient({
+  preset: "testnet",
+  signer: signer as any,
+  address: account.address,
+  gasPrice: "0.025ulume",
+});
+
 const stream = await client.Cascade.downloader.download("your-action-id");
 const reader = stream.getReader();
 const chunks: Uint8Array[] = [];
@@ -134,17 +107,25 @@ while (true) {
   if (done) break;
   if (value) chunks.push(value);
 }
+
+const fileBytes = new Uint8Array(chunks.reduce((acc, c) => acc + c.length, 0));
+let offset = 0;
+for (const chunk of chunks) {
+  fileBytes.set(chunk, offset);
+  offset += chunk.length;
+}
+
+await fs.promises.writeFile("./downloaded-file.pdf", fileBytes);
 ```
 
-## Current Status
+## Server-Side Alternatives
 
-The Lumera team is actively working on improving Node.js compatibility. Track progress at [LumeraProtocol/sdk-js](https://github.com/LumeraProtocol/sdk-js/issues).
-
-If you encounter issues or find workarounds, please contribute to the SDK repository or report them on the [Lumera Discord](https://discord.com/invite/qudewKS3kp).
+For server-side applications, you can also use the native [Go SDK](/docs/getting-started/go-sdk) or [Rust SDK](/docs/getting-started/rust-sdk) which avoid the WASM layer entirely.
 
 ## Next Steps
 
 <Cards>
+  <Card title="Quick Start" href="/docs/getting-started/quick-start" />
   <Card title="Build a Browser App" href="/docs/guides/browser-app" />
-  <Card title="Research Archive Example" href="/docs/guides/research-archive" />
+  <Card title="SDK Reference" href="/docs/reference/sdk-methods" />
 </Cards>

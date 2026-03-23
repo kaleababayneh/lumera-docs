@@ -1,0 +1,100 @@
+---
+title: Go SDK
+description: Overview of the official Lumera Go SDK for server-side and CLI applications.
+icon: Code
+---
+
+## Installation
+
+```bash
+go get github.com/LumeraProtocol/sdk-go
+```
+
+## Architecture
+
+The Go SDK follows a three-layer architecture:
+
+| Layer | Access via | Purpose |
+|---|---|---|
+| **Lumera API (gRPC)** | `client.Blockchain` | Blockchain queries — actions, supernodes, fees |
+| **Cascade SDK** | `client.Cascade` | File upload, download, and event subscriptions |
+| **SnApi (gRPC)** | Integrated through Cascade | Direct Supernode communication |
+
+## Client Setup
+
+```go
+package main
+
+import (
+	"context"
+
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	lumerasdk "github.com/LumeraProtocol/sdk-go/client"
+	"go.uber.org/zap"
+)
+
+func main() {
+	ctx := context.Background()
+	kr, _ := keyring.New("lumera", "test", "/tmp", nil)
+
+	client, err := lumerasdk.New(ctx, lumerasdk.Config{
+		ChainID:      "lumera-testnet-2",
+		GRPCEndpoint: "grpc.testnet.lumera.io:443",
+		RPCEndpoint:  "https://rpc.testnet.lumera.io",
+		Address:      "lumera1...",
+		KeyName:      "my-key",
+	}, kr, lumerasdk.WithLogger(zap.NewExample()))
+	if err != nil {
+		panic(err)
+	}
+	defer client.Close()
+}
+```
+
+## Upload a File
+
+```go
+res, err := client.Cascade.Upload(ctx, addr, nil, "./my-document.pdf")
+if err != nil {
+    panic(err)
+}
+fmt.Println("Stored with action ID:", res.ActionID)
+```
+
+## Download a File
+
+```go
+_, err := client.Cascade.Download(ctx, actionID, "./downloads/")
+```
+
+## Multi-Account Support
+
+The Go SDK supports a factory pattern for managing multiple signers:
+
+```go
+factory, _ := lumerasdk.NewFactory(lumerasdk.Config{...}, kr)
+alice, _ := factory.WithSigner(ctx, aliceAddr, "alice")
+bob, _ := factory.WithSigner(ctx, bobAddr, "bob")
+```
+
+Both `secp256k1` (Cosmos, coin type 118) and `eth_secp256k1` (EVM, coin type 60) key types are supported.
+
+## Interchain Accounts (ICA)
+
+The Go SDK includes helpers for cross-chain Cascade operations via ICS-27:
+
+```go
+res, err := cascadeClient.Upload(ctx, addr, nil, filePath,
+    cascade.WithICACreatorAddress(icaAddr),
+    cascade.WithAppPubkey(pubkey),
+    cascade.WithICASendFunc(sendFunc),
+)
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="How Cascade Works" href="/docs/getting-started/how-cascade-works" />
+  <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
+  <Card title="Interchain Accounts" href="/docs/concepts/interchain-accounts" />
+</Cards>
