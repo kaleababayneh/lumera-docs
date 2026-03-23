@@ -19,6 +19,7 @@ import {
   Rocket,
   Zap,
   Workflow,
+  PlugZap,
   type LucideIcon,
 } from "lucide-react";
 import { type ReactElement, createElement } from "react";
@@ -44,6 +45,7 @@ const icons: Record<string, LucideIcon> = {
   Rocket,
   Zap,
   Workflow,
+  PlugZap,
 };
 
 export function createIcon(icon: string | undefined): ReactElement | undefined {
