@@ -6,7 +6,15 @@ import {
   DocsTitle,
 } from "fumadocs-ui/page";
 import defaultMdxComponents from "fumadocs-ui/mdx";
+import { Diagram } from "@/components/diagram";
+import { Edit } from "lucide-react";
 import { CopyMarkdownButton, OpenPopover } from "@/lib/page-actions";
+
+const owner = "kaleababayneh";
+const repo = "lumera-docs";
+const filePath = "content/docs/index.mdx";
+const editUrl = `https://github.com/${owner}/${repo}/edit/main/${filePath}`;
+const githubUrl = `https://github.com/${owner}/${repo}/blob/main/${filePath}`;
 
 export default async function HomePage() {
   const page = source.getPage([]);
@@ -20,21 +28,31 @@ export default async function HomePage() {
       tableOfContent={{
         style: "clerk",
       }}
+      lastUpdate={page.data.lastModified}
     >
       <DocsTitle>{page.data.title}</DocsTitle>
-      <DocsDescription>{page.data.description}</DocsDescription>
+      <DocsDescription className="mb-2">{page.data.description}</DocsDescription>
       <div className="flex flex-row flex-wrap items-center gap-2 border-b border-fd-foreground/10 pb-6">
         <CopyMarkdownButton
-          markdownUrl={`/api/mdx?path=${encodeURIComponent("content/docs/index.mdx")}`}
+          markdownUrl={`/api/mdx?path=${encodeURIComponent(filePath)}`}
         />
         <OpenPopover
-          githubUrl="https://github.com/kaleababayneh/lumera-docs/blob/main/content/docs/index.mdx"
+          githubUrl={githubUrl}
           pageUrl="/docs"
         />
       </div>
       <DocsBody>
-        <MDX components={{ ...defaultMdxComponents }} />
+        <MDX components={{ ...defaultMdxComponents, Diagram }} />
       </DocsBody>
+      <a
+        href={editUrl}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="inline-flex items-center gap-1.5 text-sm text-fd-muted-foreground hover:text-fd-foreground transition-colors mt-6"
+      >
+        <Edit className="size-3.5" />
+        Edit this page
+      </a>
     </DocsPage>
   );
 }
