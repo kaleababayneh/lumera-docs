@@ -26,13 +26,7 @@ Handles the full file storage lifecycle:
 - **CascadeDownloader**: Authenticates, requests downloads, streams files back
 - **SNApiClient**: Typed REST client for the Supernode API (SN-API)
 - **TaskManager**: Polls task status or monitors via Server-Sent Events (SSE)
-
-### WASM Layer
-
-Runs platform-specific WebAssembly modules:
-
-- **RaptorQ proxy**: Erasure coding operations via `rq-library-wasm`
-- **LEP-1 helpers**: Deterministic layout ID generation that must match the on-chain Go implementation
+- **LEP-1 encoding**: Generates RaptorQ layout metadata and derives deterministic layout IDs using platform-adaptive implementations (native bindings in Node.js, WASM in browsers) for blake3, zstd, and RaptorQ
 
 ### Wallet Layer
 
