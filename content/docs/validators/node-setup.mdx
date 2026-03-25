@@ -1,0 +1,259 @@
+---
+title: Node Setup
+description: Install dependencies, build lumerad, and sync your node using a snapshot.
+icon: Server
+---
+
+## Step 1 — Install System Dependencies
+
+SSH into your server and install the required packages:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y build-essential jq curl git wget lz4 make gcc
+```
+
+<Callout type="warn">
+If `apt upgrade` hangs or the SSH connection drops, reconnect and run:
+
+```bash
+sudo killall unattended-upgrade unattended-upgrades 2>/dev/null
+sudo dpkg --configure -a
+```
+
+Then re-run the install command above.
+</Callout>
+
+## Step 2 — Add Swap
+
+Building from source can exceed 8 GB RAM. If your server has 8 GB or less, add swap:
+
+```bash
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Make permanent
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+Verify with `free -h` — you should see ~4 GB swap.
+
+## Step 3 — Install Go
+
+```bash
+wget -q https://golang.org/dl/go1.23.4.linux-amd64.tar.gz -O /tmp/go.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf /tmp/go.tar.gz
+rm /tmp/go.tar.gz
+```
+
+Add Go to your shell profile:
+
+```bash
+cat >> ~/.profile <<'EOF'
+export GOROOT=/usr/local/go
+export GOPATH=$HOME/go
+export GO111MODULE=on
+export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+EOF
+
+source ~/.profile
+go version
+# go version go1.23.4 linux/amd64
+```
+
+## Step 4 — Build lumerad
+
+The binary must be built from source with a one-line patch. This patch prevents a panic caused by a governance upgrade plan (`v1.0.0`) that exists in the chain state but has no matching binary release.
+
+### Clone and checkout
+
+```bash
+git clone https://github.com/LumeraProtocol/lumera.git ~/lumera-src
+cd ~/lumera-src
+git checkout v1.11.1
+```
+
+### Apply the patch
+
+```bash
+sed -i '/upgrade plan.*is scheduled at height.*but not registered/c\\t\tapp.Logger().Warn("upgrade plan not registered in this binary, skipping", "name", upgradeInfo.Name, "height", upgradeInfo.Height)\n\t\treturn' app/app.go
+```
+
+### Build
+
+```bash
+go build -o ~/go/bin/lumerad ./cmd/lumera
+```
+
+This takes 5–10 minutes. If it gets killed (OOM), make sure swap is active from Step 2.
+
+After building, restore the patched file and verify:
+
+```bash
+cd ~/lumera-src && git checkout -- app/app.go
+lumerad version
+```
+
+<Callout type="info">
+`lumerad version` may print blank — this is a known issue (no version ldflags in source builds). The binary works regardless.
+</Callout>
+
+<Callout type="warn">
+**Why build from source?** There are no pre-built binaries for testnet releases. `make install` has no `install` target, and `ignite chain build` requires 16+ GB RAM for protobuf generation.
+</Callout>
+
+## Step 5 — Initialize the Node
+
+```bash
+lumerad init "YOUR_MONIKER" --chain-id lumera-testnet-2
+```
+
+Replace `YOUR_MONIKER` with your validator's display name (e.g., `my-validator`).
+
+### Download the genesis file
+
+```bash
+wget -O ~/.lumera/config/genesis.json \
+  https://raw.githubusercontent.com/LumeraProtocol/lumera-networks/master/testnet-2/genesis.json
+```
+
+### Back up your keys
+
+```bash
+mkdir -p ~/lumera-key-backup
+cp ~/.lumera/config/node_key.json ~/lumera-key-backup/
+cp ~/.lumera/config/priv_validator_key.json ~/lumera-key-backup/
+```
+
+<Callout type="error">
+**These files ARE your validator identity.** If you lose them, you lose your validator. Copy them off the server to a secure location immediately.
+</Callout>
+
+## Step 6 — Configure the Node
+
+### Seeds and minimum gas price
+
+```bash
+sed -i 's/^seeds *=.*/seeds = "faff7c1350468c53121a669ac40e317a4a70c425@seeds.testnet.lumera.io:26656"/' \
+  ~/.lumera/config/config.toml
+
+sed -i 's/^minimum-gas-prices *=.*/minimum-gas-prices = "0.025ulume"/' \
+  ~/.lumera/config/app.toml
+```
+
+### Enable pruning
+
+Saves disk space by removing old state:
+
+```bash
+sed -i \
+  -e 's|^pruning *=.*|pruning = "custom"|' \
+  -e 's|^pruning-keep-recent *=.*|pruning-keep-recent = "100"|' \
+  -e 's|^pruning-interval *=.*|pruning-interval = "10"|' \
+  ~/.lumera/config/app.toml
+
+sed -i 's|^indexer *=.*|indexer = "null"|' ~/.lumera/config/config.toml
+```
+
+### Enable Prometheus metrics (optional)
+
+```bash
+sed -i 's/^prometheus *= *false/prometheus = true/' ~/.lumera/config/config.toml
+```
+
+## Step 7 — Download the Snapshot
+
+Syncing from a snapshot gets you to a recent block height in minutes instead of days.
+
+### Reset the data directory
+
+```bash
+lumerad tendermint unsafe-reset-all --home ~/.lumera --keep-addr-book
+```
+
+### Download and extract
+
+Visit [Polkachu's Lumera snapshots page](https://www.polkachu.com/testnets/lumera/snapshots) to find the latest snapshot URL, then run:
+
+```bash
+curl -o - -L https://snapshots.polkachu.com/testnet-snapshots/lumera/lumera_XXXXXXX.tar.lz4 \
+  | lz4 -c -d - | tar -x -C $HOME/.lumera
+```
+
+Replace `lumera_XXXXXXX.tar.lz4` with the current filename from the Polkachu page. This downloads and extracts in one step — takes 5–30 minutes depending on network speed.
+
+## Step 8 — Create the Systemd Service
+
+```bash
+sudo tee /etc/systemd/system/lumera.service > /dev/null <<EOF
+[Unit]
+Description=Lumera Validator Node
+After=network-online.target
+
+[Service]
+User=$USER
+ExecStart=$(which lumerad) start --home $HOME/.lumera
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable lumera
+```
+
+## Step 9 — Start and Verify
+
+```bash
+sudo systemctl start lumera
+```
+
+### Watch the logs
+
+```bash
+sudo journalctl -fu lumera
+```
+
+You should see blocks being committed:
+
+```
+INF committed state height=4034400
+INF committed state height=4034401
+```
+
+### Check sync status
+
+```bash
+lumerad status 2>&1 | jq '.sync_info | {latest_block_height, catching_up}'
+```
+
+Wait until `catching_up` is `false`. With the snapshot, this should take only a few minutes.
+
+## Step 10 — Set Up Firewall
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
+sudo ufw allow 26656/tcp comment "Lumera P2P"
+sudo ufw --force enable
+```
+
+<Callout type="warn">
+Do **not** expose port 26657 (RPC) unless you specifically need external RPC access.
+</Callout>
+
+## Next Steps
+
+Once your node is fully synced (`catching_up: false`), proceed to create your validator.
+
+<Cards>
+  <Card title="Create Validator" href="/docs/validators/create-validator" />
+  <Card title="Operations" href="/docs/validators/operations" />
+</Cards>

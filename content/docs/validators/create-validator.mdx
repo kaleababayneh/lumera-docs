@@ -1,0 +1,161 @@
+---
+title: Create Validator
+description: Create a wallet, fund it, and register your validator on the Lumera network.
+icon: Zap
+---
+
+## Prerequisites
+
+Before creating a validator, make sure:
+
+- Your node is running and fully synced (`catching_up: false`)
+- You have completed [Node Setup](/docs/validators/node-setup)
+
+Verify sync status:
+
+```bash
+lumerad status 2>&1 | jq '.sync_info.catching_up'
+# Must be: false
+```
+
+## Step 1 — Create a Wallet
+
+```bash
+lumerad keys add validator
+```
+
+You will be prompted for a keyring passphrase (minimum 8 characters). The output includes your address and a 24-word mnemonic:
+
+```
+- address: lumera1abc...
+  name: validator
+
+**Important** write this mnemonic phrase in a safe place.
+word1 word2 word3 ... word24
+```
+
+<Callout type="error">
+**Write down the 24-word mnemonic NOW.** It is shown exactly once. If you lose it, you lose access to your wallet permanently.
+</Callout>
+
+### View your addresses
+
+```bash
+# Wallet address (for receiving tokens)
+lumerad keys show validator -a
+# Output: lumera1...
+
+# Validator operator address (for staking commands)
+lumerad keys show validator --bech val -a
+# Output: lumeravaloper1...
+```
+
+## Step 2 — Fund Your Wallet
+
+You need testnet LUME tokens. Options:
+
+1. **Faucet** — Request tokens from the [Lumera faucet](https://faucet.astrostake.xyz/lumera)
+2. **Discord** — Ask in the [Lumera Discord](https://discord.gg/lumeraprotocol) if the faucet is unavailable
+
+Check your balance:
+
+```bash
+lumerad query bank balances $(lumerad keys show validator -a)
+```
+
+You need at least **1 LUME** (1,000,000 ulume) to create a validator, plus extra for gas fees.
+
+## Step 3 — Create the Validator
+
+### Get your validator public key
+
+```bash
+lumerad tendermint show-validator
+```
+
+### Create the validator config file
+
+```bash
+cat > ~/validator.json <<EOF
+{
+  "pubkey": $(lumerad tendermint show-validator),
+  "amount": "1000000ulume",
+  "moniker": "YOUR_MONIKER",
+  "commission-rate": "0.10",
+  "commission-max-rate": "0.20",
+  "commission-max-change-rate": "0.01",
+  "min-self-delegation": "1"
+}
+EOF
+```
+
+Replace `YOUR_MONIKER` with your validator name.
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `amount` | Initial self-delegation | `1000000ulume` (1 LUME) |
+| `commission-rate` | Starting commission rate | `0.10` (10%) |
+| `commission-max-rate` | Maximum commission (immutable once set) | `0.20` (20%) |
+| `commission-max-change-rate` | Max daily commission change | `0.01` (1%) |
+| `min-self-delegation` | Minimum tokens the validator must self-delegate | `1` |
+
+<Callout type="info">
+Lumera uses Cosmos SDK v0.50 which requires a JSON file for `create-validator`. Older guides that show `--amount` and `--pubkey` CLI flags will not work.
+</Callout>
+
+### Submit the transaction
+
+```bash
+lumerad tx staking create-validator ~/validator.json \
+  --from=validator \
+  --chain-id=lumera-testnet-2 \
+  --gas=auto \
+  --gas-adjustment=1.3 \
+  --fees=10000ulume \
+  -y
+```
+
+A successful response shows `code: 0`.
+
+<Callout type="warn">
+The default 5,000 ulume fee is often insufficient. Use `--fees=10000ulume` or higher.
+</Callout>
+
+### Verify your validator
+
+```bash
+lumerad query staking validator $(lumerad keys show validator --bech val -a)
+```
+
+You should see your moniker, commission rates, and `status: BOND_STATUS_UNBONDED`. Your validator will remain unbonded until it has enough delegation to enter the active set.
+
+## Verification Checklist
+
+Run these checks to confirm everything is working:
+
+```bash
+# Node running?
+sudo systemctl status lumera
+
+# Synced?
+lumerad status 2>&1 | jq '.sync_info | {latest_block_height, catching_up}'
+
+# Validator exists?
+lumerad query staking validator $(lumerad keys show validator --bech val -a) | grep moniker
+
+# Signing blocks?
+lumerad query slashing signing-info $(lumerad tendermint show-validator)
+
+# Balance?
+lumerad query bank balances $(lumerad keys show validator -a)
+
+# Peers connected?
+lumerad status 2>&1 | jq '.node_info.other'
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="Operations" href="/docs/validators/operations" />
+  <Card title="Validator Overview" href="/docs/validators/overview" />
+</Cards>

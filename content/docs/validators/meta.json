@@ -1,0 +1,5 @@
+{
+  "title": "Validators",
+  "icon": "Shield",
+  "pages": ["overview", "node-setup", "create-validator", "operations"]
+}

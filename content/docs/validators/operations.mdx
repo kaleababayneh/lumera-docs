@@ -1,0 +1,112 @@
+---
+title: Operations
+description: Day-to-day validator operations, monitoring, and troubleshooting.
+icon: Wrench
+---
+
+## Quick Reference
+
+```bash
+# View logs
+sudo journalctl -fu lumera
+
+# Restart node
+sudo systemctl restart lumera
+
+# Stop node
+sudo systemctl stop lumera
+
+# Check sync status
+lumerad status 2>&1 | jq '.sync_info | {latest_block_height, catching_up}'
+
+# Check balance
+lumerad query bank balances $(lumerad keys show validator -a)
+```
+
+## Staking Operations
+
+### Delegate more stake
+
+```bash
+lumerad tx staking delegate $(lumerad keys show validator --bech val -a) 1000000ulume \
+  --from=validator \
+  --chain-id=lumera-testnet-2 \
+  --gas=auto --gas-adjustment=1.3 \
+  --fees=10000ulume -y
+```
+
+### Withdraw rewards
+
+```bash
+lumerad tx distribution withdraw-rewards $(lumerad keys show validator --bech val -a) \
+  --from=validator --commission \
+  --chain-id=lumera-testnet-2 \
+  --gas=auto --gas-adjustment=1.3 \
+  --fees=10000ulume -y
+```
+
+### Unjail validator
+
+If your validator gets jailed for downtime:
+
+```bash
+lumerad tx slashing unjail \
+  --from=validator \
+  --chain-id=lumera-testnet-2 \
+  --gas=auto --gas-adjustment=1.3 \
+  --fees=10000ulume -y
+```
+
+Check your signing info to see missed blocks:
+
+```bash
+lumerad query slashing signing-info $(lumerad tendermint show-validator)
+```
+
+## Monitoring
+
+### Sync status
+
+```bash
+lumerad status 2>&1 | jq '.sync_info | {latest_block_height, catching_up}'
+```
+
+### Peer count
+
+```bash
+lumerad status 2>&1 | jq '.node_info.other'
+```
+
+### Prometheus metrics
+
+If you enabled Prometheus in your config (`prometheus = true`), metrics are available at `http://localhost:26660/metrics`. You can scrape these with Prometheus/Grafana for dashboards.
+
+## Known Issues
+
+| Issue | Workaround |
+|-------|-----------|
+| `make install` does not exist | Use `go build -o lumerad ./cmd/lumera` |
+| `ignite chain build` OOM on under 16 GB RAM | Use `go build` directly + swap |
+| `upgrade plan "v1.0.0" not registered` panic | Patch `app.go` before building ([Node Setup, Step 4](/docs/validators/node-setup#step-4--build-lumerad)) |
+| `lumerad version` returns blank | Binary works fine; version ldflags not set in source builds |
+| `create-validator` flags don't work | Cosmos SDK v0.50 requires a JSON file |
+| `insufficient fees; got 5000ulume` | Use `--fees=10000ulume` or higher |
+| `--unsafe-skip-upgrades` does not work | Lumera's custom code panics before the SDK processes this flag; use the patch instead |
+| Node shows zero peers initially | Wait 2–3 minutes; seed node takes time to respond |
+
+## Useful Links
+
+- [Automated Setup Script](https://github.com/kaleababayneh/lumera-validator)
+- [Validator Operations Manual](https://github.com/LumeraProtocol/lumera-networks/blob/master/docs/VALIDATOR_GUIDE.md)
+- [SuperNode Operator Guide](https://github.com/LumeraProtocol/lumera-networks/blob/master/docs/SUPERNODE_GUIDE.md)
+- [Lumera Releases](https://github.com/LumeraProtocol/lumera/releases)
+- [Network Configurations](https://github.com/LumeraProtocol/lumera-networks)
+- [Block Explorer](https://portal.testnet.lumera.io/lumera-testnet-2)
+- [Discord](https://discord.gg/lumeraprotocol)
+
+## Next Steps
+
+<Cards>
+  <Card title="Validator Overview" href="/docs/validators/overview" />
+  <Card title="Node Setup" href="/docs/validators/node-setup" />
+</Cards>
