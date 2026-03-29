@@ -10,29 +10,12 @@ import {
   FileUp,
 } from "lucide-react";
 
-export default function AppPage() {
+export function StorageApp() {
   return (
-    <main className="container mx-auto max-w-4xl px-4 py-12">
-      <div className="mb-10">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Decentralized Storage
-        </h1>
-        <p className="mt-1.5 text-sm text-fd-muted-foreground">
-          Upload documents to the blockchain and download anytime with your
-          Action ID.
-        </p>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <UploadCard />
-        <DownloadCard />
-      </div>
-
-      <p className="mt-12 text-center text-xs text-fd-muted-foreground">
-        Powered by Lumera Cascade — Decentralized permanent storage on the
-        blockchain
-      </p>
-    </main>
+    <div className="grid gap-6 md:grid-cols-2">
+      <UploadCard />
+      <DownloadCard />
+    </div>
   );
 }
 
@@ -60,7 +43,8 @@ function UploadCard() {
     if (!file) return;
     setStatus({
       type: "loading",
-      message: "Uploading to Lumera blockchain... This may take up to a minute.",
+      message:
+        "Uploading to Lumera blockchain... This may take up to a minute.",
     });
     setResult(null);
 
@@ -88,10 +72,10 @@ function UploadCard() {
 
   return (
     <div className="rounded-lg border border-fd-border bg-fd-card p-6">
-      <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+      <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold">
         <Upload className="size-4 text-fd-primary" />
         Upload Document
-      </h2>
+      </h3>
 
       <div
         className={`cursor-pointer rounded-md border-2 border-dashed p-8 text-center transition-colors ${
@@ -239,10 +223,10 @@ function DownloadCard() {
 
   return (
     <div className="rounded-lg border border-fd-border bg-fd-card p-6">
-      <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+      <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold">
         <Download className="size-4 text-fd-primary" />
         Download Document
-      </h2>
+      </h3>
 
       <input
         type="text"

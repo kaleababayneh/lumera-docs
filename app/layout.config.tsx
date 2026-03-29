@@ -14,7 +14,7 @@ export const baseOptions: BaseLayoutProps = {
   links: [
     {
       type: "button",
-      url: "/app",
+      url: "/docs/app",
       text: "Launch App",
       icon: <Rocket className="size-4" />,
     },
