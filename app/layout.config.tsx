@@ -1,5 +1,6 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { LumeraIcon } from "@/lib/logo";
+import { Rocket } from "lucide-react";
 
 export const baseOptions: BaseLayoutProps = {
   nav: {
@@ -11,6 +12,12 @@ export const baseOptions: BaseLayoutProps = {
     ),
   },
   links: [
+    {
+      type: "button",
+      url: "/app",
+      text: "Launch App",
+      icon: <Rocket className="size-4" />,
+    },
     {
       type: "icon",
       url: "https://github.com/LumeraProtocol/sdk-js",

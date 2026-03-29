@@ -9,10 +9,15 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
+    "@0xkaleab/sdk-js": "^0.2.8",
+    "@cosmjs/amino": "^0.38.1",
+    "@cosmjs/proto-signing": "^0.38.1",
+    "@cosmjs/stargate": "^0.38.1",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^22.19.15",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "eventsource": "^4.1.0",
     "fumadocs-core": "^14.7.7",
     "fumadocs-mdx": "^11.10.1",
     "fumadocs-ui": "^14.7.7",
@@ -22,6 +27,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

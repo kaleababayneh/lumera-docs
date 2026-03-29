@@ -27,7 +27,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`flex min-h-screen flex-col ${shantell.variable}`}>
-        <RootProvider>{children}</RootProvider>
+        <RootProvider>
+          {children}
+        </RootProvider>
       </body>
     </html>
   );
