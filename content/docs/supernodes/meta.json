@@ -1,0 +1,5 @@
+{
+  "title": "Supernodes",
+  "icon": "Server",
+  "pages": ["overview", "node-setup", "register", "operations"]
+}

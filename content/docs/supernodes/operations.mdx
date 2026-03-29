@@ -1,0 +1,217 @@
+---
+title: Operations
+description: Day-to-day Supernode operations, monitoring, upgrades, and troubleshooting.
+icon: Wrench
+---
+
+## Quick Reference
+
+```bash
+# View logs
+sudo journalctl -fu sn-manager
+
+# Restart Supernode
+sudo systemctl restart sn-manager
+
+# Stop Supernode
+sudo systemctl stop sn-manager
+
+# Check service status
+sudo systemctl status sn-manager
+
+# Health check
+sn-manager status
+sn-manager check
+```
+
+## Supernode States
+
+The on-chain state of your Supernode determines whether it is actively serving the network.
+
+| State | Meaning | Action |
+|-------|---------|--------|
+| `ACTIVE` | Operating normally | None |
+| `DISABLED` | Deregistered | Can re-register |
+| `STOPPED` | Manually stopped via transaction | Start with `start-supernode` tx |
+| `PENALIZED` | Penalized for violations | Cannot re-register |
+| `POSTPONED` | Non-compliant metrics | Auto-recovers when compliant |
+
+## On-Chain Metrics (LEP-4)
+
+Supernodes must self-report metrics every ~400 blocks. If metrics are not reported within the grace period (~100 blocks), the Supernode is moved to `POSTPONED` state. This reporting is handled automatically by `sn-manager` — no manual action is needed.
+
+Reported metrics include: version, CPU/RAM/disk usage, port status, uptime, and peer count.
+
+## Lifecycle Operations
+
+### Check Supernode status
+
+```bash
+# On-chain (run on validator host)
+lumerad query supernode get-supernode $(lumerad keys show validator --bech val -a)
+
+# Local health
+sn-manager status
+sn-manager check
+```
+
+### Update Supernode endpoint
+
+If your Supernode's IP changes, update it on-chain. Run on your **validator host**:
+
+```bash
+VALOPER=$(lumerad keys show validator --bech val -a)
+
+lumerad tx supernode update-supernode \
+  "$VALOPER" "NEW_IP:4444" "endpoint update" "<SN_ACCOUNT>" \
+  --from validator \
+  --chain-id lumera-testnet-2 \
+  --gas auto --gas-adjustment 1.3 \
+  --fees 5000ulume -y
+```
+
+### Stop Supernode
+
+To gracefully stop your Supernode, submit the stop transaction first, then stop the service:
+
+```bash
+# On validator host — notify the chain
+lumerad tx supernode stop-supernode $(lumerad keys show validator --bech val -a) "maintenance" \
+  --from validator \
+  --chain-id lumera-testnet-2 \
+  --gas auto --gas-adjustment 1.3 \
+  --fees 5000ulume -y
+
+# On Supernode host — stop the service
+sudo systemctl stop sn-manager
+```
+
+### Restart Supernode
+
+Start the service first, then submit the on-chain start transaction:
+
+```bash
+# On Supernode host
+sudo systemctl start sn-manager
+
+# On validator host
+lumerad tx supernode start-supernode $(lumerad keys show validator --bech val -a) \
+  --from validator \
+  --chain-id lumera-testnet-2 \
+  --gas auto --gas-adjustment 1.3 \
+  --fees 5000ulume -y
+```
+
+### Deregister Supernode
+
+To permanently remove your Supernode from the network:
+
+```bash
+# On validator host
+lumerad tx supernode deregister-supernode $(lumerad keys show validator --bech val -a) \
+  --from validator \
+  --chain-id lumera-testnet-2 \
+  --gas auto --gas-adjustment 1.3 \
+  --fees 5000ulume -y
+```
+
+This moves the Supernode to `DISABLED` state. You can re-register later if needed.
+
+### List all Supernodes
+
+```bash
+lumerad query supernode list-supernodes
+```
+
+## Upgrading sn-manager
+
+sn-manager includes a built-in version manager:
+
+```bash
+# List available versions
+sn-manager ls-remote
+
+# Download a specific version
+sn-manager get v2.4.72
+
+# Switch to the new version
+sn-manager use v2.4.72
+
+# Restart the service
+sudo systemctl restart sn-manager
+
+# Verify
+sn-manager version
+```
+
+<Callout type="info">
+If you initialized with `--auto-upgrade`, sn-manager will automatically upgrade to new versions when they become available. You can still manually switch versions if needed.
+</Callout>
+
+## Configuration File
+
+The Supernode configuration is stored at `~/.supernode/config.yml`:
+
+```yaml
+supernode:
+  key_name: "supernode"
+  identity: "lumera1..."
+  host: "0.0.0.0"
+  port: 4444
+
+keyring:
+  backend: "file"
+  dir: "keys"
+  passphrase_env: "SUPERNODE_PASSPHRASE"
+
+p2p:
+  port: 4445
+  data_dir: "data/p2p"
+
+lumera:
+  grpc_addr: "<VALIDATOR_IP>:9090"
+  chain_id: "lumera-testnet-2"
+
+raptorq:
+  files_dir: "raptorq_files"
+```
+
+## Backup
+
+Always back up these files from your Supernode host:
+
+```bash
+mkdir -p ~/sn-backup
+cp ~/.supernode/config.yml ~/sn-backup/
+cp -r ~/.supernode/keys/ ~/sn-backup/keys/
+```
+
+<Callout type="error">
+**Also save your mnemonic offline.** The key files and config can be recreated from the mnemonic, but the mnemonic cannot be recovered from the key files.
+</Callout>
+
+## Troubleshooting
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Supernode shows `POSTPONED` | Metrics reporting failed | Check logs with `journalctl -u sn-manager -f`. Verify ports are open (`ufw status`). Service auto-recovers when compliant. |
+| Registration fails with "insufficient stake" | Combined stake below minimum | Check both sources: `lumerad query staking delegation <SN_ACCOUNT> <VALOPER>` and validator self-delegation. Combined total must meet `minimum_stake_for_sn` (check with `lumerad query supernode params`). |
+| `SigningInfo not found` after registration | Chain hasn't processed yet | Wait a few blocks and query again |
+| sn-manager won't start | Passphrase or config issue | Verify `SUPERNODE_PASSPHRASE` in the service file. Check config: `cat ~/.supernode/config.yml` |
+| Ports appear closed in metrics | Firewall or cloud security group | Verify `ufw status`. Check cloud provider firewall rules. Test externally: `nc -zv <IP> 4444` |
+| Cannot connect to validator gRPC | gRPC bound to localhost | On validator: ensure `address = "0.0.0.0:9090"` in `~/.lumera/config/app.toml` and `ufw allow from <SN_IP> to any port 9090` |
+
+## Useful Links
+
+- [Automated Setup Script](https://github.com/kaleababayneh/lumera-validator)
+- [Supernode Releases](https://github.com/LumeraProtocol/supernode/releases)
+- [Supernode Operator Guide](https://github.com/LumeraProtocol/lumera-networks/blob/master/docs/SUPERNODE_GUIDE.md)
+- [Block Explorer](https://portal.testnet.lumera.io/lumera-testnet-2)
+- [Discord](https://discord.gg/lumeraprotocol)
+
+## Next Steps
+
+<Cards>
+  <Card title="Supernode Overview" href="/docs/supernodes/overview" />
+  <Card title="Node Setup" href="/docs/supernodes/node-setup" />
+</Cards>

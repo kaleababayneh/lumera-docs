@@ -1,0 +1,127 @@
+---
+title: Supernode Overview
+description: Run a Supernode on Lumera Protocol to provide compute services and earn additional rewards.
+icon: Server
+---
+
+## What is a Lumera Supernode?
+
+A Supernode is a compute-intensive node that extends a Lumera validator with specialized services. While validators handle consensus and block production, Supernodes handle the heavy lifting: **Cascade storage**, **Sense verification**, and **AI inference** tasks.
+
+Every Supernode is paired with a validator but **must run on a separate server**. The Supernode communicates with its validator over gRPC and maintains its own account, keys, and stake delegation.
+
+## Architecture
+
+<Diagram name="supernode-architecture" />
+
+The Supernode connects to the validator's gRPC endpoint (port 9090) as a client to query the chain and broadcast transactions. Supernodes also form a peer-to-peer mesh using a Kademlia DHT (port 4445) for data replication and storage challenge proofs across the network. All on-chain registration and lifecycle transactions are signed by the validator operator key.
+
+## Key Information
+
+| Item | Value |
+|------|-------|
+| Chain ID | `lumera-testnet-2` |
+| Binary | `sn-manager` ([releases](https://github.com/LumeraProtocol/supernode/releases)) |
+| Config directory | `~/.supernode` |
+| gRPC endpoint | Your validator's IP:9090 (see [Node Setup, Step 3](/docs/supernodes/node-setup#step-3--configure-validator-grpc)) |
+| Min stake (testnet-2) | 10,000 LUME combined (self-delegation + SN account) |
+| Supernode explorer | [portal.testnet.lumera.io/supernodes](https://portal.testnet.lumera.io/lumera-testnet-2/supernodes) |
+| Supernode API | [list_super_nodes](https://lumera-testnet-api.bonynode.online/LumeraProtocol/lumera/supernode/v1/list_super_nodes) |
+| Explorer | [portal.testnet.lumera.io](https://portal.testnet.lumera.io/lumera-testnet-2) |
+
+## Staking Requirements (LEP-3)
+
+Supernode registration requires a **minimum combined stake** from two sources, enforced on-chain via the `minimum_stake_for_sn` parameter.
+
+| Network | Minimum Stake |
+|---------|--------------|
+| Testnet-2 | **10,000 LUME** (10,000,000,000 ulume) |
+
+The stake can come from **two sources combined** (both count toward the minimum):
+
+1. **Validator self-delegation** — must be non-zero
+2. **Delegation from Supernode Account (SN_ACCOUNT)** — delegation from the SN wallet to your validator
+
+For example: 8,000 LUME self-delegated + 2,000 LUME from SN_ACCOUNT = 10,000 LUME total (meets requirement).
+
+You can verify the current on-chain requirement at any time:
+
+```bash
+# Via CLI
+lumerad query supernode params
+
+# Via REST API
+curl -s https://lumera-testnet-api.bonynode.online/LumeraProtocol/lumera/supernode/v1/params | jq '.params.minimum_stake_for_sn'
+```
+
+<Callout type="info">
+This parameter is governable and can change via governance proposal. Always check the current value before registering.
+</Callout>
+
+## Hardware Requirements
+
+Supernodes are more resource-intensive than validators due to the compute workloads they handle.
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| CPU | 8 cores (x86_64) | 16+ cores |
+| RAM | 16 GB | 64 GB |
+| Storage | 1 TB NVMe SSD | 4 TB NVMe SSD |
+| Network | 1 Gbps | 5 Gbps |
+| OS | Ubuntu 22.04+ | Ubuntu 22.04+ |
+
+<Callout type="warn">
+ARM processors are not supported. HDDs are not suitable — NVMe SSDs are required for the I/O demands of storage and compute tasks.
+</Callout>
+
+## Required Ports
+
+### Supernode Host
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 4444 | TCP | Supernode gRPC API |
+| 4445 | TCP | P2P communication |
+| 8002 | TCP | REST Gateway |
+
+### Validator Host
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 26656 | TCP | CometBFT P2P (public) |
+| 9090 | TCP | gRPC — must be open **only** to the Supernode IP |
+
+<Callout type="warn">
+Port 9090 is bound to `localhost` by default. You must change it to `0.0.0.0:9090` and restrict access to your Supernode's IP only. See [Node Setup, Step 3](/docs/supernodes/node-setup#step-3--configure-validator-grpc) for instructions.
+</Callout>
+
+## Prerequisites
+
+Before setting up a Supernode, you need:
+
+- A running Lumera validator in a bonded state — see [Validator Overview](/docs/validators/overview)
+- A **separate** server meeting the hardware requirements above
+- Access to the validator operator key (for registration transactions)
+- Testnet LUME tokens from the [faucet](https://faucet.astrostake.xyz/lumera) or [Discord](https://discord.gg/lumeraprotocol)
+
+## Automated Setup
+
+If you prefer a one-command setup, use the tested setup script that handles all steps automatically:
+
+```bash
+wget -O setup-supernode.sh https://raw.githubusercontent.com/kaleababayneh/lumera-validator/main/setup-supernode.sh
+chmod +x setup-supernode.sh
+./setup-supernode.sh
+```
+
+The script is interactive — it pauses for key creation, gRPC configuration, and prints the registration command to run on your validator host. See the [source and full guide](https://github.com/kaleababayneh/lumera-validator) for details.
+
+For a manual step-by-step walkthrough, continue with the pages below.
+
+## Next Steps
+
+<Cards>
+  <Card title="Node Setup" href="/docs/supernodes/node-setup" />
+  <Card title="Register Supernode" href="/docs/supernodes/register" />
+  <Card title="Operations" href="/docs/supernodes/operations" />
+</Cards>

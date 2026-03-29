@@ -1,0 +1,224 @@
+---
+title: Node Setup
+description: Install sn-manager, configure firewall, and initialize your Supernode.
+icon: Download
+---
+
+## Step 1 — Prepare the Server
+
+SSH into your **Supernode server** (not the validator) and install the required packages:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget jq ufw lz4 tar
+```
+
+<Callout type="error">
+**Never run a Supernode and validator on the same server.** They must be on separate machines. The setup script will refuse to run if it detects a validator service on the same host.
+</Callout>
+
+## Step 2 — Configure Firewall
+
+Open the ports required by sn-manager:
+
+```bash
+sudo ufw allow 22/tcp comment "SSH"
+sudo ufw allow 4444/tcp comment "SuperNode gRPC"
+sudo ufw allow 4445/tcp comment "SuperNode P2P"
+sudo ufw allow 8002/tcp comment "SuperNode REST"
+sudo ufw --force enable
+sudo ufw status
+```
+
+You should see all four ports listed as ALLOW.
+
+## Step 3 — Configure Validator gRPC
+
+The Supernode connects to your validator via gRPC on port 9090. By default, gRPC binds to `localhost` and is not reachable from external servers. You need to change this **on your validator host**.
+
+### Bind gRPC to all interfaces
+
+SSH into your **validator server** and run:
+
+```bash
+# Check current gRPC config
+grep -A 5 "^\[grpc\]" ~/.lumera/config/app.toml
+
+# Change localhost to 0.0.0.0
+sed -i 's|address = "localhost:9090"|address = "0.0.0.0:9090"|' ~/.lumera/config/app.toml
+
+# Restart the validator
+sudo systemctl restart lumera
+```
+
+### Restrict access to the Supernode IP
+
+Do not expose port 9090 publicly. Allow only your Supernode's IP:
+
+```bash
+sudo ufw allow from <SUPERNODE_IP> to any port 9090 proto tcp comment "SuperNode gRPC"
+```
+
+Replace `<SUPERNODE_IP>` with your Supernode server's public IP address.
+
+### Verify connectivity
+
+Back on your **Supernode server**, test that gRPC is reachable:
+
+```bash
+curl -v telnet://<VALIDATOR_IP>:9090 --max-time 3 2>&1 | head -5
+# Should show: "Connected to <VALIDATOR_IP> port 9090"
+```
+
+<Callout type="warn">
+If the connection fails, check that the validator's gRPC is bound to `0.0.0.0` (not `localhost`), the firewall rule is in place, and any cloud provider security groups allow traffic on port 9090.
+</Callout>
+
+Note your validator's IP — you will need it as the `--lumera-grpc` value in the next step.
+
+## Step 4 — Install sn-manager
+
+Download and install the latest sn-manager release:
+
+```bash
+curl -L https://github.com/LumeraProtocol/supernode/releases/latest/download/supernode-linux-amd64.tar.gz | tar -xz
+
+mkdir -p ~/.sn-manager/bin
+install -D -m 0755 sn-manager ~/.sn-manager/bin/sn-manager
+```
+
+Add sn-manager to your PATH:
+
+```bash
+echo 'export PATH="$HOME/.sn-manager/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+sn-manager version
+```
+
+## Step 5 — Initialize the Supernode
+
+Set a passphrase for the keyring and initialize:
+
+```bash
+export SUPERNODE_PASSPHRASE="your-secure-passphrase"
+
+sn-manager init -y \
+  --auto-upgrade \
+  --keyring-backend file \
+  --keyring-passphrase-env SUPERNODE_PASSPHRASE \
+  --key-name supernode \
+  --supernode-addr 0.0.0.0 \
+  --supernode-port 4444 \
+  --lumera-grpc <VALIDATOR_IP>:9090 \
+  --chain-id lumera-testnet-2
+```
+
+Replace `<VALIDATOR_IP>` with your validator server's IP address.
+
+<Callout type="info">
+The passphrase must be at least 8 characters. It protects the Supernode wallet key stored in the file-based keyring.
+</Callout>
+
+<Callout type="error">
+**Save the mnemonic that is displayed immediately.** This is the only backup of your Supernode wallet key. If you lose it, you lose access to the Supernode account and any delegated funds.
+</Callout>
+
+The output includes the Supernode account address (`SN_ACCOUNT` — starts with `lumera1...`). Note this address — you will need it for funding, delegation, and registration.
+
+### Recovering an existing key
+
+If you have a mnemonic from a previous installation, add the `--recover` and `--mnemonic` flags:
+
+```bash
+sn-manager init -y \
+  --auto-upgrade \
+  --keyring-backend file \
+  --keyring-passphrase-env SUPERNODE_PASSPHRASE \
+  --key-name supernode \
+  --supernode-addr 0.0.0.0 \
+  --supernode-port 4444 \
+  --lumera-grpc <VALIDATOR_IP>:9090 \
+  --chain-id lumera-testnet-2 \
+  --recover --mnemonic "your 24 word mnemonic phrase here"
+```
+
+<Callout type="warn">
+The `--lumera-grpc` must point to a **testnet** gRPC endpoint. Use your validator's IP:9090 or a public testnet gRPC. Do **not** use `grpc.lumera.io:443` — that is mainnet.
+</Callout>
+
+## Step 6 — Create the Systemd Service
+
+```bash
+sudo tee /etc/systemd/system/sn-manager.service > /dev/null <<EOF
+[Unit]
+Description=Lumera SuperNode Manager
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=$USER
+Environment=HOME=$HOME
+Environment=SUPERNODE_PASSPHRASE=your-secure-passphrase
+WorkingDirectory=$HOME
+ExecStart=$HOME/.sn-manager/bin/sn-manager start
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+Replace `your-secure-passphrase` with the passphrase you chose in Step 5.
+
+Secure the service file (it contains your passphrase) and enable it:
+
+```bash
+sudo chmod 600 /etc/systemd/system/sn-manager.service
+sudo systemctl daemon-reload
+sudo systemctl enable sn-manager
+```
+
+<Callout type="warn">
+The systemd service file stores your keyring passphrase in plaintext. It is protected by `chmod 600` (root-only read), but be aware of this when managing your server.
+</Callout>
+
+## Step 7 — Start the Supernode
+
+```bash
+sudo systemctl start sn-manager
+```
+
+### Check the service status
+
+```bash
+sudo systemctl status sn-manager
+```
+
+### Watch the logs
+
+```bash
+sudo journalctl -fu sn-manager
+```
+
+### Run a health check
+
+```bash
+sn-manager status
+sn-manager check
+```
+
+<Callout type="info">
+The health check may not pass until the Supernode is registered on-chain (next page). This is expected.
+</Callout>
+
+## Next Steps
+
+With sn-manager running, proceed to fund, delegate, and register your Supernode on-chain.
+
+<Cards>
+  <Card title="Register Supernode" href="/docs/supernodes/register" />
+  <Card title="Operations" href="/docs/supernodes/operations" />
+</Cards>

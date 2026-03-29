@@ -815,6 +815,108 @@ const collaborationFlow: DiagramDef = {
   ],
 };
 
+const supernodeArchitecture: DiagramDef = {
+  viewBox: "0 0 820 480",
+  title: "Supernode Architecture",
+  elements: [
+    // ── Validator Host ──
+    {
+      type: "box",
+      id: "val-host",
+      x: 50,
+      y: 20,
+      w: 240,
+      h: 260,
+      label: "Validator Host",
+    },
+    {
+      type: "box",
+      id: "lumerad",
+      x: 80,
+      y: 50,
+      w: 180,
+      h: 55,
+      label: "lumerad\n(consensus)",
+      variant: "accent",
+    },
+    {
+      type: "box",
+      id: "val-ports",
+      x: 80,
+      y: 195,
+      w: 180,
+      h: 55,
+      label: "Ports:\n 26656, 9090",
+      variant: "inner",
+    },
+
+    // ── gRPC arrow (Supernode connects TO Validator) ──
+    {
+      type: "arrow",
+      id: "grpc",
+      points: [[470, 122], [300, 122]],
+      label: "gRPC :9090",
+      labelPos: [385, 100],
+    },
+
+    // ── Supernode Host ──
+    {
+      type: "box",
+      id: "sn-host",
+      x: 480,
+      y: 20,
+      w: 240,
+      h: 260,
+      label: "Supernode Host",
+    },
+    {
+      type: "box",
+      id: "sn-manager",
+      x: 510,
+      y: 50,
+      w: 180,
+      h: 60,
+      label: "sn-manager\n(Cascade storage)",
+      variant: "accent",
+    },
+    {
+      type: "box",
+      id: "sn-ports",
+      x: 510,
+      y: 195,
+      w: 180,
+      h: 55,
+      label: "Ports:\n 4444, 4445, 8002",
+      variant: "inner",
+    },
+
+    // ── Shared identity footer ──
+    {
+      type: "arrow",
+      id: "link-left",
+      points: [[170, 290], [230, 380]],
+      dashed: true,
+    },
+    {
+      type: "arrow",
+      id: "link-right",
+      points: [[600, 290], [590, 380]],
+      dashed: true,
+    },
+    {
+      type: "box",
+      id: "identity",
+      x: 195,
+      y: 380,
+      w: 430,
+      h: 55,
+      label: "Same Validator Operator Identity",
+      variant: "inner",
+      dashed: true,
+    },
+  ],
+};
+
 // ── Export ────────────────────────────────────────────────────────────────────
 
 export const diagrams: Record<string, DiagramDef> = {
@@ -827,4 +929,5 @@ export const diagrams: Record<string, DiagramDef> = {
   "research-archive": researchArchive,
   "node-architecture": nodeArchitecture,
   "collaboration-flow": collaborationFlow,
+  "supernode-architecture": supernodeArchitecture,
 };
