@@ -30,6 +30,8 @@ function UploadCard() {
   }>({ type: "idle", message: "" });
   const [result, setResult] = useState<{
     actionId: string;
+    fileName: string;
+    fileSizeKbs: number;
     explorerUrl: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -59,8 +61,13 @@ function UploadCard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
 
-      setResult({ actionId: data.actionId, explorerUrl: data.explorerUrl });
-      setStatus({ type: "success", message: "Upload successful!" });
+      setResult({
+        actionId: data.actionId,
+        fileName: data.fileName,
+        fileSizeKbs: data.fileSizeKbs,
+        explorerUrl: data.explorerUrl,
+      });
+      setStatus({ type: "success", message: `Uploaded "${data.fileName}" (${data.fileSizeKbs} KB)` });
     } catch (err: any) {
       setStatus({ type: "error", message: err.message });
     }
@@ -202,6 +209,7 @@ function DownloadCard() {
       }
 
       const blob = await res.blob();
+      // Content-Disposition may not be readable cross-origin; fall back gracefully
       const disposition = res.headers.get("Content-Disposition") || "";
       const match = disposition.match(/filename="?(.+?)"?$/);
       const filename = match ? match[1] : `lumera-${id}`;
@@ -217,7 +225,7 @@ function DownloadCard() {
 
       setStatus({
         type: "success",
-        message: `Downloaded (${(blob.size / 1024).toFixed(1)} KB)`,
+        message: `Downloaded "${filename}" (${(blob.size / 1024).toFixed(1)} KB)`,
       });
     } catch (err: any) {
       setStatus({ type: "error", message: err.message });
