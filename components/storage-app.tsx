@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+
+const BACKEND_URL = "https://lumerapp.up.railway.app";
+
 import {
   Upload,
   Download,
@@ -52,7 +55,7 @@ function UploadCard() {
       const form = new FormData();
       form.append("file", file);
 
-      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const res = await fetch(`${BACKEND_URL}/api/upload`, { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
 
@@ -190,7 +193,7 @@ function DownloadCard() {
     });
 
     try {
-      const res = await fetch(`/api/download/${encodeURIComponent(id)}`);
+      const res = await fetch(`${BACKEND_URL}/api/download/${encodeURIComponent(id)}`);
       if (!res.ok) {
         const err = await res
           .json()
