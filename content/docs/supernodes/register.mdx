@@ -8,7 +8,7 @@ icon: Zap
 
 Before registering, make sure:
 
-- Your Supernode is running (`sn-manager` service is active) — see [Node Setup](/docs/supernodes/node-setup)
+- Your Supernode is running (`sn-manager` service is active), see [Node Setup](/docs/supernodes/node-setup)
 - You have the Supernode account address (`SN_ACCOUNT` — `lumera1...`)
 - You have your validator operator address (`VALOPER` — `lumeravaloper1...`)
 - Your validator is bonded and synced
@@ -33,10 +33,6 @@ Replace `<SN_ACCOUNT>` with your Supernode's address and `<amount>` with the amo
 ### Option B — Testnet faucet or Discord
 
 Request testnet tokens for your `SN_ACCOUNT` address from the [faucet](https://faucet.astrostake.xyz/lumera) or [Discord](https://discord.gg/lumeraprotocol).
-
-### Option C — Foundation funding (mainnet only)
-
-Contact the Lumera foundation for mainnet funding. Foundation funds are sent as a vesting account.
 
 <Callout type="info">
 Supernode registration uses a **LEP-3 dual-source stake** model. The minimum is the combined total of your validator self-delegation + SN account delegation. On testnet-2, this is currently **10,000 LUME**. Check the current value with `lumerad query supernode params`. This parameter is governable and can change.

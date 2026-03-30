@@ -8,15 +8,14 @@ icon: PlugZap
 
 The `createLumeraClient` factory is the entry point for all Cascade operations. It connects to the Lumera blockchain and configures the Supernode API client.
 
-### Browser with Keplr Wallet
+### Chain Configuration
 
-```ts title="browser-client.ts"
-import { createLumeraClient, getKeplrSigner } from "@lumera-protocol/sdk-js";
+Both Keplr and Leap require a chain configuration to register the Lumera network. Define it once and reuse it:
 
-const CHAIN_ID = "lumera-testnet-2";
+```ts title="chain-config.ts"
+export const CHAIN_ID = "lumera-testnet-2";
 
-// Connect Keplr wallet
-await window.keplr.experimentalSuggestChain({
+export const LUMERA_CHAIN_INFO = {
   chainId: CHAIN_ID,
   chainName: "Lumera Testnet",
   rpc: "https://rpc.testnet.lumera.io",
@@ -30,28 +29,54 @@ await window.keplr.experimentalSuggestChain({
     bech32PrefixConsAddr: "lumeravalcons",
     bech32PrefixConsPub: "lumeravalconspub",
   },
-  currencies: [{ coinDenom: "LUME", coinMinimalDenom: "ulume", coinDecimals: 6 }],
+  currencies: [
+    { coinDenom: "LUME", coinMinimalDenom: "ulume", coinDecimals: 6 },
+  ],
   feeCurrencies: [
     {
       coinDenom: "LUME",
       coinMinimalDenom: "ulume",
       coinDecimals: 6,
-      gasPriceStep: { low: 0.025, average: 0.03, high: 0.04 },
+      gasPriceStep: { low: 0.01, average: 0.025, high: 0.04 },
     },
   ],
-  stakeCurrency: { coinDenom: "LUME", coinMinimalDenom: "ulume", coinDecimals: 6 },
-});
+  stakeCurrency: {
+    coinDenom: "LUME",
+    coinMinimalDenom: "ulume",
+    coinDecimals: 6,
+  },
+  features: ["stargate", "ibc-transfer"],
+};
+```
 
+
+### Browser with Keplr Wallet
+
+```ts title="keplr-client.ts"
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+import { CHAIN_ID, LUMERA_CHAIN_INFO } from "./chain-config";
+
+// Register the Lumera chain and request wallet access
+await window.keplr.experimentalSuggestChain(LUMERA_CHAIN_INFO);
 await window.keplr.enable(CHAIN_ID);
 
-const signer = await getKeplrSigner(CHAIN_ID);
-const accounts = await signer.getAccounts();
-const address = accounts[0].address;
+// getOfflineSignerAuto provides getAccounts, signAmino, and signDirect.
+// We only need to add signArbitrary — Cascade uses it for Supernode auth.
+const offlineSigner = await window.keplr.getOfflineSignerAuto(CHAIN_ID);
+const accounts = await offlineSigner.getAccounts();
+
+const signer = {
+  ...offlineSigner,
+  async signArbitrary(_chainId: string, signerAddress: string, data: string | Uint8Array) {
+    const result = await window.keplr.signArbitrary(_chainId, signerAddress, data);
+    return { signed: data, signature: result.signature, pub_key: result.pub_key };
+  },
+};
 
 const client = await createLumeraClient({
   preset: "testnet",
   signer,
-  address,
+  address: accounts[0].address,
   gasPrice: "0.025ulume",
 });
 ```
@@ -59,14 +84,25 @@ const client = await createLumeraClient({
 ### Browser with Leap Wallet
 
 ```ts title="leap-client.ts"
-import { createLumeraClient, getLeapSigner } from "@lumera-protocol/sdk-js";
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
+import { CHAIN_ID, LUMERA_CHAIN_INFO } from "./chain-config";
 
-// Leap uses the same chain suggestion format as Keplr
-await window.leap.experimentalSuggestChain({ /* same config as above */ });
-await window.leap.enable("lumera-testnet-2");
+// Register the Lumera chain and request wallet access
+await window.leap.experimentalSuggestChain(LUMERA_CHAIN_INFO);
+await window.leap.enable(CHAIN_ID);
 
-const signer = await getLeapSigner("lumera-testnet-2");
-const accounts = await signer.getAccounts();
+// getOfflineSignerAuto provides getAccounts, signAmino, and signDirect.
+// We only need to add signArbitrary — Cascade uses it for Supernode auth.
+const offlineSigner = await window.leap.getOfflineSignerAuto(CHAIN_ID);
+const accounts = await offlineSigner.getAccounts();
+
+const signer = {
+  ...offlineSigner,
+  async signArbitrary(_chainId: string, signerAddress: string, data: string | Uint8Array) {
+    const result = await window.leap.signArbitrary(_chainId, signerAddress, data);
+    return { signed: data, signature: result.signature, pub_key: result.pub_key };
+  },
+};
 
 const client = await createLumeraClient({
   preset: "testnet",
@@ -78,19 +114,63 @@ const client = await createLumeraClient({
 
 ### Node.js with Mnemonic
 
+In Node.js you need both a Direct signer and an Amino signer to support `signArbitrary`, which Cascade requires for Supernode authentication:
+
 ```ts title="node-client.ts"
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+import {
+  Secp256k1HdWallet,
+  makeSignDoc as makeAminoSignDoc,
+} from "@cosmjs/amino";
 
-const wallet = await DirectSecp256k1HdWallet.fromMnemonic(
-  process.env.LUMERA_MNEMONIC!,
-  { prefix: "lumera" }
-);
-const [account] = await wallet.getAccounts();
+const mnemonic = process.env.LUMERA_MNEMONIC!;
+
+const directWallet = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic, {
+  prefix: "lumera",
+});
+const aminoWallet = await Secp256k1HdWallet.fromMnemonic(mnemonic, {
+  prefix: "lumera",
+});
+const [account] = await directWallet.getAccounts();
+
+const signer = {
+  getAccounts: () => directWallet.getAccounts(),
+  signDirect: (addr: string, doc: any) => directWallet.signDirect(addr, doc),
+  signAmino: (addr: string, doc: any) => aminoWallet.signAmino(addr, doc),
+  async signArbitrary(
+    chainId: string,
+    signerAddress: string,
+    data: string
+  ) {
+    const signDoc = makeAminoSignDoc(
+      [
+        {
+          type: "sign/MsgSignData",
+          value: {
+            signer: signerAddress,
+            data: Buffer.from(data).toString("base64"),
+          },
+        },
+      ],
+      { gas: "0", amount: [] },
+      "",
+      "",
+      0,
+      0
+    );
+    const { signature } = await aminoWallet.signAmino(signerAddress, signDoc);
+    return {
+      signed: data,
+      signature: signature.signature,
+      pub_key: signature.pub_key,
+    };
+  },
+};
 
 const client = await createLumeraClient({
   preset: "testnet",
-  signer: wallet,
+  signer: signer as any,
   address: account.address,
   gasPrice: "0.025ulume",
 });
