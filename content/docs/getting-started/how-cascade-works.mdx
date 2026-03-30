@@ -39,7 +39,7 @@ The SN-API runs inside each Supernode and returns a `task_id` that the SDK polls
 The Supernode that received the file:
 
 1. **Verifies** the action exists on-chain, the fee is valid, the BLAKE3 hash matches, and all signatures are correct
-2. **Encodes** the file with RaptorQ erasure coding — producing redundant symbols that allow reconstruction from any sufficient subset
+2. **Encodes** the file with RaptorQ erasure coding, producing redundant symbols that allow reconstruction from any sufficient subset
 3. **Distributes** the encoded chunks across the Supernode mesh, ensuring no single point of failure
 
 ### Step 5 — Finalize on-chain

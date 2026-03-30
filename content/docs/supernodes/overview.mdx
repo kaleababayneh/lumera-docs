@@ -89,7 +89,7 @@ ARM processors are not supported. HDDs are not suitable — NVMe SSDs are requir
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 26656 | TCP | CometBFT P2P (public) |
-| 9090 | TCP | gRPC — must be open **only** to the Supernode IP |
+| 9090 | TCP | gRPC must be open **only** to the Supernode IP |
 
 <Callout type="warn">
 Port 9090 is bound to `localhost` by default. You must change it to `0.0.0.0:9090` and restrict access to your Supernode's IP only. See [Node Setup, Step 3](/docs/supernodes/node-setup#step-3--configure-validator-grpc) for instructions.

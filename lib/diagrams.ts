@@ -506,7 +506,7 @@ const sdkArchitecture: DiagramDef = {
       y: 20,
       w: 440,
       h: 170,
-      label: "client.Blockchain",
+      label: "Blockchain",
       items: [
         "CosmJS · SigningStargateClient",
         "Action queries · Supernode queries",
@@ -520,7 +520,7 @@ const sdkArchitecture: DiagramDef = {
       y: 20,
       w: 440,
       h: 170,
-      label: "client.Cascade",
+      label: "Cascade",
       items: [
         "CascadeUploader · CascadeDownloader",
         "SNApiClient (REST) · TaskManager",

@@ -170,8 +170,8 @@ function UploadCard() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-fd-muted-foreground transition-colors hover:text-fd-foreground"
             >
-              <ExternalLink className="size-3" />
-              Explorer
+              {/* <ExternalLink className="size-3" />
+              Explorer */}
             </a>
           </div>
         </div>
