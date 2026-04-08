@@ -1,0 +1,193 @@
+---
+title: Error Handling
+description: Handle errors, configure retries, and set timeouts when working with Cascade storage.
+icon: Bug
+---
+
+## Common Errors
+
+These are the errors you will most likely run into when building with Cascade.
+
+### RPC Connection Errors
+
+If the Lumera RPC node is down or unreachable, client creation and blockchain transactions will fail:
+
+```ts
+try {
+  const client = await createLumeraClient({ preset: "testnet", signer, address, gasPrice: "0.025ulume" });
+} catch (err) {
+  // "Failed to connect to RPC endpoint" or "ECONNREFUSED"
+  console.error("Cannot reach RPC node. Check your network or try a different endpoint.");
+}
+```
+
+**Fix:** Switch to a different RPC endpoint, or wait and retry. You can pass a custom endpoint instead of the preset:
+
+```ts
+const client = await createLumeraClient({
+  rpcEndpoint: "https://rpc2.testnet.lumera.io",
+  // ...
+});
+```
+
+### Insufficient Funds
+
+Uploading requires LUME tokens to pay the action fee. If your wallet is empty:
+
+```
+"insufficient funds: 0ulume is smaller than 50000ulume"
+```
+
+**Fix:** Fund your wallet with testnet tokens from the faucet before uploading.
+
+### Wallet Popup Rejected
+
+When using Keplr or Leap, the user must approve signature requests. If they click "Reject":
+
+```ts
+try {
+  await client.Cascade.uploader.uploadFile(file, params);
+} catch (err) {
+  if (err.message?.includes("Request rejected")) {
+    console.error("Please approve the signature request to continue");
+  }
+}
+```
+
+**Fix:** Prompt the user to try again and approve the wallet popup. Cascade requires multiple signatures during upload (layout, index, and auth), so the user may see more than one popup.
+
+### Supernodes Unavailable
+
+If no supernodes are online to handle your request:
+
+```
+"Task failed with status: sdk:supernodes_unavailable"
+```
+
+**Fix:** Wait a few minutes and retry. This usually means the testnet supernodes are temporarily down or overloaded.
+
+### Upload Timeout
+
+Large files or slow networks can cause the task to exceed the default 5-minute timeout:
+
+```
+"Task timed out after 300000ms"
+```
+
+**Fix:** Increase the timeout in `taskOptions`:
+
+```ts
+const result = await client.Cascade.uploader.uploadFile(file, {
+  fileName: "large-file.zip",
+  isPublic: true,
+  expirationTime: String(Math.floor(Date.now() / 1000) + 86400),
+  taskOptions: {
+    timeout: 600000, // 10 minutes
+  },
+});
+```
+
+### Action Not Found (Download)
+
+If you pass an invalid or expired Action ID:
+
+```ts
+try {
+  const stream = await client.Cascade.downloader.download("99999");
+} catch (err) {
+  // HttpError with statusCode 404
+  console.error("Action not found. Check the Action ID.");
+}
+```
+
+### Private File Access Denied
+
+Trying to download a private file from a wallet that did not upload it:
+
+```
+"failed to verify download signature"
+```
+
+**Fix:** Only the wallet that uploaded the file can download it when `isPublic: false`. Make sure you are connected with the correct wallet.
+
+## Built-in Retries
+
+The SDK automatically retries failed HTTP requests with exponential backoff. The defaults are:
+
+| Setting | Default |
+|---|---|
+| Max attempts | `3` |
+| Initial delay | `1000ms` |
+| Max delay | `30000ms` |
+| Backoff multiplier | `2x` |
+| Retryable status codes | `408, 429, 500, 502, 503, 504` |
+
+You can override these when creating the client:
+
+```ts
+const client = await createLumeraClient({
+  preset: "testnet",
+  signer,
+  address,
+  gasPrice: "0.025ulume",
+  http: {
+    timeout: 60000,
+    retry: {
+      maxAttempts: 5,
+      initialDelay: 2000,
+    },
+  },
+});
+```
+
+<Callout type="info">
+  File uploads and downloads skip automatic retries because the request body or response stream can only be consumed once. The SDK retries everything else (status checks, metadata queries, etc.) automatically.
+</Callout>
+
+## Task Options
+
+Upload and download tasks are processed asynchronously by supernodes. The SDK polls for status until the task completes. You can tune this behavior:
+
+```ts
+taskOptions: {
+  timeout: 300000,    // 5 min default, how long to wait before giving up
+  pollInterval: 2000, // 2s default, how often to check task status
+}
+```
+
+<Callout type="warn">
+  If an upload times out, the task may still be processing on the supernode. Do not retry immediately or you may create a duplicate action on-chain.
+</Callout>
+
+## Simple Retry Helper
+
+For operations that are safe to retry (like downloads or uploads that failed before hitting the chain), a simple wrapper works well:
+
+```ts
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i === attempts) throw err;
+      const delay = 1000 * Math.pow(2, i - 1);
+      console.warn(`Attempt ${i} failed, retrying in ${delay}ms...`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("Unreachable");
+}
+
+// Usage
+const stream = await withRetry(() =>
+  client.Cascade.downloader.download(actionId)
+);
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="Upload Lifecycle" href="/docs/concepts/upload-lifecycle" />
+  <Card title="Download Lifecycle" href="/docs/concepts/download-lifecycle" />
+  <Card title="Troubleshooting" href="/docs/reference/troubleshooting" />
+</Cards>

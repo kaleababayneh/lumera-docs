@@ -1,5 +1,5 @@
 {
   "title": "Concepts",
   "icon": "Layers",
-  "pages": ["architecture", "upload-lifecycle", "download-lifecycle", "erasure-coding", "interchain-accounts"]
+  "pages": ["architecture", "upload-lifecycle", "download-lifecycle", "erasure-coding", "interchain-accounts", "error-handling"]
 }
