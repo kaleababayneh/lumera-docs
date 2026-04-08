@@ -58,6 +58,7 @@ async function main() {
 
   // Upload a file
   const file = new TextEncoder().encode("Hello, Lumera!");
+  // The deadline for supernodes to process the upload action. If not finalized by this time: the action will be considered expired and the fee will be refunded. 
   const expirationTime = String(Math.floor(Date.now() / 1000) + 5 * 60); //  5 minutes from now
 
   const result = await client.Cascade.uploader.uploadFile(file, {
