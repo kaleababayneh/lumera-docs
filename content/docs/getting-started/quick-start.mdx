@@ -52,20 +52,20 @@ async function main() {
   const client = await createLumeraClient({
     preset: "testnet",
     signer: signer as any,
-    address: account.address,
-    gasPrice: "0.025ulume",
+    address: account.address
   });
 
-  // Upload a file
+  // The file to upload. 
   const file = new TextEncoder().encode("Hello, Lumera!");
-  // The deadline for supernodes to process the upload action. If not finalized by this time: the action will be considered expired and the fee will be refunded. 
-  const expirationTime = String(Math.floor(Date.now() / 1000) + 5 * 60); //  5 minutes from now
+  // The deadline for supernodes to process the upload action. 
+  // If the action is not finalized by this time: the fee will be refunded. 
+  const expirationTime = String(Math.floor(Date.now() / 1000) + 25 * 60 * 60); //  25 hours from now
+
 
   const result = await client.Cascade.uploader.uploadFile(file, {
-    fileName: "my.txt",
+    fileName: "hello.txt",
     isPublic: true,
-    expirationTime,
-    taskOptions: { pollInterval: 2000, timeout: 300000 },
+    expirationTime
   });
 
   console.log("Upload complete:", result);
