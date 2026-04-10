@@ -1,12 +1,12 @@
 ---
 title: Rust SDK
-description: Overview of the official Lumera Rust SDK for server-side and CLI applications.
+description: Overview of the official Lumera Rust SDK for high-performance server architectures.
 icon: Code
 ---
 
-
-
 ## Installation
+
+The SDK relies natively on `tokio` for async orchestration and `cosmrs` for Cosmos definitions.
 
 ```toml title="Cargo.toml"
 [dependencies]
@@ -14,19 +14,23 @@ lumera-sdk-rs = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
-## Architecture
+---
 
-The Rust SDK is organized into three core modules:
+## Architectural Abstractions
 
-| Module | Purpose |
-|---|---|
-| **`chain`** | On-chain operations — action parameters, fee lookups, transaction registration |
-| **`snapi`** | SN-API interaction — upload, download, status polling |
-| **`cascade`** | High-level orchestration — deterministic payload generation, ticket registration |
+The Rust SDK isolates the network topology into three composable interfaces:
+
+| Module | Architectural Bound | Execution Scope |
+|---|---|---|
+| **`chain`** | **Control Plane** | Synchronous Cosmos execution. Escrows block fees via `MsgRequestAction`. Queries `x/supernode` sets via Tendermint JSON-RPC. |
+| **`snapi`** | **Data Mesh Gateway** | Asynchronous DA execution. Binds to `tcp/8002` off-chain gateways. Polling execution states and routing `HTTP 1.1 POST` payloads. |
+| **`cascade`** | **Data Plane (Macro)** | Unified orchestrator. Hashes files (`blake3`), signs index manifests, and securely sequences `chain` routines directly into `snapi` routines. |
+
+---
 
 ## Client Setup
 
-Configure via environment variables or explicit config:
+You can safely define static bindings programmatically, configuring your Cosmos RPC engines and offline signing keys.
 
 ```rust
 use lumera_sdk_rs::chain::ChainConfig;
@@ -43,7 +47,9 @@ let cfg = CascadeConfig::new(chain_cfg, "https://snapi.testnet.lumera.io");
 let sdk = CascadeSdk::new(cfg);
 ```
 
-Or use environment variables:
+### Environment Overrides
+
+Alternatively, configure global fallbacks safely for containerized workflows:
 
 ```rust
 use lumera_sdk_rs::{CascadeSdk, SdkSettings};
@@ -52,29 +58,31 @@ let settings = SdkSettings::from_env();
 let sdk = CascadeSdk::new(settings.to_cascade_config());
 ```
 
-### Environment Variables
-
-| Variable | Default | Purpose |
+| Variable | Default State | Purpose |
 |---|---|---|
-| `LUMERA_CHAIN_ID` | `lumera-devnet` | Chain identifier |
-| `LUMERA_GRPC` | `http://127.0.0.1:9090` | gRPC endpoint |
-| `LUMERA_RPC` | `http://127.0.0.1:26657` | RPC endpoint |
-| `LUMERA_REST` | `http://127.0.0.1:1317` | REST/LCD endpoint |
-| `LUMERA_GAS_PRICE` | — | Gas price (e.g. `0.025ulume`) |
-| `SNAPI_BASE` | `http://127.0.0.1:8080` | SN-API server base URL |
-| `LUMERA_MNEMONIC` | — | Wallet mnemonic |
-| `LUMERA_CREATOR` | — | Creator bech32 address |
+| `LUMERA_CHAIN_ID` | `lumera-devnet` | AppChain network identifier. |
+| `LUMERA_GRPC` | `http://127.0.0.1:9090` | Consensus state query engine. |
+| `LUMERA_RPC` | `http://127.0.0.1:26657` | Block polling engine. |
+| `LUMERA_REST` | `http://127.0.0.1:1317` | Cosmos LCD Fallback. |
+| `LUMERA_GAS_PRICE` | — | Execution constraint bound (e.g. `0.025ulume`). |
+| `SNAPI_BASE` | `http://127.0.0.1:8080` | Local or public Supernode gateway load balancer. |
+| `LUMERA_MNEMONIC` | — | Direct signer offline keychain. |
+| `LUMERA_CREATOR` | — | Explicit Bech32 mapping address. |
 
-## Upload and Download
+---
+
+## File Upload Execution
+
+Instead of a monolithic command, the Rust SDK offers granular sequencing.
 
 ```rust
 use lumera_sdk_rs::{CascadeSdk, RegisterTicketRequest};
 use std::path::PathBuf;
 
-// 1. Derive signing keys from mnemonic
+// 1. Multiplex the BIP39 Key (SignDirect & ADR-036 Arrays)
 let (chain_sk, arb_sk) = derive_signing_keys(&mnemonic)?;
 
-// 2. Register on-chain action
+// 2. Control Plane: Broadcast to the consensus engine
 let registered = sdk.register_ticket(
     &chain_sk,
     &arb_sk,
@@ -87,33 +95,41 @@ let registered = sdk.register_ticket(
     },
 ).await?;
 
-// 3. Upload file to SN-API
+// 3. Data Plane Gateway: Execute payload transmission to SN-API
 let task = sdk.upload_via_snapi(
     &registered.action_id,
     &registered.auth_signature,
     &PathBuf::from("./my-document.pdf"),
 ).await?;
 
-// 4. Poll upload status
+// 4. Poll execution telemetry
 let status = sdk.snapi.upload_status(&task).await?;
+```
 
-// 5. Download
+## File Download Execution
+
+Retrieve chunks dynamically from the Kademlia Mesh via explicit Action Tokens.
+
+```rust
+// 1. Data Plane: Query node resolution
 let down_task = sdk.request_download(&registered.action_id, &arb_sk).await?;
+
+// 2. DA Gateway: Stream raw payload via TCP
 let bytes = sdk.snapi.download_file(&down_task).await?;
 ```
 
-## Key Dependencies
+---
 
-- `cosmrs` — Cosmos SDK signing and gRPC
-- `reqwest` — HTTP client with rustls
-- `tokio` — Async runtime
-- `blake3` — File integrity verification
-- `prost` — Protobuf encoding
+## Toolchain Dependencies
+
+- `cosmrs` — Cosmos SDK execution mappings and Protobuf bindings.
+- `reqwest` — Off-chain HTTP stream clients executing via `rustls`.
+- `blake3` — Parallelized integrity evaluations for the DA Layer.
 
 ## Next Steps
 
 <Cards>
-  <Card title="How Cascade Works" href="/docs/getting-started/how-cascade-works" />
-  <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
+  <Card title="Execution Lifecycle Pipeline" href="/docs/getting-started/how-cascade-works" />
+  <Card title="Protocol Architecture" href="/docs/concepts/architecture" />
 </Cards>
 

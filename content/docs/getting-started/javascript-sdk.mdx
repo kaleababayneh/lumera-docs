@@ -1,99 +1,101 @@
 ---
 title: JavaScript SDK
-description: Overview of the @lumera-protocol/sdk-js architecture and modules.
+description: Core architecture and exported mechanics of @lumera-protocol/sdk-js.
 icon: Code
 ---
 
 ## SDK Architecture
 
-The `@lumera-protocol/sdk-js` SDK follows a layered architecture that separates blockchain operations from storage operations:
+The `@lumera-protocol/sdk-js` library natively orchestrates the complexity of bridging the Lumera AppChain with the off-chain Supernode mesh. It maps executions across three strictly isolated layers:
 
 <Diagram name="sdk-architecture" />
 
-### Blockchain Layer
+### Blockchain Control Plane
+This layer wraps [CosmJS](https://github.com/cosmos/cosmjs) to parse the on-chain consensus state and mutate modules:
 
-Wraps [CosmJS](https://github.com/cosmos/cosmjs) to provide typed access to Lumera-specific modules:
+- **`x/action` Interface**: Simulates fees, scopes payload sizes, and registers `MsgRequestAction` tasks.
+- **`x/supernode` Interface**: Verifies active Supernode sets and queries node health states.
+- **State Machine RPC**: Signs and broadcasts all native payloads to the Tendermint RPC.
 
-- **Action module**: Query action parameters, fees, and registered actions
-- **Supernode module**: Query Supernode registration and status
-- **Transaction handling**: Simulate gas, sign, and broadcast `MsgRequestAction` messages
+### Cascade Data Plane
+This layer directly handles heavy I/O and off-chain routing:
 
-### Cascade Layer
+- **LEP-1 Engine**: An internal module that implements the official Cascade block derivation paths. It leverages universal bindings (N-API inside Node.js, optimized WASM within browsers) to perform BLAKE3 hashing, Zstandard payload compression, and RaptorQ layout preparation.
+- **`CascadeUploader`**: Natively resolves the 5-step upload lifecycle, including multi-part posting to the `SN-API`.
+- **`CascadeDownloader`**: Evaluates Kademlia mesh states, routes stream pipelines to active nodes, and verifies index checksums.
+- **`SNApiClient`**: A direct HTTP/REST bridge to the offline DA Gateway endpoints (`tcp/8002`).
 
-Handles the full file storage lifecycle:
+### Cryptographic Signer Space
+A unified offline router that safely multiplexes keys:
 
-- **CascadeUploader**: Prepares files, registers on-chain actions, uploads to Supernodes
-- **CascadeDownloader**: Authenticates, requests downloads, streams files back
-- **SNApiClient**: Typed REST client for the Supernode API (SN-API)
-- **TaskManager**: Polls task status or monitors via Server-Sent Events (SSE)
-- **LEP-1 encoding**: Generates RaptorQ layout metadata and derives deterministic layout IDs using platform-adaptive implementations (native bindings in Node.js, WASM in browsers) for blake3, zstd, and RaptorQ
+- **Browser Extensions (Keplr/Leap)**: Recommends and inherits global `OfflineSigner` contexts without extracting private keys.
+- **`DirectSecp256k1HdWallet`**: Headless environment extraction from raw BIP39 mnemonics.
+- **ADR-036 Standard**: Forces all generated signers to support `signArbitrary` primitives for off-chain SN-API authentication.
 
-### Wallet Layer
+---
 
-Unified signer interface supporting:
+## Client Surface Area
 
-- **Keplr**: Browser extension wallet via `getKeplrSigner()` (supports `signDirect`, `signAmino`, `signArbitrary`)
-- **`DirectSecp256k1HdWallet`**: Programmatic signing from a mnemonic for Node.js and CLI tools
-
-## Client Shape
-
-`createLumeraClient()` returns a `LumeraClient` with two top-level properties:
+The `createLumeraClient()` factory returns a typed `LumeraClient` encapsulating these boundaries:
 
 ```ts
 const client = await createLumeraClient({ preset: "testnet", signer, address, gasPrice: "0.025ulume" });
 
-// Blockchain queries and transactions
+// Control Plane (Tendermint Consensus)
 client.Blockchain.Action     // getParams(), getAction(), getActionFee()
 client.Blockchain.Supernode  // getParams(), getSupernode(), listSupernodes()
 client.Blockchain.Tx         // signAndBroadcast(), simulate(), getTx()
 
-// Cascade file operations
+// Data Plane (Cascade DA Mesh)
 client.Cascade.uploader      // uploadFile(), prepareFile(), registerAction()
 client.Cascade.downloader    // download(), downloadFile(), downloadPrivate()
 ```
+
+---
 
 ## Key Exports
 
 ```ts
 import {
-  // Client
+  // Client Orchestrators
   createLumeraClient,
   type LumeraClient,
   CHAIN_PRESETS,
 
-  // Cascade
+  // Cascade Primitives
   CascadeUploader,
   CascadeDownloader,
   SNApiClient,
   TaskManager,
   type UploadParams,
-  type DownloadParams,
   type TaskStatus,
 
-  // Blockchain utilities
+  // Cosmos Modulators
   buildBatchMessages,
   estimateGas,
   calculateCascadeFee,
   BlockchainActionAdapter,
 
-  // LEP-1 (advanced — used internally by CascadeUploader)
+  // LEP-1 Mechanics (Internal APIs)
   createSingleBlockLayout,
   generateIds,
   buildIndexFile,
 
-  // Wallet
+  // Headless Key Handlers
   getKeplrSigner,
   isKeplrAvailable,
 } from "@lumera-protocol/sdk-js";
 ```
 
-## Type Safety
+## Type Strictness
 
-The SDK is fully typed with TypeScript. All SN-API responses are validated against [OpenAPI-generated types](https://github.com/LumeraProtocol/sdk-js/blob/master/src/types/snapi.gen.ts), and blockchain messages use Telescope-generated protobuf codecs.
+The SDK provides robust compile-time safety. 
+- All `SN-API` responses are typed strictly via [OpenAPI schemas](https://github.com/LumeraProtocol/sdk-js/blob/master/src/types/snapi.gen.ts).
+- All `x/action` and `x/supernode` transactions are routed via generated Telescope Protobuf definitions.
 
 ## Next Steps
 
 <Cards>
-  <Card title="Client Setup" href="/docs/getting-started/client-setup" />
-  <Card title="Upload Lifecycle" href="/docs/concepts/upload-lifecycle" />
+  <Card title="Client Integration Setup" href="/docs/getting-started/client-setup" />
+  <Card title="Deep Dive: Execution Lifecycle" href="/docs/concepts/upload-lifecycle" />
 </Cards>

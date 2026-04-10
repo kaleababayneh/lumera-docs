@@ -1,72 +1,66 @@
 ---
 title: SN-API Reference
-description: REST API endpoints for the Supernode API (SN-API) that handles Cascade file operations.
+description: HTTP/REST execution endpoints for the off-chain Cascade DA Gateway.
 icon: Server
 ---
 
-## Base URLs
+## Environmental Base Routing
 
-| Network | Endpoint |
+| Network Topology | Canonical SN-API Gateway |
 |---------|----------|
-| Testnet | `https://snapi.testnet.lumera.io` |
-| Mainnet | `https://snapi.lumera.io` |
-
-The SDK client automatically selects the correct endpoint based on your `preset` configuration.
-
-## Authentication
-
-All endpoints require an **ADR-036 signature** for authentication. The SDK handles this automatically, but if you are calling the API directly:
-
-1. Sign the relevant data (action ID for downloads, data hash for uploads) using ADR-036 `signArbitrary`
-2. Include the base64-encoded signature in the request body
-
-## Upload Endpoints
-
-### Start Cascade Upload
-
-```
-POST /api/v1/actions/cascade
-Content-Type: multipart/form-data
-```
-
-**Form Fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `action_id` | `string` | Action ID from on-chain registration |
-| `signature` | `string` | Base64 ADR-036 auth signature |
-| `file` | `binary` | File data |
-
-**Response:**
-
-```json
-{
-  "task_id": "uuid-task-id"
-}
-```
-
-**Status Codes:**
-
-| Code | Meaning |
-|------|---------|
-| 200 | Upload started |
-| 400 | Invalid request (missing fields, bad signature) |
-| 404 | Action not found (may need retry — eventual consistency) |
-| 500 | Server error |
+| Testnet (`lumera-testnet-2`) | `https://snapi.testnet.lumera.io` |
+| Mainnet (`lumera-mainnet-1`) | `https://snapi.lumera.io` |
 
 <Callout type="info">
-The SDK retries this endpoint up to 5 times with 3-second delays. After on-chain registration, Supernodes need time to index the action.
+The `@lumera-protocol/sdk-js` macro execution layers automatically map these gateways when initializing via a standard `preset`.
 </Callout>
 
 ---
 
-### Get Task Details
+## Cryptographic Authentication (ADR-036)
 
+Because the Supernode Data layer executes completely offline relative to the Tendermint consensus engine, all REST payload mutations must be signed by the native `valoper` or `user` key that originated the on-chain action. 
+
+Lumera achieves this natively via [ADR-036 Arbitrary Signatures](https://docs.cosmos.network/main/architecture/adr-036-arbitrary-signature).
+1. Sign the specific task state hash (e.g., the `data_hash` for uploads, or the `action_id` for downloads).
+2. Inherit the resulting base64 encoding directly into the `signature` request body.
+
+---
+
+## DA Ingress: Upload Endpoints
+
+### 1. Initialize DA Pipeline
+
+```http
+POST /api/v1/actions/cascade
+Content-Type: multipart/form-data
 ```
+
+**Multipart Execution Fields:**
+
+| Field Key | Primitive Type | Execution Description |
+|-------|------|-------------|
+| `action_id` | `string` | The consensus event identity. |
+| `signature` | `string` | The base64 ADR-036 payload validating the target `data_hash`. |
+| `file` | `binary` | The uncompressed byte array. |
+
+**Expected Resolution:**
+
+```json
+{
+  "task_id": "uuid-task-id" // Ephemeral task tracker token
+}
+```
+
+<Callout type="warn">
+If you receive a `404 Action Not Found`, the Supernode has not yet ingested the latest block from the Tendermint layer. The SDK handles these state delays by retrying up to 5 times.
+</Callout>
+
+### 2. Poll Mesh Serialization State
+
+```http
 GET /api/v1/actions/cascade/tasks/{task_id}
 ```
-
-**Response:**
 
 ```json
 {
@@ -79,133 +73,68 @@ GET /api/v1/actions/cascade/tasks/{task_id}
 
 ---
 
-### Get Task Status
+## DA Egress: Download Endpoints
 
-```
-GET /api/v1/actions/cascade/tasks/{task_id}/status
-```
+### 1. Request Pipeline Reconstruction
 
-Returns a simplified status response for lightweight polling.
-
----
-
-## Download Endpoints
-
-### Request Download
-
-```
+```http
 POST /api/v1/actions/cascade/{action_id}/downloads
 Content-Type: application/json
 ```
 
-**Request Body:**
-
+**JSON Execution Field:**
 ```json
 {
-  "signature": "base64-encoded ADR-036 signature of the action_id"
+  "signature": "base64-encoded ADR-036 signature of the action_id string"
 }
 ```
 
-**Response:**
-
+**Expected Resolution:**
 ```json
 {
-  "task_id": "uuid-download-task-id"
+  "task_id": "uuid-download-task-id" // Ephemeral download pipeline tracker
 }
 ```
 
----
+### 2. Stream Kademlia Reconstruction Blocks
+Once requested, the active SN-API binds to the Kademlia DHT, locating and pulling redundant RaptorQ chunks.
 
-### Watch Download Status (SSE)
-
-```
+```http
 GET /api/v1/downloads/cascade/{task_id}/status
 Accept: text/event-stream
 ```
 
-Server-Sent Events stream with progress updates:
+To prevent HTTP-long-polling UI freezes, the gateway natively streams block completion states implicitly via Server-Sent Events (SSE).
 
-```
+```text
 data: {"status": "processing", "progress": 0}
-
 data: {"status": "processing", "progress": 50}
-
 data: {"status": "completed", "progress": 100}
 ```
 
-In browser environments, use `EventSource`:
+### 3. Retrieve Byte Output
 
-```ts
-const es = new EventSource(
-  `https://snapi.testnet.lumera.io/api/v1/downloads/cascade/${taskId}/status`
-);
-
-es.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log(`Progress: ${data.progress}%`);
-  if (data.status === "completed") {
-    es.close();
-  }
-};
-```
-
----
-
-### Download File
-
-```
+```http
 GET /api/v1/downloads/cascade/{task_id}/file
 ```
 
-**Response:**
-
-- `Content-Type: application/octet-stream`
-- Binary file data (streamed)
-
-The response can be consumed as a `ReadableStream` for efficient memory usage with large files.
+**Piping Mechanics:**
+The resolution returns `Content-Type: application/octet-stream`. Native browser implementations should bind this directly to a memory-safe `ReadableStream`.
 
 ---
 
-## Version Fallback
+## Exception Codes
 
-The SDK tries versioned endpoints first (`/api/v1/...`), then falls back to legacy paths (`/api/...`) on 404 responses. This ensures compatibility across SN-API versions.
-
-If calling the API directly, prefer the `/api/v1/` prefix.
-
-## Error Handling
-
-Common error responses:
-
-```json
-{
-  "error": "action not found",
-  "code": "NOT_FOUND"
-}
-```
-
-```json
-{
-  "error": "invalid signature",
-  "code": "UNAUTHORIZED"
-}
-```
-
-```json
-{
-  "error": "supernodes unavailable",
-  "code": "SERVICE_UNAVAILABLE"
-}
-```
-
-## Rate Limits
-
-The public SN-API endpoints may have rate limits during high traffic. For production applications with high throughput, consider running your own Supernode.
+| Canonical Code | HTTP Value | State Failure Origin |
+|---------|----------|----------|
+| `NOT_FOUND` | `404` | The DA layer cannot locate the `x/action` ticket via consensus RPC polling. |
+| `UNAUTHORIZED` | `401` | The ADR-036 payload rejected execution due to key mismatches or malformed layouts. |
+| `SERVICE_UNAVAILABLE` | `503` | Active Set Kademlia routing timeout. |
 
 ## Next Steps
 
 <Cards>
-  <Card title="Network Configuration" href="/docs/reference/network-config" />
-  <Card title="Troubleshooting" href="/docs/reference/troubleshooting" />
+  <Card title="Topology Architecture" href="/docs/reference/network-config" />
 </Cards>
 
 

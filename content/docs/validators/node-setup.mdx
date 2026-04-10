@@ -1,12 +1,12 @@
 ---
 title: Node Setup
-description: Install dependencies, build lumerad, and sync your node using a snapshot.
+description: Install dependencies, build the validator binary, and initialize the state machine.
 icon: Server
 ---
 
-## Step 1 — Install System Dependencies
+## 1. System Dependencies
 
-SSH into your server and install the required packages:
+Before compiling the Lumera binary from source, ensure your OS environment contains the standard C-compilers and build dependencies required by the Cosmos SDK.
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -14,33 +14,19 @@ sudo apt install -y build-essential jq curl git wget lz4 make gcc
 ```
 
 <Callout type="warn">
-If `apt upgrade` hangs or the SSH connection drops, reconnect and run:
-
-```bash
-sudo killall unattended-upgrade unattended-upgrades 2>/dev/null
-sudo dpkg --configure -a
-```
-
-Then re-run the install command above.
-</Callout>
-
-## Step 2 — Add Swap
-
-Building from source can exceed 8 GB RAM. If your server has 8 GB or less, add swap:
-
+**Resource Constraints**
+Building `lumerad` from source will stress test your machine. If you are operating on a low-memory VPS (under 16GB RAM), it is highly recommended to mount a swapfile to prevent Out-Of-Memory (OOM) compiler panics.
 ```bash
 sudo fallocate -l 4G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-
-# Make permanent
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
 ```
+</Callout>
 
-Verify with `free -h` — you should see ~4 GB swap.
+---
 
-## Step 3 — Install Go
+## 2. Install Go
+
+Lumera is written in Go. The Cosmos SDK (`v0.50.x`) strictly mandates Go versions `1.22+`.
 
 ```bash
 wget -q https://golang.org/dl/go1.23.4.linux-amd64.tar.gz -O /tmp/go.tar.gz
@@ -49,7 +35,7 @@ sudo tar -C /usr/local -xzf /tmp/go.tar.gz
 rm /tmp/go.tar.gz
 ```
 
-Add Go to your shell profile:
+Export your GOPATH explicitly:
 
 ```bash
 cat >> ~/.profile <<'EOF'
@@ -61,14 +47,14 @@ EOF
 
 source ~/.profile
 go version
-# go version go1.23.4 linux/amd64
 ```
 
-## Step 4 — Build lumerad
+---
 
-The binary must be built from source with a one-line patch. This patch prevents a panic caused by a governance upgrade plan (`v1.0.0`) that exists in the chain state but has no matching binary release.
+## 3. Compile the `lumerad` Binary
 
-### Clone and checkout
+### Clone the Network Source
+Pull the canonical source code from the ultimate truth repository. Ensure you checkout the correct governance-approved release tag (e.g. `v1.11.1`).
 
 ```bash
 git clone https://github.com/LumeraProtocol/lumera.git ~/lumera-src
@@ -76,121 +62,92 @@ cd ~/lumera-src
 git checkout v1.11.1
 ```
 
-### Apply the patch
-
-```bash
-sed -i '/upgrade plan.*is scheduled at height.*but not registered/c\\t\tapp.Logger().Warn("upgrade plan not registered in this binary, skipping", "name", upgradeInfo.Name, "height", upgradeInfo.Height)\n\t\treturn' app/app.go
-```
-
-### Build
+### Build & Install
+Compile the executable. The Go compiler will output the binary to `$GOPATH/bin/lumerad`.
 
 ```bash
 go build -o ~/go/bin/lumerad ./cmd/lumera
-```
-
-This takes 5–10 minutes. If it gets killed (OOM), make sure swap is active from Step 2.
-
-After building, restore the patched file and verify:
-
-```bash
-cd ~/lumera-src && git checkout -- app/app.go
 lumerad version
 ```
 
-<Callout type="info">
-`lumerad version` may print blank — this is a known issue (no version ldflags in source builds). The binary works regardless.
-</Callout>
+---
 
-<Callout type="warn">
-**Why build from source?** There are no pre-built binaries for testnet releases. `make install` has no `install` target, and `ignite chain build` requires 16+ GB RAM for protobuf generation.
-</Callout>
+## 4. Initialize Node Configuration
 
-## Step 5 — Initialize the Node
+Use the binary to spin up your initial `$DAEMON_HOME` directory (usually `~/.lumera`). 
 
 ```bash
+# Initialize genesis and configuration files
 lumerad init "YOUR_MONIKER" --chain-id lumera-testnet-2
 ```
 
-Replace `YOUR_MONIKER` with your validator's display name (e.g., `my-validator`).
-
-### Download the genesis file
+### Download the Genesis File
+The `genesis.json` defines the network's initial state and parameters. Overwrite the default initialized stub:
 
 ```bash
 wget -O ~/.lumera/config/genesis.json \
   https://raw.githubusercontent.com/LumeraProtocol/lumera-networks/master/testnet-2/genesis.json
 ```
 
-### Back up your keys
-
-```bash
-mkdir -p ~/lumera-key-backup
-cp ~/.lumera/config/node_key.json ~/lumera-key-backup/
-cp ~/.lumera/config/priv_validator_key.json ~/lumera-key-backup/
-```
-
 <Callout type="error">
-**These files ARE your validator identity.** If you lose them, you lose your validator. Copy them off the server to a secure location immediately.
+**Immediate Action Required: Key Backup**
+Initialization generates `node_key.json` (P2P identity) and `priv_validator_key.json` (Consensus signing key). These keys **are** your validator. Cryptographically back them up to offline storage immediately.
 </Callout>
 
-## Step 6 — Configure the Node
+---
 
-### Seeds and minimum gas price
+## 5. Tune Node Parameters
 
+Cosmos SDK configurations are split between two primary files.
+
+### Network Peers (`config.toml`)
+To prevent network isolation, you must peer with canonical seed nodes.
 ```bash
 sed -i 's/^seeds *=.*/seeds = "faff7c1350468c53121a669ac40e317a4a70c425@seeds.testnet.lumera.io:26656"/' \
   ~/.lumera/config/config.toml
-
-sed -i 's/^minimum-gas-prices *=.*/minimum-gas-prices = "0.025ulume"/' \
-  ~/.lumera/config/app.toml
 ```
 
-### Enable pruning
-
-Saves disk space by removing old state:
-
+### Minimum Gas & State Pruning (`app.toml`)
+Set the minimum gas threshold to deter transaction spam. Additionally, enable aggressive state pruning to prevent rapid NVMe consumption.
 ```bash
+# Enforce gas minimums
+sed -i 's/^minimum-gas-prices *=.*/minimum-gas-prices = "0.025ulume"/' \
+  ~/.lumera/config/app.toml
+
+# Enable custom block pruning
 sed -i \
   -e 's|^pruning *=.*|pruning = "custom"|' \
   -e 's|^pruning-keep-recent *=.*|pruning-keep-recent = "100"|' \
   -e 's|^pruning-interval *=.*|pruning-interval = "10"|' \
   ~/.lumera/config/app.toml
-
-sed -i 's|^indexer *=.*|indexer = "null"|' ~/.lumera/config/config.toml
 ```
 
-### Enable Prometheus metrics (optional)
+---
+
+## 6. Fast-Sync via Snapshot (Optional but Recommended)
+
+Syncing blocks natively from `height=0` can take days. Instead, pull a Polkachu state snapshot.
 
 ```bash
-sed -i 's/^prometheus *= *false/prometheus = true/' ~/.lumera/config/config.toml
-```
-
-## Step 7 — Download the Snapshot
-
-Syncing from a snapshot gets you to a recent block height in minutes instead of days.
-
-### Reset the data directory
-
-```bash
+# Clear any existing corrupt state
 lumerad tendermint unsafe-reset-all --home ~/.lumera --keep-addr-book
-```
 
-### Download and extract
-
-Visit [Polkachu's Lumera snapshots page](https://www.polkachu.com/testnets/lumera/snapshots) to find the latest snapshot URL, then run:
-
-```bash
+# Stream and unpack the snapshot
 curl -o - -L https://snapshots.polkachu.com/testnet-snapshots/lumera/lumera_XXXXXXX.tar.lz4 \
   | lz4 -c -d - | tar -x -C $HOME/.lumera
 ```
+*(Ensure you swap `lumera_XXXXXXX.tar.lz4` with the latest file from Polkachu).*
 
-Replace `lumera_XXXXXXX.tar.lz4` with the current filename from the Polkachu page. This downloads and extracts in one step — takes 5–30 minutes depending on network speed.
+---
 
-## Step 8 — Create the Systemd Service
+## 7. Systemd Service
+
+Create a `systemd` configuration to run the daemon continuously in the background and recover from crashes.
 
 ```bash
 sudo tee /etc/systemd/system/lumera.service > /dev/null <<EOF
 [Unit]
-Description=Lumera Validator Node
+Description=Lumera Consensus Daemon
 After=network-online.target
 
 [Service]
@@ -206,54 +163,22 @@ EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable lumera
-```
-
-## Step 9 — Start and Verify
-
-```bash
 sudo systemctl start lumera
 ```
 
-### Watch the logs
-
+Monitor your daemon's synchronization:
 ```bash
+# Check raw logs
 sudo journalctl -fu lumera
-```
 
-You should see blocks being committed:
-
-```
-INF committed state height=4034400
-INF committed state height=4034401
-```
-
-### Check sync status
-
-```bash
+# Evaluate block catch-up status
 lumerad status 2>&1 | jq '.sync_info | {latest_block_height, catching_up}'
 ```
 
-Wait until `catching_up` is `false`. With the snapshot, this should take only a few minutes.
-
-## Step 10 — Set Up Firewall
-
-```bash
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow ssh
-sudo ufw allow 26656/tcp comment "Lumera P2P"
-sudo ufw --force enable
-```
-
-<Callout type="warn">
-Do **not** expose port 26657 (RPC) unless you specifically need external RPC access.
-</Callout>
+Once `catching_up` evaluates to `false`, your state machine is in consensus.
 
 ## Next Steps
 
-Once your node is fully synced (`catching_up: false`), proceed to create your validator.
-
 <Cards>
-  <Card title="Create Validator" href="/docs/validators/create-validator" />
-  <Card title="Operations" href="/docs/validators/operations" />
+  <Card title="Create Validator Transaction" href="/docs/validators/create-validator" />
 </Cards>

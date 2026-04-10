@@ -1,133 +1,61 @@
 ---
 title: Download Lifecycle
-description: How files are retrieved from the Cascade Supernode network.
+description: How files are retrieved from the decentralized Supernode network.
 icon: Download
 ---
 
 ## Overview
 
-Downloading a file from Cascade requires the **action ID** returned during upload. The process involves authentication, task creation, and streaming the reconstructed file.
+Unlike standard HTTP endpoints, downloading a file from Cascade requires proof of protocol state. You do not define a specific URL for a file; instead, you request execution against the on-chain **action ID** generated during the upload phase. The download process involves cryptographic authentication, task delegation via the SN-API, and data reconstruction.
 
-## Step 1: Authenticate
+---
 
-Every download request must be authenticated with an [ADR-036](https://docs.cosmos.network/main/build/architecture/adr-036) signature. The SDK signs the `action_id` string using the connected wallet:
+## Step 1: Client Authentication (ADR-036)
 
-```ts
+To prevent arbitrary bandwidth consumption and secure private files, all download requests must be authenticated. The client signs the exact string of the on-chain `action_id` using the standard [ADR-036](https://docs.cosmos.network/main/build/architecture/adr-036) signature scheme. 
+
+```typescript
+// Typical Developer Abstraction
 const signature = await signer.signArbitrary(chainId, address, actionId);
 ```
 
-This proves that the requester holds the private key for their Lumera address. For public files, any wallet can download; for private files, only authorized wallets are accepted.
+This ensures that:
+- **Public files** can be downloaded by any valid Lumera wallet signature.
+- **Private files** are strictly gate-kept by the Supernodes, which enforce that the signing `address` matches the `creator` address or an authorized delegated wallet on the original `MsgRequestAction`.
 
-## Step 2: Request Download
+---
 
-The SDK sends a download request to the SN-API:
+## Step 2: Request Execution via SN-API
 
-```
-POST /api/v1/actions/cascade/{action_id}/downloads
-Content-Type: application/json
+Rather than opening a static file stream, the SDK initializes a task on the Supernode gateway.
 
-{
-  "signature": "base64-encoded ADR-036 signature"
-}
-```
+The client sends a generic `POST` request to `/api/v1/actions/cascade/{action_id}/downloads`, passing the ADR-036 signature in the body payload.
 
-The SN-API responds with a `task_id` that tracks the download preparation.
+Upon receiving the request, the Supernode:
+1. Validates the signature cryptographically.
+2. Cross-references the `action_id` against the Lumera `x/action` module to confirm its state is `DONE`.
+3. Issues a localized `task_id` for tracking.
 
-The SDK retries this request up to 3 times for transient server errors (HTTP 500), as Supernodes may need time to locate and gather the required chunks.
+---
 
-## Step 3: Monitor Progress
+## Step 3: Supernode Fetching & Reconstruction
 
-The SDK monitors download progress via **Server-Sent Events** (SSE):
+Once the task is initialized, heavy lifting occurs off-chain within the data-plane.
 
-```
-GET /api/v1/downloads/cascade/{task_id}/status
+The target Supernode acts as an aggregator:
+- It queries its P2P peers to locate the distributed RaptorQ chunks corresponding to the `action_id`.
+- It downloads a sufficient number of these chunks (due to erasure coding, it does not need all of them, just enough to pass the restoration threshold).
+- It reconstructs the original payload in memory.
 
-data: {"status": "processing", "progress": 45}
-data: {"status": "processing", "progress": 80}
-data: {"status": "completed", "progress": 100}
-```
+During this period, the client tracks progress via **Server-Sent Events (SSE)** on `/api/v1/downloads/cascade/{task_id}/status`.
 
-In browser environments, this uses the native `EventSource` API. In Node.js, the SDK implements a custom fetch-based SSE parser.
+---
 
-## Step 4: Stream the File
+## Step 4: Stream the Decoded Payload
 
-Once the task completes, the file is available as a binary stream:
+Once the Supernode fully restores the file, the task transitions to `completed`. The client can now fetch the native binary file stream directly from `/api/v1/downloads/cascade/{task_id}/file`.
 
-```
-GET /api/v1/downloads/cascade/{task_id}/file
-→ Content-Type: application/octet-stream
-→ Binary file data
-```
-
-The SDK returns a `ReadableStream<Uint8Array>` that your application can consume:
-
-```ts
-const stream = await client.Cascade.downloader.download(actionId);
-
-// Read the stream
-const reader = stream.getReader();
-const chunks: Uint8Array[] = [];
-
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  chunks.push(value);
-}
-
-// Reassemble into a single buffer
-const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-const result = new Uint8Array(totalLength);
-let offset = 0;
-for (const chunk of chunks) {
-  result.set(chunk, offset);
-  offset += chunk.length;
-}
-
-// Decode as text (if applicable)
-const text = new TextDecoder().decode(result);
-```
-
-## Download Task States
-
-| Status | Meaning |
-|--------|---------|
-| `sdk:download_completed` | File ready for streaming |
-| `sdk:completed` | Generic success |
-| `sdk:download_failure` | Reconstruction failed |
-| `sdk:failed` | Generic failure |
-
-## Convenience Methods
-
-### Basic Download
-
-```ts
-// Returns a ReadableStream
-const stream = await client.Cascade.downloader.download(actionId);
-```
-
-### Download with Options
-
-```ts
-const stream = await client.Cascade.downloader.downloadFile({
-  actionId: "your-action-id",
-  taskOptions: {
-    pollInterval: 2000,
-    timeout: 120000,
-  },
-});
-```
-
-### Private Download
-
-For private files (identical call, but the auth signature restricts access):
-
-```ts
-const stream = await client.Cascade.downloader.downloadPrivate(actionId);
-```
-
-## SN-API Fallback
-
-The SN-API client attempts versioned endpoints first (`/api/v1/...`), then falls back to legacy paths (`/api/...`) on 404. This ensures compatibility across SN-API versions.
+The SDK returns a `ReadableStream<Uint8Array>` (in TS) or native streams in Rust/Go, allowing developers to reconstruct files dynamically without consuming massive memory overheads on the local device.
 
 ## Next Steps
 

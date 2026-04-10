@@ -1,37 +1,51 @@
 ---
 title: Introduction
-description: The permanent storage network for apps, data, and the decentralized web.
+description: The permanent decentralized storage network built on Lumera Protocol.
 icon: BookOpen
 ---
+
 ## What is Cascade?
 
-Cascade is a **permanent decentralized storage** built on [Lumera Protocol](https://lumera.io). It lets users store files on a decentralized network of Supernodes with a single on-chain transaction.
+Cascade is a **permanent decentralized storage module** (`x/cascade`) built natively into the [Lumera Protocol](https://lumera.io), a Cosmos SDK Layer-1 blockchain secured by CometBFT (Tendermint) consensus. It allows users to store files across a decentralized network of Supernodes using a single on-chain transaction.
 
-Unlike traditional storage solutions that charge recurring fees, Cascade follows a **pay-once, store-forever** model. Files are chunked, encoded with [RaptorQ](https://en.wikipedia.org/wiki/Raptor_code) erasure coding, and distributed across the Supernode network, guaranteeing data availability even if individual nodes go offline.
+Unlike traditional storage solutions that charge recurring fees or pin-dependent IPFS deployments, Cascade leverages a **pay-once, store-forever** state model. Data is chunked, encoded with [RaptorQ](https://en.wikipedia.org/wiki/Raptor_code) erasure coding, and deterministically distributed across the Supernode network. This ensures data availability even in the face of significant node churn.
+
+## Audience Guide
+
+Choose the path that best matches your goals:
+
+### Application Developers
+You want to integrate permanent, decentralized storage into your frontend app, backend service, or Cosmos smart contract.
+- Build with our official SDKs for [TypeScript](/docs/getting-started/javascript-sdk), [Go](/docs/getting-started/go-sdk), and [Rust](/docs/getting-started/rust-sdk).
+- Explore the [Cascade Architecture](/docs/concepts/architecture) to understand the upload lifecycle.
+- Start building with the [Browser App Guide](/docs/guides/browser-app).
+
+### Node Operators & Validators
+You want to run infrastructure to secure the Lumera network and potentially earn storage fees.
+- Set up a base [Validator node](/docs/validators/overview).
+- Upgrade an existing node to become a [Supernode](/docs/supernodes/overview) to serve and store Cascade data.
+
+### Protocol Researchers
+You want to understand the consensus, data availability layers, and cryptography behind Cascade.
+- Read how we use [RaptorQ Erasure Coding](/docs/concepts/erasure-coding).
+- Learn about Cosmos interoperability via [Interchain Accounts (ICS-27)](/docs/concepts/interchain-accounts).
+
 ## Why Cascade?
 
-| Feature | Cascade | IPFS | Arweave |
+| Feature | Cascade (`x/cascade`) | IPFS | Arweave |
 |---------|---------|------|---------|
-| **Persistence model** | Permanent (enforced by protocol) | Pin-dependent | Permanent (storage endowment) |
+| **Persistence Model** | Permanent (enforced by Lumera consensus) | Pin-dependent | Permanent (storage endowment) |
 | **Redundancy** | RaptorQ erasure coding across Supernodes | None (depends on pinning services) | Blockweave replication |
-| **Self-healing** | Yes, automatic chunk restoration if nodes drop | No | No active repair mechanism |
-| **Cosmos native** | Yes, IBC-compatible via Interchain Accounts | No | No |
-| **Pricing** | One-time on-chain fee | Free (pinning costs extra) | One-time storage fee |
-| **Data availability** | Protocol-guaranteed via Supernode consensus | Best-effort | Protocol-guaranteed |
-
-## Key Capabilities
-
-- **Permanent storage**: Upload files with a single on-chain transaction and guarantee indefinite retrieval with no subscriptions or renewal fees.
-- **Erasure coding**: Files are split into chunks and encoded using RaptorQ fountain codes, allowing the original file to be reconstructed from any sufficient subset of encoded data even when some Supernodes are unavailable.
-- **Multi-SDK support**: Official SDKs for [TypeScript](/docs/getting-started/javascript-sdk), [Go](/docs/getting-started/go-sdk), and [Rust](/docs/getting-started/rust-sdk).
-- **Wallet integration**: Browser-based apps can use [Keplr](/docs/getting-started/client-setup#browser-with-keplr-wallet) and [Leap](/docs/getting-started/client-setup#browser-with-leap-wallet) wallets. [DirectSecp256k1HdWallet](/docs/getting-started/client-setup#nodejs-with-mnemonic) can be used for programmatic signing.
-- **Cosmos interoperability**: Any IBC-connected chain can seamlessly integrate with Cascade via [Interchain Accounts (ICS-27)](/docs/concepts/interchain-accounts).
+| **Self-healing** | High availability, automatic chunk restoration | Best effort | No active repair mechanism |
+| **Interoperability** | IBC-compatible natively | No | No |
+| **State Execution** | On-chain fee distribution via `MsgFinalizeAction` | None natively | On-chain fee |
+| **Data Availability** | Protocol-guaranteed via Supernode queries | Best-effort | Protocol-guaranteed |
 
 ## Next Steps
 
 <Cards>
   <Card title="How Cascade Works" href="/docs/getting-started/how-cascade-works" />
   <Card title="Quick Start" href="/docs/getting-started/quick-start" />
-  <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
+  <Card title="Run a Node" href="/docs/validators/overview" />
   <Card title="Build a Browser App" href="/docs/guides/browser-app" />
 </Cards>

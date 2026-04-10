@@ -1,53 +1,52 @@
 ---
-title: Erasure Coding
+title: Erasure Coding & Data Availability
 description: How RaptorQ erasure coding ensures permanent data availability across the Supernode network.
 icon: Shield
 ---
 
 ## Why Erasure Coding?
 
-Simple replication (storing N copies) is wasteful. If you need data to survive 50% of nodes going offline, you need 2x the storage. With **erasure coding**, you can achieve the same reliability with only ~1.5x overhead.
+Standard redundancy (like 5x replication) scales poorly for large datasets. If the network needs resilience against 50% node dropout, raw replication doubles storage costs. 
 
-Cascade uses **RaptorQ** (RFC 6330), a fountain code that:
-- Encodes a file into N symbols where any K symbols (K < N) can reconstruct the original
-- Has near-zero decoding failure probability
-- Operates efficiently on large files
+Cascade solves this using **RaptorQ** (RFC 6330), an advanced fountain code. It allows the protocol to hit massive redundancy thresholds with only ~1.5x on-disk overhead.
+- An ingested file is mathematically sliced into $N$ symbols. 
+- It can be fully completely reconstructed using *any* $K$ subset of those symbols, assuming $K < N$.
+- Probability of decoding failure drops to mathematical zero when the network holds just a few percentage points of parity overhead.
 
-## How It Works in Cascade
+---
 
-### Encoding (Upload)
+## Systematic Upload-Download Flow
+
+### Storage Ingestion (Supernode DA)
 
 <Diagram name="erasure-coding" />
 
-1. The SDK loads the file into the RaptorQ WASM module (`rq-library-wasm`)
-2. The encoder produces a **layout** describing source blocks and encoding parameters
-3. Encoded symbols are distributed across Supernodes
-4. Each Supernode stores a subset of symbols
+When a client broadcasts a payload to the SN-API:
+1. The deterministic Rust/WASM RaptorQ implementation generates an execution **layout**—defining block sizing and symbol boundaries.
+2. The payload is chunked into encoded symbols.
+3. These symbols are pushed rapidly across the independent P2P mesh connecting active Supernodes. 
 
-### Decoding (Download)
+### Data Retrieval
 
-1. The SN-API gathers available symbols from responsive Supernodes
-2. As long as at least K symbols are available, the original file is reconstructed
-3. The reconstructed file's BLAKE3 hash is verified against the on-chain record
+When a download task is requested:
+1. The receiving Supernode pings its closest peers.
+2. It fetches chunks until the $K$ threshold is met.
+3. The RaptorQ decoder computes the original payload entirely in memory.
+4. The file's BLAKE3 hash is compared cryptographically against the hash locked in the `MsgRequestAction` of the `x/action` module.
 
-## LEP-1: Layout and ID Derivation
+---
 
-LEP-1 (Lumera Enhancement Proposal 1) defines the deterministic algorithm for deriving **layout IDs** from the encoding layout.
+## LEP-1: Deterministic Symbol Identifiers
 
-### Layout Generation
+To prevent data corruption, every RaptorQ chunk must possess a verifiable identifier. LEP-1 (Lumera Enhancement Proposal 1) defines the algorithm for this derivation. 
 
-```ts
-const layout = await createSingleBlockLayout(fileBytes, {
-  rq_ids_ic: randomSeed,
-  rq_ids_max: actionParams.rq_ids_max,
-});
-```
+### Layout Parameters
+When formulating a block layout, parameters are fetched directly from the `x/action` genesis or governance state (e.g., `rq_ids_max`). 
 
-### ID Derivation Algorithm
+### ID Derivation Protocol Specifications
+Each chunk ID (`layout_id`) is derived deterministically using the network's Go specification:
 
-Each layout ID is derived deterministically so the on-chain Go implementation can independently verify them:
-
-```
+```text
 For i = 0 to rq_ids_max - 1:
   counter = rq_ids_ic + i
   input = Base64(compacted_layout_json) + "." + Base64(adr036_signature) + "." + String(counter)
@@ -56,25 +55,25 @@ For i = 0 to rq_ids_max - 1:
   layout_id = Base58(hash)
 ```
 
-### Why This Matters
+Why force derivation?
+- **Immutability**: A layout's geometry cannot be altered without failing verification.
+- **Protocol Safety**: The `x/action` module natively checks the deterministic roots before acknowledging `MsgFinalizeAction`.
 
-- **Determinism**: The same file, signer, and seed always produce the same layout IDs
-- **Verifiability**: The chain can verify that the claimed layout IDs match the submitted layout
-- **Uniqueness**: Each symbol gets a globally unique identifier
+---
 
-## Index File
+## The Index Payload
 
-The LEP-1 index file aggregates layout IDs and the layout signature:
+To aggregate these chunks safely without bloating the blockchain's block space, the client generates a JSON indexing payload:
 
 ```json
 {
   "version": 1,
   "layout_ids": ["7K9xQ2b...", "3Jm2pNd...", "..."],
-  "layout_signature": "base64-encoded ADR-036 signature"
+  "layout_signature": "base64-encoded ADR-036 payload"
 }
 ```
 
-This index file is also signed via ADR-036 and included in the `MsgRequestAction` transaction.
+The stringified `layout_ids` array is packed into the actual `MsgRequestAction` protobuf payload.
 
 ## Next Steps
 

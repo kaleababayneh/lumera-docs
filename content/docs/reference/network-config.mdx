@@ -1,43 +1,49 @@
 ---
 title: Network Configuration
-description: Chain IDs, endpoints, and configuration for Lumera mainnet and testnet.
+description: Consensus engine and DA mesh endpoints for Lumera mainnet and testnet deployments.
 icon: Network
 ---
 
+## Testnet (`testnet-2`)
 
+The active staging ground for application testing and integration.
 
-## Testnet
-
-| Parameter | Value |
+| Parameter | Configuration Value |
 |-----------|-------|
 | **Chain ID** | `lumera-testnet-2` |
-| **RPC** | `https://rpc.testnet.lumera.io` |
-| **LCD/REST** | `https://lcd.testnet.lumera.io` |
-| **SN-API** | `https://snapi.testnet.lumera.io` |
-| **Explorer** | `https://portal.testnet.lumera.io/lumera-testnet-2` |
-| **Min gas price** | `0.025ulume` |
-| **Seed node** | `faff7c1350468c53121a669ac40e317a4a70c425@seeds.testnet.lumera.io:26656` |
-| **Bech32 prefix** | `lumera` |
-| **Coin denom** | `ulume` (6 decimals → LUME) |
+| **Tendermint RPC** | `https://rpc.testnet.lumera.io` |
+| **Cosmos REST (LCD)** | `https://lcd.testnet.lumera.io` |
+| **Cascade DA Gateway** | `https://snapi.testnet.lumera.io` |
+| **Block Explorer** | `https://portal.testnet.lumera.io/lumera-testnet-2` |
+| **Minimum Gas Price** | `0.025ulume` |
+| **Primary Seed Node** | `faff7c1350468c53121a669ac40e317a4a70c425@seeds.testnet.lumera.io:26656` |
+| **Token Denomination** | `ulume` (6 decimals → 1 LUME = 1,000,000 ulume) |
 
-### Faucet
+### Funding
+Retrieve testnet stakes via the developer faucet located in the [Lumera Discord](https://discord.gg/lumeraprotocol).
 
-Get testnet tokens from the [Lumera Discord](https://discord.com/invite/qudewKS3kp) faucet channel.
+---
 
-## Mainnet
+## Mainnet (`mainnet-1`)
 
-| Parameter | Value |
+The production execution layer.
+
+| Parameter | Configuration Value |
 |-----------|-------|
 | **Chain ID** | `lumera-mainnet-1` |
-| **RPC** | `https://rpc.lumera.io` |
-| **LCD/REST** | `https://lcd.lumera.io` |
-| **SN-API** | `https://snapi.lumera.io` |
-| **Min gas price** | `0.025ulume` |
-| **Seed node** | `f64b9efc5747cc3556bdc281dab930a716dd63af@seeds.lumera.io:26656` |
+| **Tendermint RPC** | `https://rpc.lumera.io` |
+| **Cosmos REST (LCD)** | `https://lcd.lumera.io` |
+| **Cascade DA Gateway** | `https://snapi.lumera.io` |
+| **Block Explorer** | `https://portal.lumera.io/lumera-mainnet-1` |
+| **Minimum Gas Price** | `0.025ulume` |
+| **Primary Seed Node** | `f64b9efc5747cc3556bdc281dab930a716dd63af@seeds.lumera.io:26656` |
+| **Token Denomination** | `ulume` (6 decimals → 1 LUME = 1,000,000 ulume) |
 
-## Keplr Chain Registration
+---
 
-To add Lumera to Keplr, call `experimentalSuggestChain` with this configuration:
+## Keplr Automatic Registration
+
+You can inject the canonical network metadata securely into end-user browser extensions without manually requiring RPC entries.
 
 ```ts
 await window.keplr.experimentalSuggestChain({
@@ -83,65 +89,60 @@ await window.keplr.experimentalSuggestChain({
 });
 ```
 
-## Running a Local Node
+---
 
-Build from source with [Ignite CLI](https://ignite.com/):
+## Local Node Emulation
+
+To deploy an isolated multi-layer environment locally, clone the core module and compile the genesis routine via Ignite.
 
 ```bash
 git clone https://github.com/LumeraProtocol/lumera.git
 cd lumera
 ignite chain build
-lumerad init my-node --chain-id lumera-local
+lumerad init devnet --chain-id lumera-local
 lumerad start
 ```
 
-For connecting the SDK to a local node:
+You can point the Lumera SDK dynamically to your active loopback interfaces:
 
 ```ts
 const client = await createLumeraClient({
   rpcEndpoint: "http://localhost:26657",
   lcdEndpoint: "http://localhost:1317",
-  snapiEndpoint: "http://localhost:8080",
+  snapiEndpoint: "http://localhost:8080", // Assume Local SN-Manager 
   signer: wallet,
   address: account.address,
   gasPrice: "0.025ulume",
 });
 ```
 
-## Supernode Requirements
+---
 
-To run a Supernode (storage provider):
+## Baseline Mesh Requirements
 
-| Resource | Minimum |
+If contributing hardware to the Kademlia DHT, standard compute specifications scale based on the DA layer load.
+
+| Resource Vector | Absolute Minimum Threshold |
 |----------|---------|
-| CPU | 8 cores |
-| RAM | 64 GB |
-| Storage | 2 TB SSD |
-| Network | 5 Gbps+ |
+| Compute | 8 Cores (Modern Generation) |
+| Memory | 64 GB RAM |
+| Persistent Store | 1 - 2 TB Enterprise NVMe / SSD |
+| Network Bandwidth | 5 Gbps+ (Symmetric) |
 
+To initialize a daemon:
 ```bash
 git clone https://github.com/LumeraProtocol/supernode.git
 cd supernode
 make build
-supernode init
-supernode start
+sn-manager init
+sn-manager start
 ```
-
-## Community
-
-| Channel | Link |
-|---------|------|
-| Discord | [discord.com/invite/qudewKS3kp](https://discord.com/invite/qudewKS3kp) |
-| GitHub (Lumera) | [github.com/LumeraProtocol](https://github.com/LumeraProtocol) |
-| GitHub (Pastel legacy) | [github.com/pastelnetwork](https://github.com/pastelnetwork) |
-| Twitter | [@lumeraprotocol](https://twitter.com/lumeraprotocol) |
-| Website | [lumera.io](https://lumera.io) |
 
 ## Next Steps
 
 <Cards>
-  <Card title="Troubleshooting" href="/docs/reference/troubleshooting" />
-  <Card title="Get Started" href="/docs/getting-started/installation" />
+  <Card title="Troubleshooting Guide" href="/docs/reference/troubleshooting" />
+  <Card title="Client Installation" href="/docs/getting-started/installation" />
 </Cards>
 
 

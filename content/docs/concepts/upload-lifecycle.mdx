@@ -1,174 +1,86 @@
 ---
 title: Upload Lifecycle
-description: Step-by-step breakdown of how files are uploaded and permanently stored via Cascade.
+description: Dissecting the deterministic upload state machine and Supernode hand-offs.
 icon: Upload
 ---
 
-
 ## Overview
 
-A Cascade upload consists of three phases: **prepare**, **register**, and **send**. The SDK's `uploadFile` method handles all three, but you can also run them individually for fine-grained control.
+A Cascade upload is not a single point-to-point transfer. It is a multi-phase state transition bridging the Lumera control-plane and the Supernode data-plane. The phases are: **Preparation**, **On-Chain Registration**, and **Execution (SN-API Handoff)**.
 
-## Phase 1: Prepare
+<Callout type="info">
+While our official SDKs (TypeScript, Rust, Go) abstract this into a single `uploadFile` method, understanding the underlying mechanisms is critical for Protocol Researchers and custom Integrators.
+</Callout>
 
-```ts
-const { fileBytes, dataHash } = await client.Cascade.uploader.prepareFile(file);
+---
+
+## Phase 1: Cryptographic Preparation (Offline)
+
+Before any network request is made, deterministic proofs must be generated entirely client-side.
+
+1. **Payload Hashing**: The raw file payload is converted into bytes. A **BLAKE3 hash** is computed over the entire buffer. This deterministic hash serves as the immutable on-chain identifier.
+2. **RaptorQ Layout Generation**: The payload size and network parameters are used to generate an erasure-coding **layout** map. This layout details the exact symbol and block splits.
+3. **Deterministic Layout IDs**: From the layout map, deterministic `layout_ids` are generated using a specific nested hashing algorithm involving base64 and zstd compression.
+4. **ADR-036 Signatures**: The client signs two distinct payloads using the standard Cosmos [ADR-036 `signArbitrary`](https://docs.cosmos.network/main/build/architecture/adr-036) spec:
+   - The compacted layout map (proving the execution parameters).
+   - The `data_hash` (proving ownership during the REST upload phase).
+
+---
+
+## Phase 2: On-Chain Registration (`MsgRequestAction`)
+
+Once the proofs are generated, the client initializes the state machine on the Lumera blockchain.
+
+### Broadcasting the Transaction
+The client constructs a `/lumera.action.v1.MsgRequestAction` transaction containing the `data_hash`, `layout_ids`, and payload size. The client also escrows the calculated storage fee in `ulume`.
+
+### State Transition: `PENDING`
+When the block is minted:
+1. The chain validates the transaction and fee.
+2. The `x/action` module sets the file's state to `PENDING`.
+3. An `action_registered` event is emitted, containing the globally unique `action_id`.
+
+```typescript
+// Typical Developer Abstraction (Execution Layer)
+const result = await client.Cascade.uploader.registerAction({ fileBytes, dataHash }, ...);
+// Returns the emitted `action_id`
 ```
 
-1. The input file (a `Uint8Array`, `File`, or `Blob`) is converted to a `Uint8Array`
-2. A **BLAKE3 hash** is computed over the file bytes — this becomes the permanent content identifier stored on-chain
+---
 
-## Phase 2: Register Action On-Chain
+## Phase 3: SN-API Handoff (Data Plane)
 
-```ts
-const { actionId, authSignature } = await client.Cascade.uploader.registerAction(
-  { fileBytes, dataHash },
-  {
-    fileName: "paper.pdf",
-    isPublic: true,
-    taskOptions: { pollInterval: 2000, timeout: 300000 },
-  }
-);
-```
+With the `action_id` confirmed on-chain, the client shifts entirely to the off-chain REST gateway.
 
-This phase involves multiple sub-steps:
+### Multipart Transfer
+The client sends a `POST /api/v1/actions/cascade` request to the SN-API.
+The payload must strictly contain:
+- The `action_id` proving on-chain registration.
+- The **ADR-036 auth signature** of the `data_hash` (computed in Phase 1).
+- The raw byte buffer.
 
-### 2a. Fetch Action Parameters
+### Supernode Ingestion & Encoding
+Upon receiving the payload, the target Supernode:
+1. Verifies the ADR-036 signature to prevent spam.
+2. Queries the `x/action` module to confirm the `action_id` exists and is `PENDING`.
+3. Verifies the BLAKE3 hash matches the raw bytes.
+4. Distributes the chunks across the Supernode peer mesh.
 
-The SDK queries the chain for current parameters:
+### Final State Transition: `DONE`
+Once redundancy thresholds are met natively in the P2P mesh, the ingestion Supernode broadcasts a `/lumera.action.v1.MsgFinalizeAction`. This completes the lifecycle, toggling the on-chain state to `DONE` and freeing the escrowed funds to the storage providers.
 
-```ts
-const actionParams = await client.Blockchain.getActionParams();
-// Returns: { max_raptor_q_symbols, ... }
-```
+---
 
-These parameters determine the RaptorQ encoding configuration. Results are cached for 5 minutes.
+## Developer Error States
 
-### 2b. Generate RaptorQ Layout
+If your implementation fails, refer to these SDK abstraction states:
 
-The file is processed through the RaptorQ WASM module to generate an erasure-coding **layout**:
-
-- `rq_ids_ic` — a random counter seed in `[0, max_raptor_q_symbols)`
-- The layout contains block-level encoding metadata that Supernodes need to store and reconstruct the file
-- The layout JSON is compacted (no whitespace) to match the Go reference implementation
-
-### 2c. Sign the Layout (ADR-036)
-
-The compacted layout bytes are signed using ADR-036 `signArbitrary`:
-
-```
-signer.signArbitrary(chainId, address, layoutBytes)
-```
-
-This signature proves the layout was created by the account that registered the action.
-
-### 2d. Derive Layout IDs 
-
-Layout IDs are deterministic identifiers derived from the layout and its signature. The algorithm must match the on-chain Go implementation exactly:
-
-```
-For each i in [0, rq_ids_max):
-  counter = rq_ids_ic + i
-  input   = Base64(layout) + "." + Base64(signature) + "." + decimal(counter)
-  compressed = zstd(input, level=3)
-  hash    = BLAKE3(compressed)
-  id      = Base58(hash)
-```
-
-These IDs are included in the on-chain action and allow Supernodes to verify data integrity.
-
-### 2e. Build LEP-1 Index File
-
-```json
-{
-  "version": 1,
-  "layout_ids": ["7K9x...", "3Jm2...", ...],
-  "layout_signature": "base64..."
-}
-```
-
-The index file is signed with ADR-036 and included in the on-chain registration.
-
-### 2f. Create Auth Signature
-
-A separate signature over the `dataHash` is created — this is used to authenticate the file upload to SN-API.
-
-### 2g. Broadcast MsgRequestAction
-
-The SDK simulates the transaction to estimate gas, then signs and broadcasts:
-
-```ts
-// Simplified — the SDK handles this internally
-const msg = {
-  typeUrl: "/lumera.action.v1.MsgRequestAction",
-  value: {
-    creator: address,
-    actionType: "ACTION_TYPE_CASCADE",
-    dataHash: dataHash,
-    rqIds: layoutIds,
-    // ... other fields
-  },
-};
-```
-
-The chain validates the message, escrows fees, and emits an `action_registered` event. The SDK extracts the `action_id` from the event attributes.
-
-## Phase 3: Send File to Supernodes
-
-```ts
-const uploadResult = await client.Cascade.uploader.sendFileToSupernodes(
-  actionId,
-  authSignature,
-  fileBytes,
-  { taskOptions: { pollInterval: 2000, timeout: 300000 } }
-);
-```
-
-1. The file is sent as multipart form data to `POST /api/v1/actions/cascade`:
-   ```
-   FormData {
-     action_id: string
-     signature: string (auth signature)
-     file: Blob
-   }
-   ```
-2. The SN-API distributes chunks to the Supernode mesh
-3. The SDK polls `GET /api/v1/actions/cascade/tasks/{task_id}` at the configured interval
-4. Upload completes when the task reaches a terminal status
-
-## Unified Upload
-
-For most use cases, call `uploadFile` to run all three phases:
-
-```ts
-const result = await client.Cascade.uploader.uploadFile(fileBytes, {
-  fileName: "document.pdf",
-  isPublic: true,
-  taskOptions: {
-    pollInterval: 2000,  // Check every 2 seconds
-    timeout: 300000,     // Fail after 5 minutes
-  },
-});
-
-console.log(result.action_id); // Use this to download later
-```
-
-## Task States
-
-| Status | Phase | Meaning |
+| State | Phase | Meaning |
 |--------|-------|---------|
-| `sdk:completed` | Upload | File successfully stored |
-| `sdk:upload_completed` | Upload | Upload confirmed |
-| `sdk:failed` | Upload | Generic failure |
-| `sdk:supernodes_unavailable` | Upload | No Supernodes accepted the task |
-| `sdk:registration_failure` | Register | On-chain registration failed |
-| `sdk:upload_failed` | Upload | File transfer to SN-API failed |
-| `sdk:processing_failed` | Upload | SN-API could not process the file |
-| `sdk:processing_timeout` | Upload | Processing exceeded timeout |
-
-## Retry Behavior
-
-The SDK automatically retries the SN-API upload up to 5 times with a 3-second delay between attempts. This handles the case where the Supernode has not yet indexed the on-chain action (eventual consistency between chain and SN-API).
+| `sdk:registration_failure` | Registration | The `MsgRequestAction` transaction failed or ran out of gas. |
+| `sdk:upload_failed` | Handoff | The transfer to SN-API timed out or failed signature verification (ADR-036 issue).|
+| `sdk:processing_timeout` | Handoff | Supernodes received it but failed to encode it within timeframe. |
+| `sdk:supernodes_unavailable` | Handoff | Rejection at the SN-API load balancer layer. |
 
 ## Next Steps
 

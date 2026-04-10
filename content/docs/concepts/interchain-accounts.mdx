@@ -1,86 +1,71 @@
 ---
-title: Interchain Accounts
-description: Use Cascade storage from any IBC-connected Cosmos chain via ICS-27.
+title: Interchain Accounts (ICS-27)
+description: Cross-chain Cascade storage integration from any IBC-compatible Cosmos chain.
 icon: Globe
 ---
 
 ## Overview
 
-Cascade storage is not limited to applications running directly on the Lumera chain. Any **IBC-connected Cosmos chain** can use Cascade via [Interchain Accounts (ICS-27)](https://ibc.cosmos.network/v8/apps/interchain-accounts/overview/).
+Cascade storage is not isolated to the Lumera AppChain. By leveraging the Cosmos [Interchain Accounts (ICS-27)](https://ibc.cosmos.network/v8/apps/interchain-accounts/overview/) protocol, any IBC-connected chain can natively issue storage requests.
 
-This enables powerful cross-chain use cases:
-- A DeFi protocol on Injective can store trade receipts permanently on Cascade
-- An NFT marketplace on Osmosis can use Cascade for immutable media storage
-- A DAO on Cosmos Hub can archive governance proposals
+This enables powerful cross-chain architectural patterns:
+- A DeFi protocol on Injective archiving trade receipts immutably.
+- An NFT marketplace on Stargaze routing media storage permanently to Cascade.
+- A Cosmos Hub DAO indexing and preserving historical governance proposals off-chain.
 
-## How It Works
+---
+
+## Architectural Flow
 
 <Diagram name="interchain-accounts" />
 
-### Step-by-Step Flow
+### Cross-Chain State Transitions
+1. **Controller Chain**: The remote chain constructs an IBC `MsgSendTx` packet containing an embedded `/lumera.action.v1.MsgRequestAction`.
+2. **Relayer Transit**: An IBC relayer ferries the compiled packet to the Lumera AppChain via an open channel.
+3. **Host Chain Execution**: The Lumera ICA host module unwraps the payload and executes it.
+4. **Action Confirmed**: The event `action_registered` is emitted. The payload's state within `x/action` transitions to `PENDING`. 
 
-1. **Controller chain** submits `MsgSendTx` containing a packed `MsgRequestAction`
-2. The IBC relayer delivers the packet to **Lumera (host chain)**
-3. Lumera's ICA host module unpacks and executes the `MsgRequestAction`
-4. An **ICA address** on Lumera pays the escrow fee (must be pre-funded)
-5. The action is registered on-chain with the `action_id`
-6. The **application** uploads the file directly to SN-API using the `action_id`
+<Callout type="warning">
+**Fee Funding**: The ICA alias address on the Lumera side must be pre-funded with sufficient `ulume` to cover the escrow storage fee for the `MsgRequestAction`.
+</Callout>
 
-### Application-Level Keypairs
+### The `app_pubkey` Delegation
+Because an Interchain Account is an algorithmic alias without a true private key mapped to the host chain, it natively cannot sign the off-chain ADR-036 authorizations required by the SN-API. 
 
-A key challenge with ICA is that the ICA address on the host chain has no user-held private key — it is controlled by the controller chain. To solve this, Cascade supports an `app_pubkey` field in `MsgRequestAction`:
+The protocol bypasses this by accepting an `app_pubkey` field in the `/lumera.action.v1.MsgRequestAction`:
+- A local application on the Controller Chain generates its own keypair.
+- It injects the resulting public key into the IBC payload.
+- It retains the private key to authorize the off-chain REST uploads to the SN-API gateway.
 
-- The application generates a keypair on the controller side
-- The public key is included in the action registration
-- The private key is used to sign file uploads to SN-API
-- This separates the **control plane** (IBC messages) from the **data plane** (file transfers)
+This isolates the **control plane** (IBC smart contracts) from the heavy **data plane** (gigabyte file streaming).
 
-## Using the Go SDK for ICA
+---
 
-The [Go SDK](https://github.com/LumeraProtocol/sdk-go) provides helpers for ICA-based Cascade:
+## SDK & CLI Implementations
+
+### Go SDK Abstractions
+The official [Lumera Go SDK](https://github.com/LumeraProtocol/sdk-go) natively packages IBC abstractions for integrators:
 
 ```go
 import "github.com/LumeraProtocol/sdk-go/client"
 
-// Pack a MsgRequestAction for ICA submission
+// Encode a MsgRequestAction payload for an IBC ICA transit
 packedMsg := client.PackRequestForICA(msg)
 
-// Pack a MsgApproveAction for ICA submission
-packedApprove := client.PackApproveForICA(approveMsg)
-
-// Extract action IDs from IBC acknowledgement
+// Parse incoming ICA acknowledgements to detect the Action ID
 actionIDs := client.ExtractRequestActionIDsFromAck(ackData)
 ```
 
-Configure the SDK client for ICA:
-
-```go
-cfg := &client.Config{
-    ICAOwnerKeyName: "ica-controller-key",
-    ICAOwnerHRP:     "cosmos", // Bech32 prefix of controller chain
-}
-```
-
-## ICA Client CLI
-
-The [Lumera ICA Client](https://github.com/LumeraProtocol/lumera-ica-client) provides a reference CLI:
+### Reference CLI Tools
+To quickly prototype pipelines, we provide the [Lumera ICA Client](https://github.com/LumeraProtocol/lumera-ica-client):
 
 ```bash
-# Upload a file via ICA
-lumera-ica-client upload --file document.pdf --controller-chain cosmos
+# Push payload via ICS-27
+lumera-ica-client upload --file archive.tar.gz --controller-chain cosmoshub-4
 
-# Check action status
+# Query x/action state bridging
 lumera-ica-client action status --action-id <id>
-
-# Download a file
-lumera-ica-client download --action-id <id>
 ```
-
-## Security Considerations
-
-- **Control-plane isolation**: IBC messages only handle metadata and fee escrow. File data never touches the IBC channel.
-- **Data-plane authentication**: File uploads to SN-API use application-level signatures, independent of the ICA address.
-- **Fee pre-funding**: The ICA address must be funded with `ulume` before registering actions. Monitor balances to prevent failures.
 
 ## Next Steps
 

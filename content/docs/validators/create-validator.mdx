@@ -1,80 +1,81 @@
 ---
-title: Create Validator
-description: Create a wallet, fund it, and register your validator on the Lumera network.
+title: Broadcast MsgCreateValidator
+description: Initialize a keyring, fund it, and broadcast the transaction to enter the active set.
 icon: Zap
 ---
 
 ## Prerequisites
 
-Before creating a validator, make sure:
+Before registering your validator state on-chain, ensure:
+- Your node daemon (`lumerad`) is running.
+- Your node is fully synchronized (`catching_up: false`).
 
-- Your node is running and fully synced (`catching_up: false`)
-- You have completed [Node Setup](/docs/validators/node-setup)
-
-Verify sync status:
-
+Verify sync status natively:
 ```bash
 lumerad status 2>&1 | jq '.sync_info.catching_up'
-# Must be: false
+# Expected output: false
 ```
 
-## Step 1 — Create a Wallet
+---
+
+## 1. Initialize the Cosmos Keyring
+
+You need a funded wallet to sign the `MsgCreateValidator` transaction. Create an operator wallet in the local `lumerad` keyring.
 
 ```bash
 lumerad keys add validator
 ```
 
-You will be prompted for a keyring passphrase (minimum 8 characters). The output includes your address and a 24-word mnemonic:
-
-```
-- address: lumera1abc...
-  name: validator
-
-**Important** write this mnemonic phrase in a safe place.
-word1 word2 word3 ... word24
-```
+You will securely generate a local keyring passphrase and receive your 24-word BIP39 mnemonic. 
 
 <Callout type="error">
-**Write down the 24-word mnemonic NOW.** It is shown exactly once. If you lose it, you lose access to your wallet permanently.
+**Mnemonic Backup Required**
+The 24-word mnemonic is the master seed of your Validator Operator (`valoper`) identity. Copy it strictly offline. It is NEVER recoverable.
 </Callout>
 
-### View your addresses
+### Query Address Formats
+
+Your identity maps to two distinct benchmark addresses:
 
 ```bash
-# Wallet address (for receiving tokens)
+# Standard address (for receiving LUME tokens)
 lumerad keys show validator -a
-# Output: lumera1...
+# Expected format: lumera1...
 
-# Validator operator address (for staking commands)
+# Validator Operator address (for staking/delegation commands)
 lumerad keys show validator --bech val -a
-# Output: lumeravaloper1...
+# Expected format: lumeravaloper1...
 ```
 
-## Step 2 — Fund Your Wallet
+---
 
-You need testnet LUME tokens. Options:
+## 2. Fund the Operator Wallet
 
-1. **Faucet** — Request tokens from the [Lumera faucet](https://faucet.astrostake.xyz/lumera)
-2. **Discord** — Ask in the [Lumera Discord](https://discord.gg/lumeraprotocol) if the faucet is unavailable
+To prevent spam, Lumera enforces a minimum self-delegation bound alongside baseline gas fees (`ulume`). 
 
-Check your balance:
+- Request testnet tokens via the [Lumera Faucet](https://faucet.astrostake.xyz/lumera).
+- If the faucet is drained, request funds via the `#testnet-faucet` channel in the Discord.
 
+Verify the balances module via RPC:
 ```bash
 lumerad query bank balances $(lumerad keys show validator -a)
 ```
+*Note: You need at least 1,000,000 `ulume` (1 LUME) for the delegation + ~10,000 `ulume` for gas.*
 
-You need at least **1 LUME** (1,000,000 ulume) to create a validator, plus extra for gas fees.
+---
 
-## Step 3 — Create the Validator
+## 3. Construct and Broadcast `MsgCreateValidator`
 
-### Get your validator public key
+Cosmos SDK `v0.50` requires the `MsgCreateValidator` payload to be constructed via a strictly formatted JSON file, deprecating the legacy inline CLI flags.
 
+### Capture the Consensus Pubkey
+First, identify the exact CometBFT consensus pubkey generated during the initialized `node_setup`:
 ```bash
 lumerad tendermint show-validator
 ```
 
-### Create the validator config file
-
+### Build the Configuration JSON
+Construct the transaction payload locally:
 ```bash
 cat > ~/validator.json <<EOF
 {
@@ -89,21 +90,16 @@ cat > ~/validator.json <<EOF
 EOF
 ```
 
-Replace `YOUR_MONIKER` with your validator name.
+| Field | Definition |
+|-----------|-------------|
+| `amount` | The initial bonded self-delegation. |
+| `commission-rate` | Initial fraction of validator rewards charged to your delegators (0.10 = 10%). |
+| `commission-max-rate` | Absolute ceiling limit for commission (immutable state). |
+| `commission-max-change-rate` | Absolute maximum daily fluctuation limit for the commission. |
+| `min-self-delegation` | Hard floor self-delegation balance. Dropping below this automatically jails the validator. |
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `amount` | Initial self-delegation | `1000000ulume` (1 LUME) |
-| `commission-rate` | Starting commission rate | `0.10` (10%) |
-| `commission-max-rate` | Maximum commission (immutable once set) | `0.20` (20%) |
-| `commission-max-change-rate` | Max daily commission change | `0.01` (1%) |
-| `min-self-delegation` | Minimum tokens the validator must self-delegate | `1` |
-
-<Callout type="info">
-Lumera uses Cosmos SDK v0.50 which requires a JSON file for `create-validator`. Older guides that show `--amount` and `--pubkey` CLI flags will not work.
-</Callout>
-
-### Submit the transaction
+### Broadcast the Transaction
+Sign the JSON payload and broadast it to the mempool:
 
 ```bash
 lumerad tx staking create-validator ~/validator.json \
@@ -115,47 +111,24 @@ lumerad tx staking create-validator ~/validator.json \
   -y
 ```
 
-A successful response shows `code: 0`.
-
 <Callout type="warn">
-The default 5,000 ulume fee is often insufficient. Use `--fees=10000ulume` or higher.
+Ensure you use an elevated `--fees` parameter. If the transaction hangs or errors with `insufficient fees`, bump `--fees=20000ulume`.
 </Callout>
 
-### Verify your validator
+---
+
+## 4. Verify On-Chain State
+
+Poll the `x/staking` module to verify your node was registered successfully:
 
 ```bash
 lumerad query staking validator $(lumerad keys show validator --bech val -a)
 ```
 
-You should see your moniker, commission rates, and `status: BOND_STATUS_UNBONDED`. Your validator will remain unbonded until it has enough delegation to enter the active set.
-
-## Verification Checklist
-
-Run these checks to confirm everything is working:
-
-```bash
-# Node running?
-sudo systemctl status lumera
-
-# Synced?
-lumerad status 2>&1 | jq '.sync_info | {latest_block_height, catching_up}'
-
-# Validator exists?
-lumerad query staking validator $(lumerad keys show validator --bech val -a) | grep moniker
-
-# Signing blocks?
-lumerad query slashing signing-info $(lumerad tendermint show-validator)
-
-# Balance?
-lumerad query bank balances $(lumerad keys show validator -a)
-
-# Peers connected?
-lumerad status 2>&1 | jq '.node_info.other'
-```
+Look for `status: BOND_STATUS_UNBONDED` or `status: BOND_STATUS_BONDED`. If your total delegation is high enough, you will enter the Active Set and begin signing CometBFT blocks.
 
 ## Next Steps
 
 <Cards>
-  <Card title="Operations" href="/docs/validators/operations" />
-  <Card title="Validator Overview" href="/docs/validators/overview" />
+  <Card title="Operator Maintenance" href="/docs/validators/operations" />
 </Cards>

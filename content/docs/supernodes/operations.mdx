@@ -1,100 +1,105 @@
 ---
-title: Operations
-description: Day-to-day Supernode operations, monitoring, upgrades, and troubleshooting.
+title: Supernode Operations
+description: Day-to-day DA execution, telemetry monitoring, and on-chain lifecycle management.
 icon: Wrench
 ---
 
-## Quick Reference
+## Supernode State Machine
 
-```bash
-# View logs
-sudo journalctl -fu sn-manager
+The on-chain state of your DA pipeline is evaluated algorithmically. 
 
-# Restart Supernode
-sudo systemctl restart sn-manager
-
-# Stop Supernode
-sudo systemctl stop sn-manager
-
-# Check service status
-sudo systemctl status sn-manager
-
-# Health check
-sn-manager status
-sn-manager check
-```
-
-## Supernode States
-
-The on-chain state of your Supernode determines whether it is actively serving the network.
-
-| State | Meaning | Action |
+| Internal State | Execution Definition | Recovery Action |
 |-------|---------|--------|
-| `ACTIVE` | Operating normally | None |
-| `DISABLED` | Deregistered | Can re-register |
-| `STOPPED` | Manually stopped via transaction | Start with `start-supernode` tx |
-| `PENALIZED` | Penalized for violations | Cannot re-register |
-| `POSTPONED` | Non-compliant metrics | Auto-recovers when compliant |
+| `SUPERNODE_STATE_ACTIVE` | Operating normally, processing `MsgRequestAction` tasks. | None |
+| `SUPERNODE_STATE_DISABLED` | Deregistered manually by the Validator. | Must re-register via `MsgRegisterSupernode`. |
+| `SUPERNODE_STATE_STOPPED` | Paused gracefully for maintenance. | Broadcast a `MsgStartSupernode` tx. |
+| `SUPERNODE_STATE_PENALIZED` | Validator operator slashed for malicious behavior. | Permanently banned. Cannot re-enter active set. |
+| `SUPERNODE_STATE_POSTPONED` | Metrics failure or unresponsiveness. | Auto-recovers once telemetry is successfully ingested. |
 
-## On-Chain Metrics (LEP-4)
+---
 
-Supernodes must self-report metrics every ~400 blocks. If metrics are not reported within the grace period (~100 blocks), the Supernode is moved to `POSTPONED` state. This reporting is handled automatically by `sn-manager` — no manual action is needed.
+## On-Chain Telemetry (LEP-4)
 
-Reported metrics include: version, CPU/RAM/disk usage, port status, uptime, and peer count.
+Supernodes maintain the security of the DA tier by self-reporting telemetry back to the base layer.
+Every **~400 blocks**, the `sn-manager` executes an automated IBC or native packet containing:
+* Current Node Version
+* CPU/RAM/NVMe overhead signatures
+* Port connectivity states
+* Peer counts and uptime
 
-## Lifecycle Operations
+If the `x/supernode` module does not receive this packet within a ~100 block grace period, your validator is transitioned to `POSTPONED` and stops receiving file chunk shards. The daemon handles this reporting completely autonomously.
 
-### Check Supernode status
+---
 
+## Process & Telemetry Management
+
+### Service Process
 ```bash
-# On-chain (run on validator host)
-lumerad query supernode get-supernode $(lumerad keys show validator --bech val -a)
-
-# Local health
+# Daemon health and mesh integration checks
 sn-manager status
 sn-manager check
+
+# Daemon logs
+sudo journalctl -fu sn-manager
 ```
 
-### Update Supernode endpoint
+### Versioning & Upgrades
+The daemon ships with an over-the-air version manager. If initialized with `--auto-upgrade`, the daemon will seamlessly swap binaries on governed block heights.
 
-If your Supernode's IP changes, update it on-chain. Run on your **validator host**:
+To manually configure an upgrade:
+```bash
+# List all governed releases natively
+sn-manager ls-remote
 
+# Build and swap to a new release
+sn-manager get v2.4.72
+sn-manager use v2.4.72
+
+sudo systemctl restart sn-manager
+```
+
+---
+
+## Lifecycle Transactions
+
+The `x/supernode` module accepts lifecycle mutations. **All commands must run on the core Validator host, signed by the core `valoper` key.**
+
+### Mutate Public Endpoints
+If your Supernode's server IPs change, mutate the state endpoint immediately:
 ```bash
 VALOPER=$(lumerad keys show validator --bech val -a)
 
 lumerad tx supernode update-supernode \
-  "$VALOPER" "NEW_IP:4444" "endpoint update" "<SN_ACCOUNT>" \
+  "$VALOPER" "NEW_PUBLIC_IP:4444" "migrated cloud provider" "<SN_ACCOUNT_ADDRESS>" \
   --from validator \
   --chain-id lumera-testnet-2 \
   --gas auto --gas-adjustment 1.3 \
   --fees 5000ulume -y
 ```
 
-### Stop Supernode
-
-To gracefully stop your Supernode, submit the stop transaction first, then stop the service:
+### Pause State (`MsgStopSupernode`)
+It is highly recommended to explicitly signal downtime before engaging in extensive hardware maintenance.
 
 ```bash
-# On validator host — notify the chain
-lumerad tx supernode stop-supernode $(lumerad keys show validator --bech val -a) "maintenance" \
+# 1. Broadast the halt signal
+lumerad tx supernode stop-supernode $(lumerad keys show validator --bech val -a) "kernel upgrade" \
   --from validator \
   --chain-id lumera-testnet-2 \
   --gas auto --gas-adjustment 1.3 \
   --fees 5000ulume -y
 
-# On Supernode host — stop the service
+# 2. Safely stop the daemon locally on the Supernode server
 sudo systemctl stop sn-manager
 ```
 
-### Restart Supernode
-
-Start the service first, then submit the on-chain start transaction:
+### Resume State (`MsgStartSupernode`)
+Once maintenance concludes, recover your node to `ACTIVE` status.
 
 ```bash
-# On Supernode host
+# 1. Start the daemon locally on the Supernode server
 sudo systemctl start sn-manager
 
-# On validator host
+# 2. Broadast the start signal
 lumerad tx supernode start-supernode $(lumerad keys show validator --bech val -a) \
   --from validator \
   --chain-id lumera-testnet-2 \
@@ -102,12 +107,10 @@ lumerad tx supernode start-supernode $(lumerad keys show validator --bech val -a
   --fees 5000ulume -y
 ```
 
-### Deregister Supernode
-
-To permanently remove your Supernode from the network:
+### Deregistration (`MsgDeregisterSupernode`)
+Permanently unbind the Supernode from your consensus layer.
 
 ```bash
-# On validator host
 lumerad tx supernode deregister-supernode $(lumerad keys show validator --bech val -a) \
   --from validator \
   --chain-id lumera-testnet-2 \
@@ -115,42 +118,11 @@ lumerad tx supernode deregister-supernode $(lumerad keys show validator --bech v
   --fees 5000ulume -y
 ```
 
-This moves the Supernode to `DISABLED` state. You can re-register later if needed.
+---
 
-### List all Supernodes
+## Reference Configurations
 
-```bash
-lumerad query supernode list-supernodes
-```
-
-## Upgrading sn-manager
-
-sn-manager includes a built-in version manager:
-
-```bash
-# List available versions
-sn-manager ls-remote
-
-# Download a specific version
-sn-manager get v2.4.72
-
-# Switch to the new version
-sn-manager use v2.4.72
-
-# Restart the service
-sudo systemctl restart sn-manager
-
-# Verify
-sn-manager version
-```
-
-<Callout type="info">
-If you initialized with `--auto-upgrade`, sn-manager will automatically upgrade to new versions when they become available. You can still manually switch versions if needed.
-</Callout>
-
-## Configuration File
-
-The Supernode configuration is stored at `~/.supernode/config.yml`:
+The daemon injects your config statically at `~/.supernode/config.yml`.
 
 ```yaml
 supernode:
@@ -176,42 +148,13 @@ raptorq:
   files_dir: "raptorq_files"
 ```
 
-## Backup
-
-Always back up these files from your Supernode host:
-
-```bash
-mkdir -p ~/sn-backup
-cp ~/.supernode/config.yml ~/sn-backup/
-cp -r ~/.supernode/keys/ ~/sn-backup/keys/
-```
-
 <Callout type="error">
-**Also save your mnemonic offline.** The key files and config can be recreated from the mnemonic, but the mnemonic cannot be recovered from the key files.
+**Critical Backup Paths**
+If rebuilding the machine, ensure you backup `~/.supernode/config.yml`, the recursive `~/.supernode/keys/` directory, and your original 24-word generated mnemonic. You cannot rebuild the keys without the mnemonic.
 </Callout>
-
-## Troubleshooting
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Supernode shows `POSTPONED` | Metrics reporting failed | Check logs with `journalctl -u sn-manager -f`. Verify ports are open (`ufw status`). Service auto-recovers when compliant. |
-| Registration fails with "insufficient stake" | Combined stake below minimum | Check both sources: `lumerad query staking delegation <SN_ACCOUNT> <VALOPER>` and validator self-delegation. Combined total must meet `minimum_stake_for_sn` (check with `lumerad query supernode params`). |
-| `SigningInfo not found` after registration | Chain hasn't processed yet | Wait a few blocks and query again |
-| sn-manager won't start | Passphrase or config issue | Verify `SUPERNODE_PASSPHRASE` in the service file. Check config: `cat ~/.supernode/config.yml` |
-| Ports appear closed in metrics | Firewall or cloud security group | Verify `ufw status`. Check cloud provider firewall rules. Test externally: `nc -zv <IP> 4444` |
-| Cannot connect to validator gRPC | gRPC bound to localhost | On validator: ensure `address = "0.0.0.0:9090"` in `~/.lumera/config/app.toml` and `ufw allow from <SN_IP> to any port 9090` |
-
-## Useful Links
-
-- [Automated Setup Script](https://github.com/kaleababayneh/lumera-validator)
-- [Supernode Releases](https://github.com/LumeraProtocol/supernode/releases)
-- [Supernode Operator Guide](https://github.com/LumeraProtocol/lumera-networks/blob/master/docs/SUPERNODE_GUIDE.md)
-- [Block Explorer](https://portal.testnet.lumera.io/lumera-testnet-2)
-- [Discord](https://discord.gg/lumeraprotocol)
 
 ## Next Steps
 
 <Cards>
-  <Card title="Supernode Overview" href="/docs/supernodes/overview" />
-  <Card title="Node Setup" href="/docs/supernodes/node-setup" />
+  <Card title="Build with the Lumera SDK" href="/docs/getting-started/browser-app" />
 </Cards>

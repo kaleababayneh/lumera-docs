@@ -1,9 +1,8 @@
 ---
 title: Go SDK
-description: Overview of the official Lumera Go SDK for server-side and CLI applications.
+description: Overview of the official Lumera Go SDK for backend architectures and daemon development.
 icon: Code
 ---
-
 
 ## Installation
 
@@ -11,17 +10,21 @@ icon: Code
 go get github.com/LumeraProtocol/sdk-go
 ```
 
-## Architecture
+## Internal Architecture
 
-The Go SDK follows a three-layer architecture:
+The Go SDK natively powers the Supernode daemon and adheres strictly to the Cosmos SDK architectural guidelines. It isolates responsibilities into three distinct namespaces:
 
-| Layer | Access via | Purpose |
+| Layer | Namespace Map | Execution Scope |
 |---|---|---|
-| **Lumera API (gRPC)** | `client.Blockchain` | Blockchain queries — actions, supernodes, fees |
-| **Cascade SDK** | `client.Cascade` | File upload, download, and event subscriptions |
-| **SnApi (gRPC)** | Integrated through Cascade | Direct Supernode communication |
+| **Control Plane (Consensus)** | `client.Blockchain` | Submits state transitions (`MsgRequestAction`, `MsgFinalizeAction`), simulates fees, and queries `x/supernode` configurations natively via standard Tendermint gRPC. |
+| **Data Plane (Cascade DA)** | `client.Cascade` | Executes the 5-step upload lifecycle, handles LEP-1 encoding routines, and routes streams locally across the network. |
+| **Data Mesh Gateway** | `client.Cascade` (Under-the-hood) | Evaluates Kademlia mesh topologies and binds to direct `SN-API` endpoints (`/api/v1/actions/cascade`). |
 
-## Client Setup
+---
+
+## SDK Instantiation
+
+To bind the SDK, you must construct a `client.Config` struct detailing the `x/action` application paths and a local keyring.
 
 ```go
 package main
@@ -36,53 +39,67 @@ import (
 
 func main() {
 	ctx := context.Background()
+
+    // 1. Initialize an ephemeral or file-backed keyring
 	kr, _ := keyring.New("lumera", "test", "/tmp", nil)
 
+    // 2. Map Tendermint and Cosmos bindings
 	client, err := lumerasdk.New(ctx, lumerasdk.Config{
 		ChainID:      "lumera-testnet-2",
-		GRPCEndpoint: "grpc.testnet.lumera.io:443",
-		RPCEndpoint:  "https://rpc.testnet.lumera.io",
+		GRPCEndpoint: "grpc.testnet.lumera.io:443", // State query engine
+		RPCEndpoint:  "https://rpc.testnet.lumera.io", // Block polling engine
 		Address:      "lumera1...",
 		KeyName:      "my-key",
 	}, kr, lumerasdk.WithLogger(zap.NewExample()))
-	if err != nil {
+	
+    if err != nil {
 		panic(err)
 	}
 	defer client.Close()
 }
 ```
 
-## Upload a File
+---
+
+## File Upload Mapping
+
+The execution is fully abstracted. The `client.Cascade.Upload` namespace dynamically generates ADR-036 signatures, builds `MsgRequestAction`, blocks on Tendermint finality, and offloads byte arrays to the DA Mesh.
 
 ```go
 res, err := client.Cascade.Upload(ctx, addr, nil, "./my-document.pdf")
 if err != nil {
     panic(err)
 }
-fmt.Println("Stored with action ID:", res.ActionID)
+fmt.Println("State Transition Finalized. Action ID:", res.ActionID)
 ```
 
-## Download a File
+## File Download Mapping
+
+Retrieve deterministic shards via the permanent Action ID token.
 
 ```go
 _, err := client.Cascade.Download(ctx, actionID, "./downloads/")
 ```
 
-## Multi-Account Support
+---
 
-The Go SDK supports a factory pattern for managing multiple signers:
+## Cryptographic Interfaces
+
+### Multi-Key Multiplexing
+The Go SDK supports a factory pattern for executing independent operations across horizontally scaled backend systems:
 
 ```go
 factory, _ := lumerasdk.NewFactory(lumerasdk.Config{...}, kr)
+
+// Derive specific signers contextually 
 alice, _ := factory.WithSigner(ctx, aliceAddr, "alice")
 bob, _ := factory.WithSigner(ctx, bobAddr, "bob")
 ```
 
-Both `secp256k1` (Cosmos, coin type 118) and `eth_secp256k1` (EVM, coin type 60) key types are supported.
+The factory parses generic `secp256k1` (Cosmos Native) curves gracefully alongside generic EVM paths.
 
-## Interchain Accounts (ICA)
-
-The Go SDK includes helpers for cross-chain Cascade operations via ICS-27:
+### Cross-Chain Composability (ICS-27)
+Lumera natively executes interchain accounts via IBC. The Go SDK handles these abstractions securely via custom payload injection functions.
 
 ```go
 res, err := cascadeClient.Upload(ctx, addr, nil, filePath,
@@ -95,8 +112,7 @@ res, err := cascadeClient.Upload(ctx, addr, nil, filePath,
 ## Next Steps
 
 <Cards>
-  <Card title="How Cascade Works" href="/docs/getting-started/how-cascade-works" />
-  <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
-  <Card title="Interchain Accounts" href="/docs/concepts/interchain-accounts" />
+  <Card title="Execution Lifecycle Pipeline" href="/docs/getting-started/how-cascade-works" />
+  <Card title="ICS-27 Cross-Chain Accounts" href="/docs/concepts/interchain-accounts" />
 </Cards>
 

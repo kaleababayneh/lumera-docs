@@ -1,82 +1,73 @@
 ---
-title: Register Supernode
-description: Fund the Supernode account, delegate stake, and register on-chain.
+title: Broadcast MsgRegisterSupernode
+description: Fund the daemon account, finalize LEP-3 delegations, and enter the active DA set.
 icon: Zap
 ---
 
 ## Prerequisites
 
-Before registering, make sure:
+Before interacting with the `x/supernode` module, ensure:
+- Your `sn-manager` daemon is initialized and running.
+- You have safely stored the generic Supernode wallet address (`SN_ACCOUNT_ADDRESS`).
+- Your core consensus validator (`valoper`) is actively bonded and synced.
 
-- Your Supernode is running (`sn-manager` service is active), see [Node Setup](/docs/supernodes/node-setup)
-- You have the Supernode account address (`SN_ACCOUNT` — `lumera1...`)
-- You have your validator operator address (`VALOPER` — `lumeravaloper1...`)
-- Your validator is bonded and synced
+---
 
-## Step 1 — Fund the Supernode Account
+## 1. Fund the Daemon Wallet
 
-The Supernode account needs LUME tokens to delegate to your validator. There are several ways to fund it.
+Because the `sn-manager` wallet will sign its own delegations, it must be funded with baseline gas and delegation tokens.
 
-### Option A — Transfer from your validator wallet
-
-On your **validator host**:
-
+Run this transfer on your **Validator Host** (or any funded key):
 ```bash
-lumerad tx bank send validator <SN_ACCOUNT> <amount>ulume \
+lumerad tx bank send validator <SN_ACCOUNT_ADDRESS> 10000000000ulume \
   --chain-id lumera-testnet-2 \
   --gas auto --gas-adjustment 1.3 \
-  --fees 5000ulume -y
+  --fees 5000ulume \
+  -y
 ```
+*Note: Ensure you send enough LUME to cover both the DA minimum stake threshold and baseline gas (e.g., `10000000000ulume` = 10,000 LUME).*
 
-Replace `<SN_ACCOUNT>` with your Supernode's address and `<amount>` with the amount in ulume. The combined stake from your validator self-delegation and this SN account delegation must meet the on-chain minimum (currently 10,000 LUME on testnet-2).
+---
 
-### Option B — Testnet faucet or Discord
+## 2. Execute LEP-3 Delegation
 
-Request testnet tokens for your `SN_ACCOUNT` address from the [faucet](https://faucet.astrostake.xyz/lumera) or [Discord](https://discord.gg/lumeraprotocol).
+To satisfy the `minimum_stake_for_sn` threshold via the dual-source model, your Supernode daemon account must execute a native delegation transaction pointing to your Validator's operator address.
 
-<Callout type="info">
-Supernode registration uses a **LEP-3 dual-source stake** model. The minimum is the combined total of your validator self-delegation + SN account delegation. On testnet-2, this is currently **10,000 LUME**. Check the current value with `lumerad query supernode params`. This parameter is governable and can change.
-</Callout>
-
-## Step 2 — Delegate from Supernode Account to Validator
-
-This links the Supernode's stake to your validator. The delegation from the SN account counts toward the combined minimum stake alongside your validator self-delegation.
-
-Run on a machine with `lumerad` and access to the Supernode key:
-
+Run this transaction on any machine that retains access to the **Supernode keyring** (e.g., your Supernode server):
 ```bash
-VALOPER="lumeravaloper1..."  # Your validator operator address
+VALOPER="lumeravaloper1..."  # Your native consensus validator address
 
-lumerad tx staking delegate "$VALOPER" 10000000000ulume \
+sn-manager tx staking delegate "$VALOPER" 10000000000ulume \
   --from supernode \
   --chain-id lumera-testnet-2 \
   --gas auto --gas-adjustment 1.3 \
-  --fees 7000ulume -y
+  --fees 7000ulume \
+  -y
 ```
 
-Adjust the amount as needed. `10000000000ulume` = 10,000 LUME. If your validator already has substantial self-delegation, you may need less from the SN account — only the combined total must meet the minimum.
-
-### Verify the delegation
-
+Verify your delegation is in state:
 ```bash
-lumerad query staking delegations <SN_ACCOUNT>
+lumerad query staking delegations <SN_ACCOUNT_ADDRESS>
 ```
 
-You should see a delegation entry pointing to your validator operator address.
+---
 
-## Step 3 — Register Supernode On-Chain
+## 3. Broadcast `MsgRegisterSupernode`
 
 <Callout type="warn">
-**This command must run on your validator host**, signed by the validator operator key. It cannot be run from the Supernode server.
+**Validator Authorization Required**
+Because a Supernode binds directly to a consensus node, the final registration transaction MUST be signed by your highly-secure **Validator keyring**. Run the following on your Validator machine.
 </Callout>
 
-SSH into your **validator server** and run:
-
 ```bash
+# Extract your operator string
 VALOPER=$(lumerad keys show validator --bech val -a)
-SN_ENDPOINT="<SN_PUBLIC_IP>:4444"
-SN_ACCOUNT="lumera1..."  # Supernode account from node setup
 
+# Define your public endpoints
+SN_ENDPOINT="<SUPERNODE_PUBLIC_IP>:4444"
+SN_ACCOUNT="lumera1..."  
+
+# Broadcast the registration payload
 lumerad tx supernode register-supernode \
   "$VALOPER" \
   "$SN_ENDPOINT" \
@@ -84,72 +75,37 @@ lumerad tx supernode register-supernode \
   --from validator \
   --chain-id lumera-testnet-2 \
   --gas auto --gas-adjustment 1.3 \
-  --fees 5000ulume -y
+  --fees 5000ulume \
+  -y
 ```
 
-Replace `<SN_PUBLIC_IP>` with your Supernode server's public IP and update the `SN_ACCOUNT` with the address from [Node Setup, Step 5](/docs/supernodes/node-setup#step-5--initialize-the-supernode).
+Await network confirmation. A successful response returns `code: 0`.
 
-A successful response shows `code: 0`.
+---
 
-## Step 4 — Verify Registration
+## 4. State Verification
 
-### Check on-chain status
+### Consensus Engine Synchronization
 
-On your **validator host**:
-
+On your **Validator server**, query the `x/supernode` state module:
 ```bash
 lumerad query supernode get-supernode "$VALOPER"
 ```
-
-You should see `state: SUPERNODE_STATE_ACTIVE`.
-
-### Check Supernode health
-
-On your **Supernode host**:
-
-```bash
-sn-manager status
-sn-manager check
-```
-
-### Verify port connectivity
-
-From any external machine, test that the Supernode ports are reachable:
-
-```bash
-nc -zv <SN_PUBLIC_IP> 4444
-nc -zv <SN_PUBLIC_IP> 4445
-nc -zv <SN_PUBLIC_IP> 8002
-```
-
-## Verification Checklist
-
-Run these checks to confirm everything is working:
-
-```bash
-# sn-manager running?
-sudo systemctl status sn-manager
-
-# Supernode registered?
-lumerad query supernode get-supernode $(lumerad keys show validator --bech val -a)
-
-# Delegation in place?
-lumerad query staking delegations <SN_ACCOUNT>
-
-# Ports listening?
-ss -tlnp | grep -E '4444|4445|8002'
-
-# Health check passing?
-sn-manager check
-```
+Look for `state: SUPERNODE_STATE_ACTIVE`.
 
 <Callout type="info">
-If the on-chain query returns `SigningInfo not found` right after registration, wait a few blocks for the chain to pick it up.
+If the chain returns a `SigningInfo not found` error immediately after broadcast, wait two blocks. The state machine requires block execution to append the node to the active DA array.
 </Callout>
+
+### Daemon Mesh Synchronization
+
+On your **Supernode server**, execute a comprehensive health and routing check. Wait ~60 seconds after the `MsgRegisterSupernode` transaction to allow the daemon to ingest the block headers.
+```bash
+sn-manager check
+```
 
 ## Next Steps
 
 <Cards>
-  <Card title="Operations" href="/docs/supernodes/operations" />
-  <Card title="Supernode Overview" href="/docs/supernodes/overview" />
+  <Card title="Operator Maintenance" href="/docs/supernodes/operations" />
 </Cards>

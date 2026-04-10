@@ -1,58 +1,52 @@
 ---
 title: How Cascade Works
-description: Understand Cascade's architecture and the five-step upload flow.
+description: Understand Cascade's execution pipeline and the abstracted SDK upload operations.
 icon: Workflow
 ---
 
-## Architecture at a Glance
+## The Execution Pipeline
 
-Cascade separates concerns into a **control plane** (the Lumera blockchain) and a **data plane** (the Supernode network). The SDK orchestrates both so your app only needs a single function call.
+The Lumera SDKs abstract the complexities of cross-chain storage into a single operational pipeline. Under the hood, Cascade separates concerns into a **control plane** (the Lumera Cosmos state machine) and a **data plane** (the Supernode DA mesh).
 
 <Diagram name="how-cascade-works" />
 
-### Step 1: Register the action on-chain
+When you invoke `client.Cascade.uploader.uploadFile()`, the SDK natively orchestrates five distinct network transitions:
 
-Your app calls the SDK, which does significant preparation before touching the chain:
+### 1. Cryptographic Preparation & Indexing
+The SDK runs entirely offline in your client to prepare the file for decentralized routing.
+- Computes a deterministic **BLAKE3 hash** of the raw file data (the `data_hash`).
+- Generates a **RaptorQ layout array**, calculating exactly how the Supernodes will erasure-encode the file.
+- Signs a cryptographic **Index File** bridging the file to the SDK wallet.
 
-1. Computes a **BLAKE3 hash** of the file (the `data_hash` that will be stored on-chain).
-2. Generates a **RaptorQ layout** a metadata describing how the file will be encoded, not the encoding itself.
-3. **Signs** the layout, derives deterministic **layout IDs**, and builds a signed **index file**.
+### 2. State Machine Registration (`MsgRequestAction`)
+The SDK broadcasts a standard Cosmos state mutation (`/lumera.action.v1.MsgRequestAction`) to the blockchain. 
+This payload formally escrows the required `ulume` storage fee and locks the file metadata (`data_hash`, access flags, expiration bounds) into the `x/action` module.
 
-Once preparation is complete, the SDK submits a **`MsgRequestAction`** transaction to the Lumera chain. This message includes `data_hash`, `file_name`, `visibility flag` indicating whether the file is publicly or privately accessible, and the one-time storage fee in `ulume`.
+### 3. State Confirmation (`action_id`)
+Upon successful block inclusion, the Tendermint consensus engine emits an `action_registered` event. 
+The SDK parses this event to extract the permanent **`action_id`**. This serves as the universal identifier for the file lifecycle.
 
-### Step 2: Receive the action ID
+### 4. Direct Node Streaming (SN-API)
+Bypassing the blockchain entirely, the SDK queries the active Supernode set and opens a direct POST stream to an SN-API gateway (`/api/v1/actions/cascade`).
+The payload requires:
+- `action_id`: The verified consensus event identity.
+- `signature`: An off-chain (ADR-036) authorization confirming the uploader owns the wallet that registered the action.
+- `file`: The raw byte array.
 
-The chain validates the transaction, escrows the fee, and emits an `action_registered` event containing the **`action_id`**. The SDK extracts this from the transaction response. This ID is the permanent on-chain reference for the stored file.
-
-### Step 3: Upload the file to SN-API
-
-With the `action_id` in hand, the SDK sends a **multipart POST** to the SN-API at `/api/v1/actions/cascade` with three fields:
-
-- `action_id` - the on-chain reference from step 2
-- `signature` - an ADR-036 auth signature of the `data_hash`
-- `file` - the raw file bytes
-
-The SN-API runs inside each Supernode and returns a `task_id` that the SDK polls for progress.
-
-### Step 4: Supernodes encode and distribute
-
-The Supernode that received the file:
-
-1. **Verifies** the action exists on-chain, the fee is valid, the BLAKE3 hash matches, and all signatures are correct
-2. **Encodes** the file with RaptorQ erasure coding, producing redundant symbols that allow reconstruction from any sufficient subset
-3. **Distributes** the encoded chunks across the Supernode mesh, ensuring no single point of failure
-
-### Step 5: Finalize on-chain
-
-After encoding and distribution are complete, the Supernode submits a **`MsgFinalizeAction`** transaction back to the chain. This transitions the action state from `PENDING` to `DONE`, permanently recording that the file is stored and retrievable. The escrowed fee is then distributed to the participating Supernodes.
+### 5. Finalization (`MsgFinalizeAction`)
+The receiving Supernode confirms the data integrity against the `x/action` record, distributes the erasure-coded chunks across the Kademlia DHT, and signs a `MsgFinalizeAction`.
+This transaction transitions the `action_id` state from `PENDING` to `DONE`, formally releasing the escrowed funds to the storage providers. Your file is permanently stored.
 
 ---
-At this point, your file is **permanently stored**. To retrieve it, the SDK signs the `action_id` using an ADR-036 and authenticates with the Supernode network to stream the reconstructed file back to your application.
+
+<Callout type="info">
+For a complete low-level architectural specification, deep dive into the [Protocol Concepts](/docs/concepts/architecture).
+</Callout>
+
 ## Next Steps
 
 <Cards>
   <Card title="Quick Start" href="/docs/getting-started/quick-start" />
   <Card title="Installation" href="/docs/getting-started/installation" />
-  <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
-  <Card title="Build a Browser App" href="/docs/guides/browser-app" />
+  <Card title="Protocol Architecture" href="/docs/concepts/architecture" />
 </Cards>

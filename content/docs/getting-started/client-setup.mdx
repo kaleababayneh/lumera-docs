@@ -4,13 +4,12 @@ description: Initialize the Lumera client for browser and Node.js environments.
 icon: PlugZap
 ---
 
-## Creating a Client
+## The Client Factory
 
-The `createLumeraClient` factory is the entry point for all Cascade operations. It connects to the Lumera blockchain and configures the Supernode API client.
+The `createLumeraClient` factory is the unified entry point for all Cascade operations. It injects sub-clients that individually handle the Tendermint RPC/REST layers and the Kademlia DHT Supernode networking.
 
-### Chain Configuration
-
-Both Keplr and Leap require a chain configuration to register the Lumera network. Define it once and reuse it:
+### Application Configuration
+To establish a connection natively using Cosmos browser extensions (Keplr/Leap), you must register the AppChain metadata.
 
 ```ts title="chain-config.ts"
 export const CHAIN_ID = "lumera-testnet-2";
@@ -49,22 +48,25 @@ export const LUMERA_CHAIN_INFO = {
 };
 ```
 
+---
 
-### Browser with Keplr Wallet
+## Environment Bindings
 
+The Lumera Client requires an `OfflineSigner` interface. However, because Lumera connects an on-chain ledger to an off-chain mesh network, the signer MUST support the `signArbitrary` method ([ADR-036](https://docs.cosmos.network/main/architecture/adr-036-arbitrary-signature)) alongside standard `signDirect` mutations.
+
+### Browser: Keplr Wallet
 ```ts title="keplr-client.ts"
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
 import { CHAIN_ID, LUMERA_CHAIN_INFO } from "./chain-config";
 
-// Register the Lumera chain and request wallet access
+// Force the extension to register the custom network
 await window.keplr.experimentalSuggestChain(LUMERA_CHAIN_INFO);
 await window.keplr.enable(CHAIN_ID);
 
-// getOfflineSignerAuto provides getAccounts, signAmino, and signDirect.
-// We only need to add signArbitrary — Cascade uses it for Supernode auth.
 const offlineSigner = await window.keplr.getOfflineSignerAuto(CHAIN_ID);
 const accounts = await offlineSigner.getAccounts();
 
+// Extend the OfflineSigner implicitly to handle SN-API ADR-036 authorizations
 const signer = {
   ...offlineSigner,
   async signArbitrary(_chainId: string, signerAddress: string, data: string | Uint8Array) {
@@ -81,18 +83,14 @@ const client = await createLumeraClient({
 });
 ```
 
-### Browser with Leap Wallet
-
+### Browser: Leap Wallet
 ```ts title="leap-client.ts"
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
 import { CHAIN_ID, LUMERA_CHAIN_INFO } from "./chain-config";
 
-// Register the Lumera chain and request wallet access
 await window.leap.experimentalSuggestChain(LUMERA_CHAIN_INFO);
 await window.leap.enable(CHAIN_ID);
 
-// getOfflineSignerAuto provides getAccounts, signAmino, and signDirect.
-// We only need to add signArbitrary — Cascade uses it for Supernode auth.
 const offlineSigner = await window.leap.getOfflineSignerAuto(CHAIN_ID);
 const accounts = await offlineSigner.getAccounts();
 
@@ -112,59 +110,42 @@ const client = await createLumeraClient({
 });
 ```
 
-### Node.js with Mnemonic
+### Node.js (Server Environments)
 
-In Node.js you need both a Direct signer and an Amino signer to support `signArbitrary`, which Cascade requires for Supernode authentication:
+For headless or backend services, you must explicitly merge the `Direct` state-machine signer with the `Amino` arbitrary signer.
 
 ```ts title="node-client.ts"
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
-import {
-  Secp256k1HdWallet,
-  makeSignDoc as makeAminoSignDoc,
-} from "@cosmjs/amino";
+import { Secp256k1HdWallet, makeSignDoc as makeAminoSignDoc } from "@cosmjs/amino";
 
 const mnemonic = process.env.LUMERA_MNEMONIC!;
 
-const directWallet = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic, {
-  prefix: "lumera",
-});
-const aminoWallet = await Secp256k1HdWallet.fromMnemonic(mnemonic, {
-  prefix: "lumera",
-});
+const directWallet = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic, { prefix: "lumera" });
+const aminoWallet = await Secp256k1HdWallet.fromMnemonic(mnemonic, { prefix: "lumera" });
 const [account] = await directWallet.getAccounts();
 
 const signer = {
   getAccounts: () => directWallet.getAccounts(),
   signDirect: (addr: string, doc: any) => directWallet.signDirect(addr, doc),
   signAmino: (addr: string, doc: any) => aminoWallet.signAmino(addr, doc),
-  async signArbitrary(
-    chainId: string,
-    signerAddress: string,
-    data: string
-  ) {
+  async signArbitrary(chainId: string, signerAddress: string, data: string) {
     const signDoc = makeAminoSignDoc(
-      [
-        {
-          type: "sign/MsgSignData",
-          value: {
-            signer: signerAddress,
-            data: Buffer.from(data).toString("base64"),
-          },
+      [{
+        type: "sign/MsgSignData",
+        value: {
+          signer: signerAddress,
+          data: Buffer.from(data).toString("base64"),
         },
-      ],
+      }],
       { gas: "0", amount: [] },
-      "",
+      "", // ADR-036 requires empty chain ID
       "",
       0,
       0
     );
     const { signature } = await aminoWallet.signAmino(signerAddress, signDoc);
-    return {
-      signed: data,
-      signature: signature.signature,
-      pub_key: signature.pub_key,
-    };
+    return { signed: data, signature: signature.signature, pub_key: signature.pub_key };
   },
 };
 
@@ -177,77 +158,69 @@ const client = await createLumeraClient({
 ```
 
 <Callout type="warn">
-**Security**: Never hardcode mnemonics. Use environment variables or a secrets manager. For browser apps, always use wallet extensions (Keplr/Leap) which keep private keys in the extension sandbox.
+**Private Key Exposure**
+Never bundle a hardcoded mnemonic in client environments (React/Next.js). Backend keys must be routed through strict secrets managers. For frontends, always rely on `window.keplr` injection.
 </Callout>
 
-## Client Configuration Options
+---
+
+## Client Interfacing Options
 
 ```ts
 interface CreateLumeraClientOptions {
-  // Use a preset for testnet or mainnet endpoints
-  preset?: "testnet" | "mainnet";
-
-  // Or specify endpoints manually
-  rpcEndpoint?: string;
-  lcdEndpoint?: string;
-  snapiEndpoint?: string;
-
-  // Signer (wallet or DirectSecp256k1HdWallet)
+  preset?: "testnet" | "mainnet"; // Enforces standard endpoints
+  rpcEndpoint?: string;           // Custom Tendermint RPC mapping
+  lcdEndpoint?: string;           // Custom Cosmos REST mapping
+  snapiEndpoint?: string;         // Custom DA Gateway mapping
   signer?: OfflineSigner;
-
-  // Sender address
   address?: string;
-
-  // Gas price for transaction fee estimation
   gasPrice?: string;
 }
 ```
 
-### Presets
+### Canonical Network Presets
 
-| Preset | Chain ID | RPC | LCD | SN-API |
-|--------|----------|-----|-----|--------|
-| `testnet` | `lumera-testnet-2` | `https://rpc.testnet.lumera.io` | `https://lcd.testnet.lumera.io` | `https://snapi.testnet.lumera.io` |
-| `mainnet` | `lumera-mainnet-1` | `https://rpc.lumera.io` | `https://lcd.lumera.io` | `https://snapi.lumera.io` |
+| Environment | Identifier | Tendermint RPC | Cascade SN-API Gateway |
+|--------|----------|-----|--------|
+| `testnet` | `lumera-testnet-2` | `https://rpc.testnet.lumera.io` | `https://snapi.testnet.lumera.io` |
+| `mainnet` | `lumera-mainnet-1` | `https://rpc.lumera.io` | `https://snapi.lumera.io` |
 
-### Custom Endpoints
+---
 
-For local development or self-hosted nodes:
+## Execution Methodology
 
+The client strictly isolates Cosmos SDK logic from Cascade DA execution.
+
+### Protocol Control Plane Operations
 ```ts
-const client = await createLumeraClient({
-  rpcEndpoint: "http://localhost:26657",
-  lcdEndpoint: "http://localhost:1317",
-  snapiEndpoint: "http://localhost:8080",
-  signer: wallet,
-  address: account.address,
-  gasPrice: "0.025ulume",
-});
+// Extract base module parameters natively
+client.Blockchain.getActionParams();
+
+// Query the active status of the file array 
+client.Blockchain.getAction(actionId);
+
+// Estimate byte-storage fee requirements based on state block limits
+client.Blockchain.getActionFee(dataSizeBytes);
 ```
 
-## Client Structure
-
-Once created, the client exposes two primary sub-clients:
-
+### Cascade Data Plane Operations
 ```ts
-// Blockchain operations
-client.Blockchain.getActionParams();
-client.Blockchain.getAction(actionId);
-client.Blockchain.getActionFee(dataSizeBytes);
-client.Blockchain.getSupernodes();
-
-// Cascade storage operations
+// Macro execution mapping (Does steps 1-5 automatically)
 client.Cascade.uploader.uploadFile(file, options);
+
+// Macro streaming
+client.Cascade.downloader.download(actionId);
+client.Cascade.downloader.downloadFile(options);
+
+// Micro execution abstractions (Manual execution)
 client.Cascade.uploader.prepareFile(file);
 client.Cascade.uploader.registerAction(prepared, options);
 client.Cascade.uploader.sendFileToSupernodes(actionId, sig, file, options);
-client.Cascade.downloader.download(actionId);
-client.Cascade.downloader.downloadFile(options);
 ```
 
 ## Next Steps
 
 <Cards>
-  <Card title="Upload Lifecycle" href="/docs/concepts/upload-lifecycle" />
+  <Card title="Upload Lifecycle Architecture" href="/docs/concepts/upload-lifecycle" />
   <Card title="Build a Browser App" href="/docs/guides/browser-app" />
 </Cards>

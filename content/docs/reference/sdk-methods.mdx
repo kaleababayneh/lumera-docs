@@ -5,16 +5,16 @@ icon: FileCode
 ---
 
 
-## createLumeraClient
+## `createLumeraClient`
 
-Factory function that creates a fully configured Lumera client.
+Factory function that constructs a fully configured Lumera boundary client.
 
 ```ts
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
 
 const client = await createLumeraClient({
   preset: "testnet",       // "testnet" | "mainnet"
-  signer: wallet,          // OfflineSigner (CosmJS wallet or Keplr)
+  signer: wallet,          // OfflineSigner (Requires signArbitrary)
   address: "lumera1...",   // Sender address
   gasPrice: "0.025ulume",  // Gas price for fee estimation
 });
@@ -24,32 +24,34 @@ const client = await createLumeraClient({
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `preset` | `"testnet" \| "mainnet"` | No | Use preset endpoints |
-| `rpcEndpoint` | `string` | No | Custom RPC endpoint |
-| `lcdEndpoint` | `string` | No | Custom LCD/REST endpoint |
-| `snapiEndpoint` | `string` | No | Custom SN-API endpoint |
-| `signer` | `OfflineSigner` | No | Wallet signer (required for write operations) |
-| `address` | `string` | No | Sender address (required for write operations) |
-| `gasPrice` | `string` | No | Gas price string (e.g., `"0.025ulume"`) |
+| `preset` | `"testnet" \| "mainnet"` | No | Canonical network routing. |
+| `rpcEndpoint` | `string` | No | Custom RPC Tendermint endpoint. |
+| `lcdEndpoint` | `string` | No | Custom Cosmos REST endpoint. |
+| `snapiEndpoint` | `string` | No | Custom SN-API off-chain Gateway. |
+| `signer` | `OfflineSigner` | No | Wallet signer (Requires ADR-036 compliance). |
+| `address` | `string` | No | Sender address |
+| `gasPrice` | `string` | No | Gas scalar (e.g., `"0.025ulume"`) |
 
 **Returns:** `Promise<LumeraClient>`
 
 ---
 
-## Cascade Uploader
+## Data Plane Executions (`client.Cascade`)
 
-### uploadFile
+The Cascade subsystem handles chunk derivations and direct network payloads.
 
-Unified upload method that runs prepare, register, and send phases.
+### `uploader.uploadFile`
+
+A macro-executor that natively runs file compression, BLAKE3 indexing, consensus registration (`MsgRequestAction`), and SN-API data streaming.
 
 ```ts
 const result = await client.Cascade.uploader.uploadFile(fileBytes, {
   fileName: "document.pdf",
   isPublic: true,
-  expirationTime: "1742553600", // Unix timestamp (optional)
+  expirationTime: "1742553600", // Unix timestamp bound
   taskOptions: {
-    pollInterval: 2000,         // ms between status polls
-    timeout: 300000,            // ms before timeout
+    pollInterval: 2000,         
+    timeout: 300000,            
   },
 });
 ```
@@ -58,38 +60,30 @@ const result = await client.Cascade.uploader.uploadFile(fileBytes, {
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `fileBytes` | `Uint8Array` | Yes | File content as bytes |
-| `options.fileName` | `string` | No | Filename metadata |
-| `options.isPublic` | `boolean` | No | Whether the file is publicly downloadable |
-| `options.expirationTime` | `string` | No | Unix timestamp for expiration |
-| `options.taskOptions.pollInterval` | `number` | No | Polling interval in ms (default: 2000) |
-| `options.taskOptions.timeout` | `number` | No | Timeout in ms (default: 300000) |
+| `fileBytes` | `Uint8Array` | Yes | Uncompressed byte payload. |
+| `options.fileName` | `string` | No | Base file-level metadata. |
+| `options.isPublic` | `boolean` | No | P2P visibility constraint. |
+| `options.expirationTime` | `string` | No | Node escrow deadline. |
 
 **Returns:** `Promise<UploadResult>` containing `action_id` and `taskId`
 
 ---
 
-### prepareFile
+### `uploader.prepareFile`
 
-Converts input to bytes and computes the BLAKE3 hash.
+Derives deterministic IDs offline. Converts input to bytes and computes the BLAKE3 hash.
 
 ```ts
 const { fileBytes, dataHash } = await client.Cascade.uploader.prepareFile(file);
 ```
 
-**Parameters:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `file` | `Uint8Array \| File \| Blob` | Input file |
-
 **Returns:** `Promise<{ fileBytes: Uint8Array; dataHash: string }>`
 
 ---
 
-### registerAction
+### `uploader.registerAction`
 
-Registers the Cascade action on-chain (generates layout, signs, broadcasts transaction).
+Broadcasts the formal `MsgRequestAction` mutation to the consensus layer.
 
 ```ts
 const { actionId, authSignature } = await client.Cascade.uploader.registerAction(
@@ -100,22 +94,11 @@ const { actionId, authSignature } = await client.Cascade.uploader.registerAction
 
 **Returns:** `Promise<{ actionId: string; authSignature: string }>`
 
-
 ---
 
-### makeAuthSignature
+### `uploader.sendFileToSupernodes`
 
-Creates an authentication signature for an existing action (useful if you need to re-upload).
-
-```ts
-const authSig = await client.Cascade.uploader.makeAuthSignature(actionId, dataHash);
-```
-
----
-
-### sendFileToSupernodes
-
-Sends the file to the SN-API after on-chain registration.
+Streams raw byte payload directly to the SN-API Gateway via `HTTP POST`.
 
 ```ts
 const uploadResult = await client.Cascade.uploader.sendFileToSupernodes(
@@ -126,97 +109,51 @@ const uploadResult = await client.Cascade.uploader.sendFileToSupernodes(
 );
 ```
 
-Retries up to 5 times with 3-second delays for SN-API indexing delays.
+Retries up to 5 times for SN-API ingestion stabilization.
 
 ---
 
-## Cascade Downloader
+### `downloader.download`
 
-### download
-
-Downloads a file by action ID. Returns a readable stream.
+Streams raw reconstruction blocks backwards from Kademlia storage natively to a JavaScript `ReadableStream`.
 
 ```ts
 const stream: ReadableStream<Uint8Array> = await client.Cascade.downloader.download(actionId);
 ```
 
-**Parameters:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `actionId` | `string` | The action ID from upload |
-| `taskOptions` | `object` | Optional polling configuration |
-
 **Returns:** `Promise<ReadableStream<Uint8Array>>`
 
 ---
 
-### downloadFile
+## Control Plane Queries (`client.Blockchain`)
 
-Full download with explicit options.
+Wrappers natively evaluating Tendermint parameters.
 
-```ts
-const stream = await client.Cascade.downloader.downloadFile({
-  actionId: "your-action-id",
-  taskOptions: {
-    pollInterval: 2000,
-    timeout: 120000,
-  },
-});
-```
-
----
-
-### downloadPrivate
-
-Identical to `download` — authentication is always applied via ADR-036 signature.
-
-```ts
-const stream = await client.Cascade.downloader.downloadPrivate(actionId);
-```
-
----
-
-## Blockchain Queries
-
-### getActionParams
-
-Returns current chain parameters for Cascade actions.
+### `getActionParams`
+Retrieves the maximum block and Supernode size constraints.
 
 ```ts
 const params = await client.Blockchain.getActionParams();
 // { max_raptor_q_symbols: number, ... }
 ```
 
-Results are cached for 5 minutes.
-
----
-
-### getAction
-
-Looks up a registered action by ID.
+### `getAction`
+Queries the finality status (`PENDING` | `DONE`) of a registered execution index.
 
 ```ts
 const action = await client.Blockchain.getAction(actionId);
 // { creator, actionType, dataHash, state, ... }
 ```
 
----
-
-### getActionFee
-
-Estimates the storage fee for a given file size.
+### `getActionFee`
+Dynamically evaluates standard node escrow dependencies in `ulume`.
 
 ```ts
 const fee = await client.Blockchain.getActionFee(fileSizeBytes);
-// { fee: string } in ulume
 ```
 
----
-
-### getSupernodes
-
-Lists all registered Supernodes.
+### `getSupernodes`
+Queries active mesh density.
 
 ```ts
 const nodes = await client.Blockchain.getSupernodes();
@@ -224,11 +161,11 @@ const nodes = await client.Blockchain.getSupernodes();
 
 ---
 
-## Wallet Helpers
+## Signer Abstractions
 
-### getKeplrSigner
+### `getKeplrSigner` / `getLeapSigner`
 
-Returns a universal signer from the Keplr browser extension.
+Automatically binds to browser extensions to derive deterministic key paths dynamically. Ensure network registration prior to hooking.
 
 ```ts
 import { getKeplrSigner } from "@lumera-protocol/sdk-js";
@@ -236,41 +173,27 @@ import { getKeplrSigner } from "@lumera-protocol/sdk-js";
 const signer = await getKeplrSigner("lumera-testnet-2");
 ```
 
-The returned signer supports `signDirect`, `signAmino`, and `signArbitrary` (ADR-036).
+Functions inherently validate ADR-036 (`signArbitrary`) executions dynamically.
 
 ---
 
-### getLeapSigner
+## Data Mesh Event Subscriptions
 
-Same interface for the Leap browser extension.
-
-```ts
-import { getLeapSigner } from "@lumera-protocol/sdk-js";
-
-const signer = await getLeapSigner("lumera-testnet-2");
-```
-
----
-
-## Task Status Values
-
-| Status | Category | Meaning |
+| Status Token | Category | Interpretation |
 |--------|----------|---------|
-| `sdk:completed` | Success | Operation completed |
-| `sdk:upload_completed` | Success | Upload confirmed |
-| `sdk:download_completed` | Success | Download ready |
-| `sdk:failed` | Failure | Generic failure |
-| `sdk:supernodes_unavailable` | Failure | No Supernodes accepted the task |
-| `sdk:registration_failure` | Failure | On-chain registration failed |
-| `sdk:upload_failed` | Failure | File transfer failed |
-| `sdk:processing_failed` | Failure | SN-API processing failed |
-| `sdk:processing_timeout` | Failure | Processing exceeded timeout |
-| `sdk:download_failure` | Failure | Download reconstruction failed |
+| `sdk:completed` | Success | Lifecycle loop finished cleanly. |
+| `sdk:upload_completed` | Success | P2P node confirmed distribution. |
+| `sdk:download_completed` | Success | Streams terminated correctly. |
+| `sdk:failed` | Terminal | Unknown fatal un-catchable error. |
+| `sdk:supernodes_unavailable` | Terminal | Active set lacks DA mesh connectivity. |
+| `sdk:registration_failure` | Terminal | `MsgRequestAction` consensus failure. |
+| `sdk:processing_timeout` | Yield | Encoding SLA bounds breached. |
+| `sdk:download_failure` | Terminal | Error re-building block arrays. |
 
 ## Next Steps
 
 <Cards>
-  <Card title="SN-API Reference" href="/docs/reference/sn-api" />
-  <Card title="Network Configuration" href="/docs/reference/network-config" />
+  <Card title="RestAPI Specification" href="/docs/reference/sn-api" />
+  <Card title="Topology Defaults" href="/docs/reference/network-config" />
 </Cards>
 

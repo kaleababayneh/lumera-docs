@@ -1,16 +1,22 @@
 ---
 title: Quick Start
-description: Upload your first file to Cascade in under five minutes.
+description: Configure an offline signer and upload your first file to Cascade.
 icon: Zap
 ---
 
-## Install Dependencies
+## 1. Install Dependencies
+
+Lumera leverages the standard `@cosmjs` libraries alongside the official Typescript SDK.
 
 ```package-install
-npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate @cosmjs/amino
 ```
 
-## Upload a File
+---
+
+## 2. Execute a File Upload
+
+To interact with the Lumera AppChain and the Supernode DA layer simultaneously, you must provide a unified offline signer. The Cosmos SDK handles the on-chain `MsgRequestAction` transactions (via `signDirect`), while ADR-036 authorizations permit the off-chain `SN-API` streaming (via `signArbitrary`).
 
 ```ts title="upload.ts"
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
@@ -20,11 +26,12 @@ import { Secp256k1HdWallet, makeSignDoc as makeAminoSignDoc } from "@cosmjs/amin
 const MNEMONIC = "your twelve word mnemonic goes here";
 
 async function main() {
+  // 1. Initialize Cosmos core wallets
   const directWallet = await DirectSecp256k1HdWallet.fromMnemonic(MNEMONIC, { prefix: "lumera" });
   const aminoWallet = await Secp256k1HdWallet.fromMnemonic(MNEMONIC, { prefix: "lumera" });
   const [account] = await directWallet.getAccounts();
 
-  // Combine direct + amino wallets and add signArbitrary (ADR-036) for Cascade
+  // 2. Abstract an OfflineSigner with ADR-036 Arbitrary signatures
   const signer = {
     getAccounts: () => directWallet.getAccounts(),
     signDirect: (addr: string, doc: any) => directWallet.signDirect(addr, doc),
@@ -39,7 +46,7 @@ async function main() {
           },
         }],
         { gas: "0", amount: [] },
-        "",  // ADR-036 requires empty chain_id
+        "",  // Off-chain ADR-036 bindings require an empty chain_id
         "",
         0,
         0
@@ -49,26 +56,28 @@ async function main() {
     },
   };
 
+  // 3. Initialize the Lumera Protocol Client
   const client = await createLumeraClient({
     preset: "testnet",
     signer: signer as any,
     address: account.address
   });
 
-  // The file to upload. 
-  const file = new TextEncoder().encode("Hello, Lumera!");
-  // The deadline for supernodes to process the upload action. 
-  // If the action is not finalized by this time: the fee will be refunded. 
-  const expirationTime = String(Math.floor(Date.now() / 1000) + 25 * 60 * 60); //  25 hours from now
+  // 4. Construct File and Lifecycle Data
+  const file = new TextEncoder().encode("Hello, Decentralized Storage!");
+  
+  // The global deadline (unix seconds) for the DA mesh to ingest the chunk arrays.
+  // If `MsgFinalizeAction` is not broadcasted prior to this block time, your escrowed fee is refunded.
+  const expirationTime = String(Math.floor(Date.now() / 1000) + 25 * 60 * 60);
 
-
+  // 5. Broadcast to Consensus & Stream to SN-API
   const result = await client.Cascade.uploader.uploadFile(file, {
     fileName: "hello.txt",
     isPublic: true,
     expirationTime
   });
 
-  console.log("Upload complete:", result);
+  console.log("Upload resolved cleanly:", result);
 }
 
 main();
@@ -77,8 +86,6 @@ main();
 ## Next Steps
 
 <Cards>
-  <Card title="Installation" href="/docs/getting-started/installation" />
+  <Card title="Installation & Configurations" href="/docs/getting-started/installation" />
   <Card title="SDK Architecture" href="/docs/getting-started/javascript-sdk" />
-  <Card title="Build a Browser App" href="/docs/guides/browser-app" />
-  <Card title="SDK Reference" href="/docs/reference/sdk-methods" />
 </Cards>

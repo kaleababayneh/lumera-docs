@@ -1,64 +1,63 @@
 ---
 title: Validator Overview
-description: Run a validator on Lumera Protocol and help secure the network.
+description: Run a validator on Lumera Protocol and help secure the Cosmos network layer.
 icon: Shield
 ---
 
 ## What is a Lumera Validator?
 
-Lumera is a Cosmos SDK Layer-1 blockchain secured by CometBFT (Tendermint) consensus. Validators produce blocks, vote on governance proposals, and maintain the integrity of the network.
+Lumera is a Layer-1 AppChain secured by the CometBFT (Tendermint) consensus engine via delegated Proof-of-Stake (dPoS). General validators are fully responsible for producing blocks, signing state transitions, executing IBC packets, and voting on network governance.
 
-Validators who additionally register as **Supernodes** can also provide Cascade storage services and earn additional fees from file storage operations. This guide covers the base validator setup, see the [Supernode Overview](/docs/supernodes/overview) for upgrading to a Supernode.
+<Callout type="info">
+Validators who additionally wish to provide offline data availability for the Cascade storage module must register as **Supernodes**. This guide strictly covers the base CometBFT validator setup. For Supernodes, refer to the [Supernode Expansion Guide](/docs/supernodes/overview).
+</Callout>
 
-## Network Information
+---
 
-| Item | Testnet | Mainnet |
+## Network Parameters
+
+| Configuration | Testnet | Mainnet |
 |------|---------|---------|
 | Chain ID | `lumera-testnet-2` | `lumera-mainnet-1` |
 | Binary | `lumerad` v1.11.1 | `lumerad` (latest release) |
-| Min gas price | `0.025ulume` | `0.025ulume` |
-| Seed node | `faff7c1350468c53121a669ac40e317a4a70c425@seeds.testnet.lumera.io:26656` | See [lumera-networks](https://github.com/LumeraProtocol/lumera-networks) |
-| Genesis | [testnet-2/genesis.json](https://github.com/LumeraProtocol/lumera-networks/blob/master/testnet-2/genesis.json) | [mainnet/genesis.json](https://github.com/LumeraProtocol/lumera-networks) |
-| Snapshot | [Polkachu](https://www.polkachu.com/testnets/lumera/snapshots) | — |
-| Explorer | [portal.testnet.lumera.io](https://portal.testnet.lumera.io/lumera-testnet-2) | [portal.lumera.io](https://portal.lumera.io) |
+| Target Block Time | `~5s` | `~5s` |
+| Minimum Gas | `0.025ulume` | `0.025ulume` |
+| Seed Node | `faff...@seeds.testnet.lumera.io:26656` | See [lumera-networks](https://github.com/LumeraProtocol/lumera-networks) |
+| Initial Genesis | [genesis.json](https://github.com/LumeraProtocol/lumera-networks/blob/master/testnet-2/genesis.json) | [mainnet/genesis.json](https://github.com/LumeraProtocol/lumera-networks) |
+| Active Explorers | [portal.testnet.lumera.io](https://portal.testnet.lumera.io) | [portal.lumera.io](https://portal.lumera.io) |
 
-## Hardware Requirements
+---
 
-| Component | Minimum | Recommended |
+## System Requirements
+
+Validators must maintain 100% uptime to avoid being jailed. The recommended hardware thresholds are standard for CometBFT infrastructure.
+
+| Specification | Minimum (Testnet) | Recommended (Mainnet) |
 |-----------|---------|-------------|
-| CPU | 4 vCPU (x86_64) | 8+ cores |
-| RAM | 8 GB (+ 4 GB swap) | 32 GB |
-| Storage | 80 GB NVMe/SSD | 250 GB+ |
-| Network | 1 Gbps | 5 Gbps |
-| OS | Ubuntu 22.04+ | Ubuntu 24.04 |
+| **Computing** | 4 vCPU (x86_64 architecture) | 8+ Dedicated cores |
+| **Memory** | 8 GB RAM (+ 4 GB swap) | 32 GB RAM |
+| **Storage** | 80 GB NVMe (Fast I/O) | 500 GB+ NVMe SSD |
+| **Network Limits**| 1 Gbps | 5 Gbps+ (Unmetered) |
+| **OS Environment** | Ubuntu 22.04 LTS | Ubuntu 22.04/24.04 LTS |
 
-<Callout type="info">
-Testnet runs fine on 4 vCPU / 8 GB RAM with swap enabled. Storage grows over time — enable pruning or plan for expansion.
-</Callout>
+---
 
-## What You Need
+## Configuration Paths
 
-- A VPS or bare-metal server with Ubuntu 22.04 or 24.04
-- Testnet LUME tokens from the [faucet](https://faucet.astrostake.xyz/lumera) or [Discord](https://discord.gg/lumeraprotocol)
+### Official Manual Configuration
+The standard, production-ready path for initializing your validator involves building the binary from source, initializing your `config.toml` state, and syncing through Polkachu snapshots. Proceed to the [Node Setup Guide](/docs/validators/node-setup).
 
-## Automated Setup
-
-If you prefer a one-command setup, use the tested setup script that handles all steps automatically:
-
-```bash
-wget -O setup.sh https://raw.githubusercontent.com/kaleababayneh/lumera-validator/main/setup-testnet-validator.sh
-chmod +x setup.sh
-./setup.sh
-```
-
-The script is interactive — it pauses for wallet creation and validator submission. See the [source and full guide](https://github.com/kaleababayneh/lumera-validator) for details.
-
-For a manual step-by-step walkthrough, continue with the pages below.
+> [!TIP]
+> **Community Setup Script**
+> For testnet purposes or fast iterations, community members maintain automated bash workflows. You can execute this script to rapidly spin up a testnet validator without manual flag configurations:
+> ```bash
+> wget -O setup.sh https://raw.githubusercontent.com/kaleababayneh/lumera-validator/main/setup-testnet-validator.sh
+> chmod +x setup.sh && ./setup.sh
+> ```
 
 ## Next Steps
 
 <Cards>
-  <Card title="Node Setup" href="/docs/validators/node-setup" />
-  <Card title="Create Validator" href="/docs/validators/create-validator" />
-  <Card title="Operations" href="/docs/validators/operations" />
+  <Card title="Start Node Setup" href="/docs/validators/node-setup" />
+  <Card title="Supernode Upgrade" href="/docs/supernodes/overview" />
 </Cards>

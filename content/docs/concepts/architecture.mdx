@@ -1,112 +1,93 @@
 ---
-title: Architecture
-description: How Cascade separates control-plane and data-plane for permanent decentralized storage.
+title: System Architecture & x/action Module
+description: How Cascade separates the control-plane state machine and off-chain data availability layers.
 icon: Layers
 ---
 
-
 ## System Overview
 
-Cascade is designed around a strict separation of **control-plane** (blockchain) and **data-plane** (Supernode network). This design ensures that on-chain storage remains efficient while large files are handled off-chain by specialized infrastructure.
+Cascade is designed around a strict separation of **control-plane** (the Lumera blockchain state machine) and **data-plane** (the Supernode network). This design ensures that the consensus engine remains fast and lightweight, while large object payloads are deterministic and handled entirely off-chain by specialized nodes.
 
 <Diagram name="architecture" />
 
-## Components
+---
 
-### Lumera Blockchain
+## State Machine: The `x/action` Module
 
-The Lumera chain is an application-specific Layer-1 built with Cosmos SDK and CometBFT (Tendermint). It handles:
+The core of Cascade's integration with the Cosmos SDK is the `x/action` module. This module tracks the lifecycle of files uploaded to the network, handles the escrowing of storage fees, and defines the deterministic states for off-chain actions.
 
-- **Action registration**: `MsgRequestAction` records file metadata (hash, size, layout IDs) on-chain
-- **Fee escrow**: Creators pay a one-time storage fee in `ulume` that is escrowed and distributed to Supernodes
-- **State machine**: Actions transition through states: `PENDING` → `PROCESSING` → `DONE` (or `FAILED`)
-- **Action queries**: Any client can look up an action by ID to verify storage status
+### State
+Actions in the `x/action` module transition through following strict state machine enums:
+1. `PENDING`: The action is registered on-chain and awaiting Supernode processing.
+2. `PROCESSING`: Supernodes have acknowledged the data and are performing RaptorQ encoding.
+3. `DONE`: The encoded chunks are distributed across the network and data is permanently available.
+4. `FAILED`: The file was un-processable or corrupted before redundancy.
 
-### Supernodes
+### Messages (State Transitions)
 
-Supernodes are specialized validators that provide storage capacity to the network. They are responsible for:
+The module exposes specific protobuf `Msg` types to transition these states.
 
-- **Receiving file uploads** via the SN-API
-- **Encoding files** with RaptorQ erasure coding
-- **Storing encoded chunks** with redundancy guarantees
-- **Serving file downloads** by reconstructing the original data from available chunks
-- **Consensus participation** on storage challenges to prove data availability
+#### `MsgRequestAction`
+Broadcasted by the client (Application Developer) to initialize an upload.
+```protobuf
+message MsgRequestAction {
+  string creator = 1;       // Sender address
+  string action_type = 2;   // Identifier, strictly: "ACTION_TYPE_CASCADE"
+  bytes  data_hash = 3;     // Deterministic BLAKE3 hash of the file payload
+  uint64 data_size = 4;     // File size in bytes
+  repeated string rq_ids = 5; // Deterministic RaptorQ layout IDs 
+  string app_pubkey = 6;    // Optional: Used for ICA-based actions
+}
+```
 
-Hardware requirements for running a Supernode:
-- 8+ CPU cores
-- 64 GB RAM
-- 2 TB+ SSD storage
-- 5 Gbps+ network
+#### `MsgFinalizeAction`
+Broadcasted by the Supernode network after they successfully ingest, encode, and distribute the file. This transitions the action to `DONE` and releases the escrowed fee.
 
-### SN-API (Supernode API)
+---
 
-The SN-API is a REST gateway that abstracts the complexity of the Supernode mesh:
+## Off-Chain Execution Layer: Supernodes
 
-- Receives file uploads via multipart form data
-- Routes download requests to the appropriate Supernodes
-- Provides task status tracking via polling and Server-Sent Events (SSE)
-- Handles authentication via ADR-036 wallet signatures
+Supernodes are specialized network actors running parallel infrastructure alongside their standard Lumera validators. They are responsible for solving the **Data Availability (DA)** component of the `x/action` requests.
 
-Public SN-API endpoints:
+### Core Responsibilities
+- **Ingestion**: Receiving payloads directly from users via the SN-API.
+- **Encoding**: Slicing payloads with RaptorQ erasure coding algorithms.
+- **Distribution**: Propagating chunks across the independent Supernode P2P mesh.
+- **Serving**: Reconstructing the raw file when requested by a client.
+
+<Callout type="info">
+Hardware requirements for running a Supernode strictly exceed base validator requirements due to heavy bandwidth and SSD read/write profiles. Refer to the [Supernode Overview](/docs/supernodes/overview) for exact specs.
+</Callout>
+
+### SN-API (Supernode REST Gateway)
+The SN-API acts as the execution-layer entry point for clients. It abstracts the complexity of the P2P mesh logic.
+- Routes downloads and uploads to deterministic Supernode peers.
+- Tracks localized task statuses via long-polling or Server-Sent Events (SSE).
+- Secures all operations by relying on on-chain ADR-036 signatures.
 
 | Network | Endpoint |
 |---------|----------|
 | Testnet | `https://snapi.testnet.lumera.io` |
 | Mainnet | `https://snapi.lumera.io` |
 
-### Action Module
+---
 
-The Action module is a custom Cosmos SDK module (`x/action`) that manages the lifecycle of Cascade storage actions:
+## Fee & Security Economics
 
-```protobuf
-message MsgRequestAction {
-  string creator = 1;       // Sender address
-  string action_type = 2;   // "ACTION_TYPE_CASCADE"
-  bytes  data_hash = 3;     // BLAKE3 hash of the file
-  uint64 data_size = 4;     // File size in bytes
-  repeated string rq_ids = 5; // Deterministic layout IDs 
-  string app_pubkey = 6;    // Optional: for ICA-based actions
-}
-```
+### One-Time Storage Fee
+Storage fees are charged natively in `ulume` and are determined dynamically by on-chain parameters based on the `data_size`. 
 
-## Data Flow
-
-### Upload Path
-
-1. **Client** computes BLAKE3 hash of the file
-2. **Client** generates RaptorQ layout and derives deterministic layout IDs 
-3. **Client** signs the layout with ADR-036 (`signArbitrary`)
-4. **Client** broadcasts `MsgRequestAction` to the chain (simulates gas, signs, broadcasts)
-5. **Chain** validates the message, escrows the fee, emits `action_registered` event with `action_id`
-6. **Client** sends the file to SN-API (`POST /api/v1/actions/cascade`) with the `action_id` and auth signature
-7. **SN-API** distributes chunks across the Supernode mesh
-8. **Client** polls task status until terminal state (`sdk:completed` or `sdk:failed`)
-
-### Download Path
-
-1. **Client** signs the `action_id` with ADR-036 for authentication
-2. **Client** requests download via `POST /api/v1/actions/cascade/{action_id}/downloads`
-3. **SN-API** gathers chunks from Supernodes and reconstructs the file
-4. **Client** monitors progress via SSE (`GET /api/v1/downloads/cascade/{task_id}/status`)
-5. **Client** streams the file via `GET /api/v1/downloads/cascade/{task_id}/file`
-
-## Fee Model
-
-Cascade storage fees are calculated based on file size and current network parameters:
-
-```ts
+```typescript
+// Query the target fee before building the transaction
 const fee = await client.Blockchain.getActionFee(fileSizeInBytes);
-// Returns: { fee: string } in ulume
 ```
 
-The fee is paid once at action registration time. There are no recurring charges. The protocol burns 20% of the fee and distributes the remaining 80% to Supernodes over time.
+The protocol relies on a burn-and-distribute tokenomic model. The fee is escrowed upon `MsgRequestAction`. Upon `MsgFinalizeAction`, 20% of the fee is burned (creating deflationary pressure), and 80% is distributed to the Supernodes guaranteeing the chunks.
 
-## Security Model
-
-- **Data integrity**: BLAKE3 hashes are stored on-chain and verified during download
-- **Authentication**: All SN-API operations require ADR-036 wallet signatures
-- **Data availability**: RaptorQ erasure coding ensures files can be reconstructed even if a significant fraction of Supernodes go offline
-- **Immutability**: Once an action is registered on-chain, the associated data hash cannot be modified
+### Security Guarantees
+- **Data Integrity**: Enforced cryptographically. The BLAKE3 hash stored on-chain in `x/action` must exactly match the data served by the Supernode mesh.
+- **Authentication**: All interactions with the SN-API require a valid [ADR-036](https://docs.cosmos.network/main/build/architecture/adr-036) message signature, cryptographically linking the caller to the transaction creator.
+- **Censorship Resistance**: Due to RaptorQ redundancy, a file remains fully valid and reconstructable even if a massive threshold of Supernodes drop offline.
 
 ## Next Steps
 
