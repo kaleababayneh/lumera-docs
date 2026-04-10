@@ -16,7 +16,7 @@ Your app calls the SDK, which does significant preparation before touching the c
 
 1. Computes a **BLAKE3 hash** of the file (the `data_hash` that will be stored on-chain).
 2. Generates a **RaptorQ layout** a metadata describing how the file will be encoded, not the encoding itself.
-3. **Signs** the layout, derives deterministic **layout IDs** (LEP-1), and builds a signed **index file**.
+3. **Signs** the layout, derives deterministic **layout IDs**, and builds a signed **index file**.
 
 Once preparation is complete, the SDK submits a **`MsgRequestAction`** transaction to the Lumera chain. This message includes `data_hash`, `file_name`, `visibility flag` indicating whether the file is publicly or privately accessible, and the one-time storage fee in `ulume`.
 

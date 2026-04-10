@@ -64,7 +64,7 @@ message MsgRequestAction {
   string action_type = 2;   // "ACTION_TYPE_CASCADE"
   bytes  data_hash = 3;     // BLAKE3 hash of the file
   uint64 data_size = 4;     // File size in bytes
-  repeated string rq_ids = 5; // Deterministic layout IDs (LEP-1)
+  repeated string rq_ids = 5; // Deterministic layout IDs 
   string app_pubkey = 6;    // Optional: for ICA-based actions
 }
 ```
@@ -74,7 +74,7 @@ message MsgRequestAction {
 ### Upload Path
 
 1. **Client** computes BLAKE3 hash of the file
-2. **Client** generates RaptorQ layout and derives deterministic layout IDs (LEP-1 algorithm)
+2. **Client** generates RaptorQ layout and derives deterministic layout IDs 
 3. **Client** signs the layout with ADR-036 (`signArbitrary`)
 4. **Client** broadcasts `MsgRequestAction` to the chain (simulates gas, signs, broadcasts)
 5. **Chain** validates the message, escrows the fee, emits `action_registered` event with `action_id`

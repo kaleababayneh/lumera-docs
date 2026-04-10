@@ -8,6 +8,25 @@ icon: Bug
 
 These are the errors you will most likely run into when building with Cascade.
 
+### Keplr Extension Not Found
+
+The user hasn't installed Keplr or the page loaded before the extension injected `window.keplr`.
+
+**Fix:** Wait for the extension to load before accessing it:
+
+```ts
+async function waitForKeplr(timeout = 3000): Promise<boolean> {
+  if (window.keplr) return true;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeout);
+    window.addEventListener("keplr_keystorechange", () => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
+}
+```
+
 ### RPC Connection Errors
 
 If the Lumera RPC node is down or unreachable, client creation and blockchain transactions will fail:
@@ -25,9 +44,20 @@ try {
 
 ```ts
 const client = await createLumeraClient({
-  rpcEndpoint: "https://rpc2.testnet.lumera.io",
   // ...
+  rpcUrl: "https://lumera-testnet-rpc.polkachu.com",
 });
+```
+
+### Account Does Not Exist on Chain
+
+The wallet address has no balance on Lumera testnet.
+
+**Fix:** Get tokens from the [Lumera faucet](https://faucet.astrostake.xyz/lumera), then verify:
+
+```ts
+const balance = await client.Blockchain.getBalance(address, "ulume");
+console.log("Balance:", balance);
 ```
 
 ### Insufficient Funds
@@ -38,7 +68,7 @@ Uploading requires LUME tokens to pay the action fee. If your wallet is empty:
 "insufficient funds: 0ulume is smaller than 50000ulume"
 ```
 
-**Fix:** Fund your wallet with testnet tokens from the faucet before uploading.
+**Fix:** Fund your wallet with testnet tokens from the [Lumera faucet](https://faucet.astrostake.xyz/lumera) before uploading.
 
 ### Wallet Popup Rejected
 
@@ -54,7 +84,7 @@ try {
 }
 ```
 
-**Fix:** Prompt the user to try again and approve the wallet popup. Cascade requires multiple signatures during upload (layout, index, and auth), so the user may see more than one popup.
+**Fix:** Prompt the user to try again and approve the wallet popup. Cascade requires ADR-036 signatures for authentication, not transactions. Consider showing a pre-sign dialog explaining what is being signed. The user may see multiple popups during upload (layout, index, and auth).
 
 ### Supernodes Unavailable
 
@@ -87,9 +117,24 @@ const result = await client.Cascade.uploader.uploadFile(file, {
 });
 ```
 
-### Action Not Found (Download)
+### Action Not Registered
 
-If you pass an invalid or expired Action ID:
+The transaction went through but the SDK could not find the `action_registered` event in the response:
+
+```
+"action_registered event not found in transaction. Available events: coin_spent, coin_received, transfer, message, tx"
+```
+
+This usually means you are trying to upload too fast after creating the client, or the transaction failed silently on-chain.
+
+**Fix:**
+1. Add a short delay before uploading to let the chain finalize the transaction
+2. Check that your transaction actually succeeded on the [Explorer](https://portal.testnet.lumera.io)
+3. Make sure you have enough funds to cover the action fee (the transaction may have failed due to insufficient gas)
+
+### Action Not Found (404 from SN-API)
+
+The on-chain action was registered, but the Supernode hasn't indexed it yet, or the Action ID is invalid.
 
 ```ts
 try {
@@ -99,6 +144,20 @@ try {
   console.error("Action not found. Check the Action ID.");
 }
 ```
+
+**Fix:** The SDK retries automatically (5 attempts, 3-second delays). If the issue persists:
+1. Verify the action exists on-chain at `https://portal.testnet.lumera.io`
+2. Increase the timeout in `taskOptions`
+3. Try a different SN-API endpoint
+
+### Download Failed or Empty Stream
+
+The Supernodes could not reconstruct the file. This can happen with very recent uploads (Supernodes are still processing) or if the action has expired.
+
+**Fix:**
+1. Wait a few minutes after upload before attempting download
+2. Verify the action status: `client.Blockchain.getAction(actionId)`
+3. Check that `state === "ACTION_STATE_DONE"`
 
 ### Private File Access Denied
 
@@ -184,10 +243,15 @@ const stream = await withRetry(() =>
 );
 ```
 
+## Getting Help
+
+- **Discord**: [discord.com/invite/qudewKS3kp](https://discord.com/invite/qudewKS3kp)
+- **GitHub Issues**: [LumeraProtocol/sdk-js/issues](https://github.com/LumeraProtocol/sdk-js/issues)
+- **Explorer**: [portal.testnet.lumera.io](https://portal.testnet.lumera.io/lumera-testnet-2)
+
 ## Next Steps
 
 <Cards>
   <Card title="Upload Lifecycle" href="/docs/concepts/upload-lifecycle" />
   <Card title="Download Lifecycle" href="/docs/concepts/download-lifecycle" />
-  <Card title="Troubleshooting" href="/docs/reference/troubleshooting" />
 </Cards>

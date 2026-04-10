@@ -1,5 +1,5 @@
 {
   "title": "Reference",
   "icon": "FileCode",
-  "pages": ["sdk-methods", "sn-api", "network-config", "troubleshooting"]
+  "pages": ["sdk-methods", "sn-api", "network-config"]
 }
