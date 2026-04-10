@@ -18,13 +18,25 @@ lumerad status 2>&1 | jq '.sync_info.catching_up'
 # Must be: false
 ```
 
-## Step 1 — Create a Wallet
+## Step 1 — Set the Keyring Backend
+
+On headless servers (no GUI), the default `os` keyring backend will hang because there is no system keyring daemon running. Set it to `test` so keys are stored as plain files on disk:
+
+```bash
+lumerad config set client keyring-backend test --skip-validate
+```
+
+<Callout type="warn">
+The `test` backend stores keys unencrypted on disk. This is standard for testnet validators, but for mainnet you should use `file` (password-protected) or a hardware wallet.
+</Callout>
+
+## Step 2 — Create a Wallet
 
 ```bash
 lumerad keys add validator
 ```
 
-You will be prompted for a keyring passphrase (minimum 8 characters). The output includes your address and a 24-word mnemonic:
+The output includes your address and a 24-word mnemonic:
 
 ```
 - address: lumera1abc...
@@ -50,7 +62,7 @@ lumerad keys show validator --bech val -a
 # Output: lumeravaloper1...
 ```
 
-## Step 2 — Fund Your Wallet
+## Step 3 — Fund Your Wallet
 
 You need testnet LUME tokens. Options:
 
@@ -65,7 +77,7 @@ lumerad query bank balances $(lumerad keys show validator -a)
 
 You need at least **1 LUME** (1,000,000 ulume) to create a validator, plus extra for gas fees.
 
-## Step 3 — Create the Validator
+## Step 4 — Create the Validator
 
 ### Get your validator public key
 
