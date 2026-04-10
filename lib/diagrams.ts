@@ -429,7 +429,7 @@ const interchainAccounts: DiagramDef = {
       id: "ctrl-sub",
       x: 185,
       y: 78,
-      text: "(e.g., Injective)",
+      text: "(e.g., Osmosis)",
       size: 11,
       muted: true,
     },
@@ -605,27 +605,18 @@ const encryptedStorage: DiagramDef = {
 };
 
 const sdkArchitecture: DiagramDef = {
-  viewBox: "0 0 1000 520",
+  viewBox: "0 0 740 340",
   title: "JavaScript SDK Architecture",
-  labelSize: 26,
-  itemSize: 18,
-  arrowLabelSize: 18,
-  labelLineHeight: 32,
-  itemLineHeight: 24,
-  itemGap: 8,
-  pad: 14,
-  borderRadius: 16,
-  strokeWidth: 3,
-  arrowWidth: 2,
+  itemSize: 12,
   elements: [
     // ── Row 1: Core modules
     {
       type: "box",
       id: "blockchain",
-      x: 30,
-      y: 20,
-      w: 440,
-      h: 170,
+      x: 20,
+      y: 15,
+      w: 310,
+      h: 115,
       label: "Blockchain",
       items: [
         "CosmJS · SigningStargateClient",
@@ -636,10 +627,10 @@ const sdkArchitecture: DiagramDef = {
     {
       type: "box",
       id: "cascade",
-      x: 530,
-      y: 20,
-      w: 440,
-      h: 170,
+      x: 400,
+      y: 15,
+      w: 310,
+      h: 115,
       label: "Cascade",
       items: [
         "CascadeUploader · CascadeDownloader",
@@ -651,25 +642,31 @@ const sdkArchitecture: DiagramDef = {
     {
       type: "arrow",
       id: "a-bc-wallet",
-      points: [[250, 190], [380, 310]],
+      points: [
+        [175, 140],
+        [275, 205],
+      ],
       label: "tx signing",
-      labelPos: [260, 254],
+      labelPos: [185, 175],
     },
     {
       type: "arrow",
       id: "a-cascade-wallet",
-      points: [[750, 190], [620, 310]],
+      points: [
+        [555, 140],
+        [455, 205],
+      ],
       label: "ADR-036 signing",
-      labelPos: [740, 254],
+      labelPos: [545, 175],
     },
-    // ── Row 2: Wallet Layer (shared by both)
+    // ── Row 2: Wallet Layer
     {
       type: "box",
       id: "wallets",
-      x: 190,
-      y: 310,
-      w: 620,
-      h: 170,
+      x: 140,
+      y: 215,
+      w: 450,
+      h: 100,
       label: "Wallet Layer",
       variant: "accent",
       items: [
