@@ -62,6 +62,13 @@
   }
 }
 
+/* Wider sidebar */
+@media (min-width: 768px) {
+  #nd-docs-layout {
+    --fd-sidebar-width: 280px !important;
+  }
+}
+
 /* Let code blocks expand fully — scroll the page, not the block */
 .fd-codeblock [data-radix-scroll-area-viewport] {
   max-height: none !important;

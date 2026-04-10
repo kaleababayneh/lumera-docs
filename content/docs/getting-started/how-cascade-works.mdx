@@ -28,9 +28,9 @@ The chain validates the transaction, escrows the fee, and emits an `action_regis
 
 With the `action_id` in hand, the SDK sends a **multipart POST** to the SN-API at `/api/v1/actions/cascade` with three fields:
 
-- `action_id` — the on-chain reference from step 2
-- `signature` — an ADR-036 auth signature of the `data_hash`
-- `file` — the raw file bytes
+- `action_id` - the on-chain reference from step 2
+- `signature` - an ADR-036 auth signature of the `data_hash`
+- `file` - the raw file bytes
 
 The SN-API runs inside each Supernode and returns a `task_id` that the SDK polls for progress.
 
