@@ -6,12 +6,13 @@ icon: Shield
 
 ## Why Erasure Coding?
 
-Simple replication (storing N copies) is wasteful. If you need data to survive 50% of nodes going offline, you need 2x the storage. With **erasure coding**, you can achieve the same reliability with only ~1.5x overhead.
+Simple replication (storing N copies) is storage-inefficient. If you need data to survive 50% of nodes going offline, you need 2x the storage. With **erasure coding**, you can achieve the same fault tolerance with only ~1.5x overhead.
 
-Cascade uses **RaptorQ** (RFC 6330), a fountain code that:
+Cascade uses **RaptorQ** ([RFC 6330](https://www.rfc-editor.org/rfc/rfc6330)), a fountain code that:
 - Encodes a file into N symbols where any K symbols (K < N) can reconstruct the original
 - Has near-zero decoding failure probability
 - Operates efficiently on large files
+- Is implemented in WASM for browser environments and as native code in Go/Rust SDKs
 
 ## How It Works in Cascade
 

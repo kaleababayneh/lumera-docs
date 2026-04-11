@@ -4,11 +4,11 @@ description: Using the Lumera JS SDK in Node.js for server-side applications, CL
 icon: Terminal
 ---
 
-
-
 ## Overview
 
-The `@lumera-protocol/sdk-js` SDK works in both **browser** and **Node.js** environments. This guide covers the Node.js setup for server-side applications, CLI tools, and backend services where programmatic signing with `DirectSecp256k1HdWallet` replaces browser wallet extensions.
+The `@lumera-protocol/sdk-js` SDK works in both **browser** and **Node.js** environments. This guide covers the Node.js-specific setup for server-side applications, CLI tools, and backend services where programmatic signing with `DirectSecp256k1HdWallet` replaces browser wallet extensions.
+
+For server-side applications that do not need WASM, consider the native [Go SDK](/docs/getting-started/go-sdk) or [Rust SDK](/docs/getting-started/rust-sdk) as alternatives.
 
 ## Setup
 
@@ -60,6 +60,7 @@ export async function createNodeSigner(mnemonic: string) {
 ## Upload a File
 
 ```ts title="upload.ts"
+import fs from "fs";
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
 import { createNodeSigner } from "./signer";
 
@@ -88,6 +89,7 @@ console.log("Stored with action ID:", result.action_id);
 ## Download a File
 
 ```ts title="download.ts"
+import fs from "fs";
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
 import { createNodeSigner } from "./signer";
 

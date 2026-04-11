@@ -15,10 +15,10 @@ Cascade separates concerns into a **control plane** (the Lumera blockchain) and 
 Your app calls the SDK, which does significant preparation before touching the chain:
 
 1. Computes a **BLAKE3 hash** of the file (the `data_hash` that will be stored on-chain).
-2. Generates a **RaptorQ layout** a metadata describing how the file will be encoded, not the encoding itself.
-3. **Signs** the layout, derives deterministic **layout IDs**, and builds a signed **index file**.
+2. Generates a **RaptorQ layout** — metadata describing how the file will be encoded, not the encoding itself.
+3. **Signs** the layout, derives deterministic **layout IDs** (LEP-1), and builds a signed **index file**.
 
-Once preparation is complete, the SDK submits a **`MsgRequestAction`** transaction to the Lumera chain. This message includes `data_hash`, `file_name`, `visibility flag` indicating whether the file is publicly or privately accessible, and the one-time storage fee in `ulume`.
+Once preparation is complete, the SDK submits a **`MsgRequestAction`** transaction to the Lumera chain. This message includes `data_hash`, `file_name`, a `visibility flag` indicating whether the file is publicly or privately accessible, and the one-time storage fee in `ulume`.
 
 ### Step 2: Receive the action ID
 
@@ -28,9 +28,9 @@ The chain validates the transaction, escrows the fee, and emits an `action_regis
 
 With the `action_id` in hand, the SDK sends a **multipart POST** to the SN-API at `/api/v1/actions/cascade` with three fields:
 
-- `action_id` - the on-chain reference from step 2
-- `signature` - an ADR-036 auth signature of the `data_hash`
-- `file` - the raw file bytes
+- `action_id` — the on-chain reference from Step 2
+- `signature` — an ADR-036 auth signature of the `data_hash`
+- `file` — the raw file bytes
 
 The SN-API runs inside each Supernode and returns a `task_id` that the SDK polls for progress.
 
@@ -44,10 +44,12 @@ The Supernode that received the file:
 
 ### Step 5: Finalize on-chain
 
-After encoding and distribution are complete, the Supernode submits a **`MsgFinalizeAction`** transaction back to the chain. This transitions the action state from `PENDING` to `DONE`, permanently recording that the file is stored and retrievable. The escrowed fee is then distributed to the participating Supernodes.
+After encoding and distribution are complete, the Supernode submits a **`MsgFinalizeAction`** transaction back to the chain. This transitions the action state from `PENDING` to `DONE`, permanently recording that the file is stored and retrievable. The escrowed fee is then distributed: **90% to participating Supernodes** and **10% to the foundation**.
 
 ---
-At this point, your file is **permanently stored**. To retrieve it, the SDK signs the `action_id` using an ADR-036 and authenticates with the Supernode network to stream the reconstructed file back to your application.
+
+At this point, your file is **permanently stored**. To retrieve it, the SDK signs the `action_id` with ADR-036 and authenticates with the Supernode network to stream the reconstructed file back to your application.
+
 ## Next Steps
 
 <Cards>

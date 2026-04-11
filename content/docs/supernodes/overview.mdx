@@ -16,6 +16,18 @@ Every Supernode is paired with a validator but **must run on a separate server**
 
 The Supernode connects to the validator's gRPC endpoint (port 9090) as a client to query the chain and broadcast transactions. Supernodes also form a peer-to-peer mesh using a Kademlia DHT (port 4445) for data replication and storage challenge proofs across the network. All on-chain registration and lifecycle transactions are signed by the validator operator key.
 
+### Supernode States
+
+The on-chain `x/supernode` module tracks each Supernode's lifecycle state:
+
+| State | Description |
+|-------|-------------|
+| `ACTIVE` | Operating normally, eligible to process actions |
+| `STOPPED` | Temporarily stopped by the operator — can be restarted |
+| `DISABLED` | Deregistered (terminal) — can re-register later |
+| `PENALIZED` | Penalized for violations — cannot re-register |
+| `POSTPONED` | Non-compliant metrics detected by the Audit module — auto-recovers when compliant |
+
 ## Key Information
 
 | Item | Value |

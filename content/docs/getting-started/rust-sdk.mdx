@@ -4,7 +4,9 @@ description: Overview of the official Lumera Rust SDK for server-side and CLI ap
 icon: Code
 ---
 
+## Overview
 
+The [Rust SDK](https://github.com/LumeraProtocol/sdk-rs) is the official SDK for building high-performance server-side applications, CLI tools, and system-level integrations with Lumera Protocol. It provides native gRPC chain access and SN-API interaction without WASM overhead.
 
 ## Installation
 
@@ -14,15 +16,17 @@ lumera-sdk-rs = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
+**Requirements**: Rust stable 1.75+, secp256k1 signing keys, reachable Lumera endpoints.
+
 ## Architecture
 
 The Rust SDK is organized into three core modules:
 
 | Module | Purpose |
 |---|---|
-| **`chain`** | On-chain operations — action parameters, fee lookups, transaction registration |
-| **`snapi`** | SN-API interaction — upload, download, status polling |
-| **`cascade`** | High-level orchestration — deterministic payload generation, ticket registration |
+| **`chain`** | On-chain operations — action parameters, fee lookups, transaction build/sign/broadcast, gas simulation |
+| **`snapi`** | SN-API interaction — upload, download, status polling, file retrieval |
+| **`cascade`** | High-level orchestration — deterministic payload/ID generation, ticket registration, upload/download workflows |
 
 ## Client Setup
 
@@ -43,7 +47,7 @@ let cfg = CascadeConfig::new(chain_cfg, "https://snapi.testnet.lumera.io");
 let sdk = CascadeSdk::new(cfg);
 ```
 
-Or use environment variables:
+Or load configuration from environment variables, `.env`, `.toml`, or `.json` files:
 
 ```rust
 use lumera_sdk_rs::{CascadeSdk, SdkSettings};

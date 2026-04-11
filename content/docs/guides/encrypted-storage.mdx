@@ -4,9 +4,6 @@ description: Store encrypted files on Cascade with wallet-derived keys and secur
 icon: Lock
 ---
 
-
-
-
 ## Overview
 
 Cascade stores files publicly by default — any wallet can download a file if they know the action ID. For private data, you can **encrypt files client-side** before uploading to Cascade. This guide shows how to implement wallet-based encryption using libsodium.
@@ -152,6 +149,9 @@ Files are uploaded as `isPublic: true` even when encrypted. Cascade's `isPublic`
 ## Downloading and Decrypting
 
 ```ts title="src/encrypted-cascade.ts"
+import { decrypt } from "./crypto";
+import sodium from "libsodium-wrappers-sumo";
+
 export async function downloadDecrypted(
   client: any,
   actionId: string,
@@ -201,7 +201,8 @@ To share an encrypted file, re-encrypt the **document key** under the collaborat
 
 ```ts
 // Owner creates a share invitation
-const collaboratorKey =  collaborator's wallet-derived key 
+// The collaborator's wallet-derived key is obtained via a prior key exchange
+const collaboratorKey: Uint8Array = /* collaborator's wallet-derived key */;
 const { ciphertext, nonce } = encrypt(documentKey, collaboratorKey);
 
 const invitation = {

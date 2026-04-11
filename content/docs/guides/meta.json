@@ -1,5 +1,5 @@
 {
   "title": "Guides",
   "icon": "Wrench",
-  "pages": ["browser-app", "node-js", "research-archive", "encrypted-storage"]
+  "pages": ["browser-app", "node-js", "encrypted-storage", "research-archive"]
 }

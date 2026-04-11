@@ -37,29 +37,29 @@ A key challenge with ICA is that the ICA address on the host chain has no user-h
 
 ## Using the Go SDK for ICA
 
-The [Go SDK](https://github.com/LumeraProtocol/sdk-go) provides helpers for ICA-based Cascade:
+The [Go SDK](https://github.com/LumeraProtocol/sdk-go) provides comprehensive helpers for ICA-based Cascade operations:
 
 ```go
-import "github.com/LumeraProtocol/sdk-go/client"
+import "github.com/LumeraProtocol/sdk-go/client/cascade"
 
-// Pack a MsgRequestAction for ICA submission
-packedMsg := client.PackRequestForICA(msg)
-
-// Pack a MsgApproveAction for ICA submission
-packedApprove := client.PackApproveForICA(approveMsg)
-
-// Extract action IDs from IBC acknowledgement
-actionIDs := client.ExtractRequestActionIDsFromAck(ackData)
+// Upload via ICA with application-level keypair
+res, err := cascadeClient.Upload(ctx, addr, nil, filePath,
+    cascade.WithICACreatorAddress(icaAddr),
+    cascade.WithAppPubkey(pubkey),
+    cascade.WithICASendFunc(sendFunc),
+)
 ```
 
-Configure the SDK client for ICA:
+ICA helper functions for building and parsing IBC messages:
 
-```go
-cfg := &client.Config{
-    ICAOwnerKeyName: "ica-controller-key",
-    ICAOwnerHRP:     "cosmos", // Bech32 prefix of controller chain
-}
-```
+| Function | Purpose |
+|----------|---------|
+| `PackRequestForICA(msg)` | Wraps a `MsgRequestAction` for ICA submission |
+| `BuildICAPacketData(msgs)` | Constructs the IBC packet data for ICA messages |
+| `BuildMsgSendTx(packetData, ...)` | Builds the `MsgSendTx` for the controller chain |
+| `ExtractRequestActionIDsFromAck(ack)` | Extracts action IDs from IBC acknowledgements |
+
+The SDK supports both standard Cosmos (`secp256k1`, coin type 118) and EVM (`eth_secp256k1`, coin type 60) key types per chain.
 
 ## ICA Client CLI
 

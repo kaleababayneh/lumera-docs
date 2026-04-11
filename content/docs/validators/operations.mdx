@@ -1,6 +1,6 @@
 ---
-title: Operations
-description: Day-to-day validator operations, monitoring, and troubleshooting.
+title: Validator Operations
+description: Day-to-day validator operations — staking, monitoring, upgrades, and troubleshooting.
 icon: Wrench
 ---
 
@@ -21,6 +21,9 @@ lumerad status 2>&1 | jq '.sync_info | {latest_block_height, catching_up}'
 
 # Check balance
 lumerad query bank balances $(lumerad keys show validator -a)
+
+# Check validator status
+lumerad query staking validator $(lumerad keys show validator --bech val -a)
 ```
 
 ## Staking Operations

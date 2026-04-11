@@ -16,10 +16,10 @@ icon: Download
 The JavaScript/TypeScript SDK is the primary way to interact with Cascade from web and Node.js applications.
 
 ```package-install
-npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate @cosmjs/amino
 ```
 
-`@cosmjs/proto-signing` and `@cosmjs/stargate` are **peer dependencies** required for wallet and transaction handling.
+`@cosmjs/proto-signing` and `@cosmjs/stargate` are **peer dependencies** required for wallet and transaction handling. `@cosmjs/amino` is needed for ADR-036 `signArbitrary` support in Node.js environments (browser wallets like Keplr handle this natively).
 
 {/*
 ## Platform-Specific Dependencies

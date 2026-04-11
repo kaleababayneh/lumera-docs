@@ -4,8 +4,6 @@ description: Chain IDs, endpoints, and configuration for Lumera mainnet and test
 icon: Network
 ---
 
-
-
 ## Testnet
 
 | Parameter | Value |
@@ -85,15 +83,17 @@ await window.keplr.experimentalSuggestChain({
 
 ## Running a Local Node
 
-Build from source with [Ignite CLI](https://ignite.com/):
+Build from source (see the [Validator Node Setup](/docs/validators/node-setup) for the full production process):
 
 ```bash
 git clone https://github.com/LumeraProtocol/lumera.git
 cd lumera
-ignite chain build
+go build -o lumerad ./cmd/lumera
 lumerad init my-node --chain-id lumera-local
 lumerad start
 ```
+
+> **Note**: `ignite chain build` requires 16+ GB RAM for protobuf generation. For resource-constrained environments, use `go build` directly.
 
 For connecting the SDK to a local node:
 
@@ -110,22 +110,15 @@ const client = await createLumeraClient({
 
 ## Supernode Requirements
 
-To run a Supernode (storage provider):
+To run a Supernode (storage provider), see the full [Supernode Overview](/docs/supernodes/overview) for detailed requirements and setup instructions.
 
-| Resource | Minimum |
-|----------|---------|
-| CPU | 8 cores |
-| RAM | 64 GB |
-| Storage | 2 TB SSD |
-| Network | 5 Gbps+ |
-
-```bash
-git clone https://github.com/LumeraProtocol/supernode.git
-cd supernode
-make build
-supernode init
-supernode start
-```
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| CPU | 8 cores (x86_64) | 16+ cores |
+| RAM | 16 GB | 64 GB |
+| Storage | 1 TB NVMe SSD | 4 TB NVMe SSD |
+| Network | 1 Gbps | 5 Gbps |
+| Ports | 4444, 4445, 8002 (TCP) | — |
 
 ## Community
 
@@ -140,7 +133,7 @@ supernode start
 ## Next Steps
 
 <Cards>
-  <Card title="Troubleshooting" href="/docs/reference/troubleshooting" />
+  <Card title="Error Handling" href="/docs/getting-started/error-handling" />
   <Card title="Get Started" href="/docs/getting-started/installation" />
 </Cards>
 

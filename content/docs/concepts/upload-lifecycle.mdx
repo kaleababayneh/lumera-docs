@@ -4,10 +4,9 @@ description: Step-by-step breakdown of how files are uploaded and permanently st
 icon: Upload
 ---
 
-
 ## Overview
 
-A Cascade upload consists of three phases: **prepare**, **register**, and **send**. The SDK's `uploadFile` method handles all three, but you can also run them individually for fine-grained control.
+A Cascade upload consists of three phases: **prepare**, **register**, and **send**. The SDK's `uploadFile` method handles all three phases in sequence, but you can also run them individually for fine-grained control.
 
 ## Phase 1: Prepare
 
@@ -165,6 +164,10 @@ console.log(result.action_id); // Use this to download later
 | `sdk:upload_failed` | Upload | File transfer to SN-API failed |
 | `sdk:processing_failed` | Upload | SN-API could not process the file |
 | `sdk:processing_timeout` | Upload | Processing exceeded timeout |
+
+## Action Finalization
+
+After the file is successfully encoded and distributed, the receiving Supernode broadcasts a `MsgFinalizeAction` transaction to the chain. This transitions the action state from `PENDING` to `DONE` and triggers fee distribution to the participating Supernodes. The creator can optionally approve the action via `MsgApproveAction`, which moves it to the `APPROVED` state.
 
 ## Retry Behavior
 

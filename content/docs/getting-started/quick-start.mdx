@@ -4,10 +4,15 @@ description: Upload your first file to Cascade in under five minutes.
 icon: Zap
 ---
 
+## Prerequisites
+
+- **Node.js** >= 18.0.0
+- A funded Lumera wallet (get testnet tokens from the [faucet](https://faucet.astrostake.xyz/lumera))
+
 ## Install Dependencies
 
 ```package-install
-npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate @cosmjs/amino
 ```
 
 ## Upload a File
@@ -17,14 +22,17 @@ import { createLumeraClient } from "@lumera-protocol/sdk-js";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { Secp256k1HdWallet, makeSignDoc as makeAminoSignDoc } from "@cosmjs/amino";
 
-const MNEMONIC = "your twelve word mnemonic goes here";
+const MNEMONIC = "your twenty four word mnemonic goes here ...";
 
 async function main() {
+  // Create both Direct and Amino wallets from the same mnemonic.
+  // Direct is used for transaction signing; Amino is needed for ADR-036 signArbitrary.
   const directWallet = await DirectSecp256k1HdWallet.fromMnemonic(MNEMONIC, { prefix: "lumera" });
   const aminoWallet = await Secp256k1HdWallet.fromMnemonic(MNEMONIC, { prefix: "lumera" });
   const [account] = await directWallet.getAccounts();
 
-  // Combine direct + amino wallets and add signArbitrary (ADR-036) for Cascade
+  // Build a unified signer that supports signDirect, signAmino, and signArbitrary.
+  // Cascade requires signArbitrary (ADR-036) for Supernode authentication.
   const signer = {
     getAccounts: () => directWallet.getAccounts(),
     signDirect: (addr: string, doc: any) => directWallet.signDirect(addr, doc),
@@ -52,27 +60,33 @@ async function main() {
   const client = await createLumeraClient({
     preset: "testnet",
     signer: signer as any,
-    address: account.address
+    address: account.address,
+    gasPrice: "0.025ulume",
   });
 
-  // The file to upload. 
+  // The file to upload
   const file = new TextEncoder().encode("Hello, Lumera!");
-  // The deadline for supernodes to process the upload action. 
-  // If the action is not finalized by this time: the fee will be refunded. 
-  const expirationTime = String(Math.floor(Date.now() / 1000) + 25 * 60 * 60); //  25 hours from now
 
+  // Expiration: the deadline for Supernodes to process the action.
+  // If not finalized by this time, the escrowed fee is refunded.
+  const expirationTime = String(Math.floor(Date.now() / 1000) + 25 * 60 * 60); // 25 hours from now
 
   const result = await client.Cascade.uploader.uploadFile(file, {
     fileName: "hello.txt",
     isPublic: true,
-    expirationTime
+    expirationTime,
   });
 
   console.log("Upload complete:", result);
+  // result.action_id is your permanent on-chain reference
 }
 
 main();
 ```
+
+<Callout type="warn">
+**Security**: Never hardcode mnemonics in production code. Use environment variables or a secrets manager. See [Client Setup](/docs/getting-started/client-setup) for secure patterns.
+</Callout>
 
 ## Next Steps
 

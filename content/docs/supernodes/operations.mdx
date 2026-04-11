@@ -1,6 +1,6 @@
 ---
-title: Operations
-description: Day-to-day Supernode operations, monitoring, upgrades, and troubleshooting.
+title: Supernode Operations
+description: Day-to-day Supernode operations — monitoring, lifecycle management, upgrades, and troubleshooting.
 icon: Wrench
 ---
 
@@ -36,11 +36,17 @@ The on-chain state of your Supernode determines whether it is actively serving t
 | `PENALIZED` | Penalized for violations | Cannot re-register |
 | `POSTPONED` | Non-compliant metrics | Auto-recovers when compliant |
 
-## On-Chain Metrics (LEP-4)
+## On-Chain Metrics and Audit (LEP-4)
 
-Supernodes must self-report metrics every ~400 blocks. If metrics are not reported within the grace period (~100 blocks), the Supernode is moved to `POSTPONED` state. This reporting is handled automatically by `sn-manager` — no manual action is needed.
+The chain's **Audit module** (`x/audit`) enforces Supernode compliance using an epoch-based system (default: 400 blocks per epoch).
 
-Reported metrics include: version, CPU/RAM/disk usage, port status, uptime, and peer count.
+Each epoch, every Supernode must submit a `MsgSubmitEpochReport` containing:
+- **Host metrics**: version, CPU/RAM/disk usage, uptime, port status
+- **Peer observations**: connectivity checks on assigned peer Supernodes
+
+If metrics are not reported, fall below minimums (8 CPU cores, 16 GB RAM, 1 TB storage), or peers report closed ports, the Supernode is moved to `POSTPONED` state at the epoch boundary. Recovery requires submitting a compliant self-report and receiving peer confirmation.
+
+This reporting is handled automatically by `sn-manager` — no manual action is needed.
 
 ## Lifecycle Operations
 

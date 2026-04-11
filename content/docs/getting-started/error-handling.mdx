@@ -44,8 +44,11 @@ try {
 
 ```ts
 const client = await createLumeraClient({
-  // ...
-  rpcUrl: "https://lumera-testnet-rpc.polkachu.com",
+  rpcEndpoint: "https://lumera-testnet-rpc.polkachu.com",
+  lcdEndpoint: "https://lumera-testnet-api.polkachu.com",
+  signer,
+  address,
+  gasPrice: "0.025ulume",
 });
 ```
 
