@@ -11,7 +11,7 @@ icon: Download
 - A Lumera wallet (mnemonic for programmatic signing, [Keplr](https://www.keplr.app/) or [Leap](https://www.leapwallet.io/) for browser apps)
 - Testnet tokens (`ulume`) from the [Lumera faucet](https://faucet.astrostake.xyz/lumera)
 
-## Install the SDK
+## Install the SDK 
 
 The JavaScript/TypeScript SDK is the primary way to interact with Cascade from web and Node.js applications.
 
@@ -87,13 +87,7 @@ module.exports = {
 
 ## Verify Installation
 
-```ts title="verify.ts"
-import { createLumeraClient } from "@lumera-protocol/sdk-js";
-
-// This should not throw — it validates that all WASM modules load correctly
-const client = await createLumeraClient({ preset: "testnet" });
-console.log("SDK loaded successfully");
-```
+To confirm everything is wired up correctly, follow the [Quick Start](/docs/getting-started/quick-start) guide. It creates a client, connects to testnet, and uploads a file in under 50 lines.
 
 ## Other SDKs
 
@@ -102,7 +96,7 @@ Lumera also provides official SDKs for Go and Rust:
 | SDK | Install | Repository |
 |-----|---------|------------|
 | **Go** | `go get github.com/LumeraProtocol/sdk-go` | [LumeraProtocol/sdk-go](https://github.com/LumeraProtocol/sdk-go) |
-| **Rust** | `lumera-sdk-rs = "0.1"` | [LumeraProtocol/sdk-rs](https://github.com/LumeraProtocol/sdk-rs) |
+| **Rust** | `cargo add lumera-sdk-rs --git https://github.com/LumeraProtocol/sdk-rs.git` | [LumeraProtocol/sdk-rs](https://github.com/LumeraProtocol/sdk-rs) |
 | **TypeScript** | `npm install @lumera-protocol/sdk-js` | [LumeraProtocol/sdk-js](https://github.com/LumeraProtocol/sdk-js) |
 
 
