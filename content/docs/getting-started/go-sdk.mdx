@@ -4,30 +4,48 @@ description: Overview of the official Lumera Go SDK for server-side and CLI appl
 icon: Code
 ---
 
+## Overview
+
+The [Go SDK](https://github.com/LumeraProtocol/sdk-go) is the official SDK for building server-side applications, CLI tools, and backend services that interact with Lumera Protocol. It provides direct gRPC access to the chain and native Supernode communication.
 
 ## Installation
 
+The SDK requires **Go 1.25.5+**. Add it as a dependency inside your Go module:
+
 ```bash
-go get github.com/LumeraProtocol/sdk-go
+# Initialize a module if you don't have one yet
+go mod init your-project
+
+# Add the SDK
+go get github.com/LumeraProtocol/sdk-go@latest
 ```
 
 ## Architecture
 
-The Go SDK follows a three-layer architecture:
+The Go SDK unifies three Lumera interfaces into a single client:
 
 | Layer | Access via | Purpose |
 |---|---|---|
-| **Lumera API (gRPC)** | `client.Blockchain` | Blockchain queries — actions, supernodes, fees |
+| **Lumera API (gRPC)** | `client.Blockchain` | Blockchain queries: actions, supernodes, fees, transactions |
 | **Cascade SDK** | `client.Cascade` | File upload, download, and event subscriptions |
-| **SnApi (gRPC)** | Integrated through Cascade | Direct Supernode communication |
+| **Supernode (gRPC)** | Integrated through Cascade | Direct Supernode communication on port 4444 |
 
-## Client Setup
+### Direct Supernode Communication
+
+Unlike the [JavaScript](/docs/getting-started/javascript-sdk) and [Rust](/docs/getting-started/rust-sdk) SDKs which route through SN-API (a REST gateway), the Go SDK communicates **directly with Supernodes** over gRPC:
+
+1. You create an on-chain action via `MsgRequestAction`
+2. The block height at which the action is included serves as a **seed** to deterministically select 10 processing Supernodes
+3. The Go SDK connects to each selected Supernode one by one (port 4444) and uploads to the first that responds
+
+This means the Go SDK requires direct network access to Supernodes. If you cannot reach port 4444 from your machine (e.g., firewalls or NAT), run your code on the same network as the Supernode.
 
 ```go
 package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	lumerasdk "github.com/LumeraProtocol/sdk-go/client"
@@ -66,31 +84,81 @@ fmt.Println("Stored with action ID:", res.ActionID)
 
 ```go
 _, err := client.Cascade.Download(ctx, actionID, "./downloads/")
+if err != nil {
+    panic(err)
+}
+```
+
+## Query Actions
+
+```go
+action, err := client.Blockchain.Action.GetAction(ctx, "action-123")
+if err != nil {
+    panic(err)
+}
+fmt.Printf("Action state: %s\n", action.State)
 ```
 
 ## Multi-Account Support
 
-The Go SDK supports a factory pattern for managing multiple signers:
+The Go SDK supports a factory pattern for managing multiple signers within the same process:
 
 ```go
-factory, _ := lumerasdk.NewFactory(lumerasdk.Config{...}, kr)
+factory, _ := lumerasdk.NewFactory(lumerasdk.Config{
+    ChainID:      "lumera-testnet-2",
+    GRPCEndpoint: "grpc.testnet.lumera.io:443",
+    RPCEndpoint:  "https://rpc.testnet.lumera.io",
+}, kr)
+
 alice, _ := factory.WithSigner(ctx, aliceAddr, "alice")
 bob, _ := factory.WithSigner(ctx, bobAddr, "bob")
 ```
 
 Both `secp256k1` (Cosmos, coin type 118) and `eth_secp256k1` (EVM, coin type 60) key types are supported.
 
-## Interchain Accounts (ICA)
+## Keyring Helpers
 
-The Go SDK includes helpers for cross-chain Cascade operations via ICS-27:
+The SDK includes crypto utilities for key management:
 
 ```go
+import "github.com/LumeraProtocol/sdk-go/pkg/crypto"
+
+// Create a keyring with default parameters
+kr, err := crypto.NewKeyring(crypto.KeyringParams{
+    AppName: "lumera",
+    Backend: "test",
+    Dir:     "/tmp",
+})
+
+// Import a key from a mnemonic file
+pubkey, addr, err := crypto.ImportKey(kr, "my-key", "/path/to/mnemonic.txt", "lumera", crypto.KeyTypeCosmos)
+
+// Derive address with custom HRP
+addr, err := crypto.AddressFromKey(kr, "my-key", "lumera")
+```
+
+## Interchain Accounts (ICA)
+
+The Go SDK includes full ICS-27 support for cross-chain Cascade operations:
+
+```go
+import "github.com/LumeraProtocol/sdk-go/cascade"
+
 res, err := cascadeClient.Upload(ctx, addr, nil, filePath,
     cascade.WithICACreatorAddress(icaAddr),
     cascade.WithAppPubkey(pubkey),
     cascade.WithICASendFunc(sendFunc),
 )
 ```
+
+ICA helper functions:
+
+| Function | Purpose |
+|----------|---------|
+| `PackRequestForICA` | Wraps a `MsgRequestAction` for ICA submission |
+| `BuildICAPacketData` | Constructs the IBC packet data for ICA messages |
+| `BuildMsgSendTx` | Builds the `MsgSendTx` for the controller chain |
+| `ExtractRequestActionIDsFromAck` | Extracts action IDs from IBC acknowledgements |
 
 ## Next Steps
 
@@ -99,4 +167,3 @@ res, err := cascadeClient.Upload(ctx, addr, nil, filePath,
   <Card title="Cascade Architecture" href="/docs/concepts/architecture" />
   <Card title="Interchain Accounts" href="/docs/concepts/interchain-accounts" />
 </Cards>
-

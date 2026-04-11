@@ -1,16 +1,20 @@
 ---
-title: JavaScript SDK
+title: JavaScript/TypeScript SDK
 description: Overview of the @lumera-protocol/sdk-js architecture and modules.
 icon: Code
 ---
 
 ## Overview
 
-The [`@lumera-protocol/sdk-js`](https://github.com/LumeraProtocol/sdk-js) SDK is the primary way to interact with Cascade from web and Node.js applications. It works in **Node.js v18+** as well as browsers with **Keplr** and **Leap** wallets.
+The [JavaScript/ TypeScript SDK](https://github.com/LumeraProtocol/sdk-js) is the primary way to interact with Cascade from web and Node.js applications. It works in **Node.js v18+** as well as browsers with **Keplr** and **Leap** wallets. File operations are routed through **SN-API** Supernode REST gateway.
 
 ## Installation
 
-```package-install
+```bash
+# Initialize a project if you don't have one yet
+npm init -y
+
+# Install the SDK and peer dependencies
 npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
 ```
 
@@ -31,7 +35,7 @@ import { createLumeraClient } from "@lumera-protocol/sdk-js";
 
 const client = await createLumeraClient({
   preset: "testnet",
-  signer: wallet,           // Keplr, Leap, or DirectSecp256k1HdWallet
+  signer: signer as any,          // Keplr, Leap, or DirectSecp256k1HdWallet
   address: account.address,
   gasPrice: "0.025ulume",
 });
