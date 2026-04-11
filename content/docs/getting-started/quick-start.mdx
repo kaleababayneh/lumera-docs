@@ -52,13 +52,15 @@ async function main() {
   const client = await createLumeraClient({
     preset: "testnet",
     signer: signer as any,
-    address: account.address
+    address: account.address,
+    gasPrice: "0.025ulume"
   });
 
   // The file to upload. 
   const file = new TextEncoder().encode("Hello, Lumera!");
+
   // The deadline for supernodes to process the upload action. 
-  // If the action is not finalized by this time: the fee will be refunded. 
+  // If not finalized by this time, the fee will be refunded. 
   const expirationTime = String(Math.floor(Date.now() / 1000) + 25 * 60 * 60); //  25 hours from now
 
 
@@ -69,10 +71,15 @@ async function main() {
   });
 
   console.log("Upload complete:", result);
+  // result.action_id is your permanent on-chain reference
 }
 
 main();
 ```
+
+<Callout type="warn">
+**Security**: Never hardcode mnemonics in production code. Use environment variables or a secrets manager.
+</Callout>
 
 ## Next Steps
 
