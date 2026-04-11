@@ -16,10 +16,10 @@ icon: Download
 The JavaScript/TypeScript SDK is the primary way to interact with Cascade from web and Node.js applications.
 
 ```package-install
-npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate @cosmjs/amino
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
 ```
 
-`@cosmjs/proto-signing` and `@cosmjs/stargate` are **peer dependencies** required for wallet and transaction handling. `@cosmjs/amino` is needed for ADR-036 `signArbitrary` support in Node.js environments (browser wallets like Keplr handle this natively).
+`@cosmjs/proto-signing` and `@cosmjs/stargate` are **peer dependencies** required for wallet and transaction handling. `@cosmjs/amino` (used for ADR-036 `signArbitrary` in Node.js) is included as a transitive dependency — no need to install it separately.
 
 {/*
 ## Platform-Specific Dependencies
@@ -85,25 +85,8 @@ module.exports = {
 };
 ```
 
-## Verify Installation
 
-```ts title="verify.ts"
-import { createLumeraClient } from "@lumera-protocol/sdk-js";
 
-// This should not throw — it validates that all WASM modules load correctly
-const client = await createLumeraClient({ preset: "testnet" });
-console.log("SDK loaded successfully");
-```
-
-## Other SDKs
-
-Lumera also provides official SDKs for Go and Rust:
-
-| SDK | Install | Repository |
-|-----|---------|------------|
-| **Go** | `go get github.com/LumeraProtocol/sdk-go` | [LumeraProtocol/sdk-go](https://github.com/LumeraProtocol/sdk-go) |
-| **Rust** | `lumera-sdk-rs = "0.1"` | [LumeraProtocol/sdk-rs](https://github.com/LumeraProtocol/sdk-rs) |
-| **TypeScript** | `npm install @lumera-protocol/sdk-js` | [LumeraProtocol/sdk-js](https://github.com/LumeraProtocol/sdk-js) |
 
 
 ## Next Steps

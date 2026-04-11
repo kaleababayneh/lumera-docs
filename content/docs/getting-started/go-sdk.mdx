@@ -10,8 +10,14 @@ The [Go SDK](https://github.com/LumeraProtocol/sdk-go) is the official SDK for b
 
 ## Installation
 
+The SDK requires **Go 1.25.5+**. Add it as a dependency inside your Go module:
+
 ```bash
-go get github.com/LumeraProtocol/sdk-go
+# Initialize a module if you don't have one yet
+go mod init your-project
+
+# Add the SDK
+go get github.com/LumeraProtocol/sdk-go@latest
 ```
 
 ## Architecture

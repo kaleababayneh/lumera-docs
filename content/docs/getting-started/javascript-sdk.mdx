@@ -8,59 +8,100 @@ icon: Code
 
 The [`@lumera-protocol/sdk-js`](https://github.com/LumeraProtocol/sdk-js) SDK is the primary way to interact with Cascade from web and Node.js applications. It works in **Node.js v18+** and **modern browsers**.
 
-## SDK Architecture
+## Installation
 
-The SDK follows a layered architecture that separates blockchain operations from storage operations:
+```package-install
+npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
+```
 
-<Diagram name="sdk-architecture" />
+## Architecture
 
-### Blockchain Layer
+The SDK follows a three-layer architecture:
 
-Wraps [CosmJS](https://github.com/cosmos/cosmjs) to provide typed access to Lumera-specific modules:
+| Layer | Access via | Purpose |
+|---|---|---|
+| **Blockchain** | `client.Blockchain` | Chain queries — actions, supernodes, fees, transactions |
+| **Cascade** | `client.Cascade` | File upload, download, and task management |
+| **Wallet** | Passed as `signer` | Transaction signing and ADR-036 authentication |
 
-- **Action module**: Query action parameters, fees, and registered actions
-- **Supernode module**: Query Supernode registration and status
-- **Transaction handling**: Simulate gas, sign, and broadcast `MsgRequestAction` messages
-
-### Cascade Layer
-
-Handles the full file storage lifecycle:
-
-- **CascadeUploader**: Prepares files, registers on-chain actions, uploads to Supernodes
-- **CascadeDownloader**: Authenticates, requests downloads, streams files back
-- **SNApiClient**: Typed REST client for the Supernode API (SN-API)
-- **TaskManager**: Polls task status or monitors via Server-Sent Events (SSE)
-- **LEP-1 encoding**: Generates RaptorQ layout metadata and derives deterministic layout IDs using platform-adaptive implementations (native bindings in Node.js, WASM in browsers) for blake3, zstd, and RaptorQ
-
-### Wallet Layer
-
-Unified signer interface supporting:
-
-- **Keplr**: Browser extension wallet via `getKeplrSigner()` (supports `signDirect`, `signAmino`, `signArbitrary`)
-- **`DirectSecp256k1HdWallet`**: Programmatic signing from a mnemonic for Node.js and CLI tools
-
-## Client Shape
-
-`createLumeraClient()` returns a `LumeraClient` with two top-level properties:
+## Client Setup
 
 ```ts
-const client = await createLumeraClient({ preset: "testnet", signer, address, gasPrice: "0.025ulume" });
+import { createLumeraClient } from "@lumera-protocol/sdk-js";
 
-// Blockchain queries and transactions
-client.Blockchain.Action     // getParams(), getAction(), getActionFee()
-client.Blockchain.Supernode  // getParams(), getSupernode(), listSupernodes()
-client.Blockchain.Tx         // signAndBroadcast(), simulate(), getTx()
-
-// Cascade file operations
-client.Cascade.uploader      // uploadFile(), prepareFile(), registerAction()
-client.Cascade.downloader    // download(), downloadFile(), downloadPrivate()
+const client = await createLumeraClient({
+  preset: "testnet",
+  signer: wallet,           // Keplr, Leap, or DirectSecp256k1HdWallet
+  address: account.address,
+  gasPrice: "0.025ulume",
+});
 ```
+
+The `signer` must support `signDirect`, `signAmino`, and `signArbitrary` (ADR-036). Browser wallets like Keplr provide all three natively. For Node.js, see [Client Setup](/docs/getting-started/client-setup#nodejs-with-mnemonic) to build a compatible signer from a mnemonic.
+
+## Upload a File
+
+```ts
+const file = new TextEncoder().encode("Hello, Lumera!");
+const expirationTime = String(Math.floor(Date.now() / 1000) + 25 * 60 * 60);
+
+const result = await client.Cascade.uploader.uploadFile(file, {
+  fileName: "hello.txt",
+  isPublic: true,
+  expirationTime,
+});
+
+console.log("Action ID:", result.action_id);
+```
+
+## Download a File
+
+```ts
+const stream = await client.Cascade.downloader.download(actionId);
+const reader = stream.getReader();
+const chunks: Uint8Array[] = [];
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  if (value) chunks.push(value);
+}
+```
+
+## Query the Chain
+
+```ts
+// Action parameters and fees
+const params = await client.Blockchain.Action.getParams();
+const fee = await client.Blockchain.Action.getActionFee(fileSizeBytes);
+
+// Look up a specific action
+const action = await client.Blockchain.Action.getAction(actionId);
+
+// List supernodes
+const nodes = await client.Blockchain.Supernode.listSupernodes();
+```
+
+## Wallet Helpers
+
+The SDK provides helpers for browser wallet integration:
+
+```ts
+import { getKeplrSigner, getLeapSigner, isKeplrAvailable } from "@lumera-protocol/sdk-js";
+
+// Keplr
+const keplrSigner = await getKeplrSigner("lumera-testnet-2");
+
+// Leap
+const leapSigner = await getLeapSigner("lumera-testnet-2");
+```
+
+These return a unified signer with `signDirect`, `signAmino`, and `signArbitrary` already wired up.
 
 ## Key Exports
 
 ```ts
 import {
-  // Client
   createLumeraClient,
   type LumeraClient,
   CHAIN_PRESETS,
@@ -70,9 +111,6 @@ import {
   CascadeDownloader,
   SNApiClient,
   TaskManager,
-  type UploadParams,
-  type DownloadParams,
-  type TaskStatus,
 
   // Blockchain utilities
   buildBatchMessages,
@@ -87,6 +125,7 @@ import {
 
   // Wallet
   getKeplrSigner,
+  getLeapSigner,
   isKeplrAvailable,
 } from "@lumera-protocol/sdk-js";
 ```
