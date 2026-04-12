@@ -12,7 +12,7 @@ A **Vite + TypeScript** single-page application that connects to Keplr wallet, u
 
 - [Node.js](https://nodejs.org/) >= 18
 - [Keplr](https://www.keplr.app/) browser extension installed
-- Testnet `ulume` tokens (get from [Lumera Discord](https://discord.com/invite/qudewKS3kp))
+- Testnet `ulume` tokens (get from [Lumera Faucet](https://faucet.astrostake.xyz/lumera))
 
 ## Project Setup
 
@@ -116,9 +116,9 @@ export async function connectKeplr(): Promise<{
 }
 ```
 
-<Callout type="warn">
+{/* <Callout type="warn">
 The SDK requires a signer that supports `signArbitrary` (ADR-036) for authenticating Cascade operations. Keplr's `getOfflineSignerAuto` returns a signer that supports this. If you use `getKeplrSigner` from the SDK, it wraps this with the correct interface.
-</Callout>
+</Callout> */}
 
 ## Cascade Client
 
