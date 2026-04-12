@@ -4,25 +4,31 @@ description: Overview of the official Lumera Rust SDK for server-side and CLI ap
 icon: Code
 ---
 
+## Overview
 
+The [Rust SDK](https://github.com/LumeraProtocol/sdk-rs) is the official SDK for building high-performance server-side applications, CLI tools, and system-level integrations with Lumera Protocol. It communicates with the chain over gRPC and routes file operations through **SN-API** Supernode REST gateway. 
 
 ## Installation
 
-```toml title="Cargo.toml"
-[dependencies]
-lumera-sdk-rs = "0.1"
-tokio = { version = "1", features = ["full"] }
+```bash
+# Initialize a project if you don't have one yet
+cargo init .
+
+# Add the SDK and async runtime
+cargo add lumera-sdk-rs --git https://github.com/LumeraProtocol/sdk-rs.git
+cargo add tokio --features full
 ```
 
+**Requirements**: Rust stable (edition 2021+). 
 ## Architecture
 
 The Rust SDK is organized into three core modules:
 
 | Module | Purpose |
 |---|---|
-| **`chain`** | On-chain operations — action parameters, fee lookups, transaction registration |
-| **`snapi`** | SN-API interaction — upload, download, status polling |
-| **`cascade`** | High-level orchestration — deterministic payload generation, ticket registration |
+| **`chain`** | On-chain operations: action parameters, fee lookups, transaction build/sign/broadcast, gas simulation |
+| **`snapi`** | SN-API interaction: upload, download, status polling, file retrieval |
+| **`cascade`** | High-level orchestration: deterministic payload/ID generation, ticket registration, upload/download workflows |
 
 ## Client Setup
 
@@ -48,67 +54,99 @@ Or use environment variables:
 ```rust
 use lumera_sdk_rs::{CascadeSdk, SdkSettings};
 
+// Load .env file if present
+let _ = dotenvy::dotenv();
+
 let settings = SdkSettings::from_env();
 let sdk = CascadeSdk::new(settings.to_cascade_config());
 ```
 
 ### Environment Variables
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `LUMERA_CHAIN_ID` | `lumera-devnet` | Chain identifier |
-| `LUMERA_GRPC` | `http://127.0.0.1:9090` | gRPC endpoint |
-| `LUMERA_RPC` | `http://127.0.0.1:26657` | RPC endpoint |
-| `LUMERA_REST` | `http://127.0.0.1:1317` | REST/LCD endpoint |
-| `LUMERA_GAS_PRICE` | — | Gas price (e.g. `0.025ulume`) |
-| `SNAPI_BASE` | `http://127.0.0.1:8080` | SN-API server base URL |
-| `LUMERA_MNEMONIC` | — | Wallet mnemonic |
-| `LUMERA_CREATOR` | — | Creator bech32 address |
+The SDK's built-in defaults assume you are running a local devnet. For testnet, override them in a `.env` file or shell environment:
 
-## Upload and Download
+| Variable | Testnet Value | Purpose |
+|---|---|---|
+| `LUMERA_CHAIN_ID` | `lumera-testnet-2` | Chain identifier |
+| `LUMERA_GRPC` | `https://grpc.testnet.lumera.io` | gRPC endpoint |
+| `LUMERA_RPC` | `https://rpc.testnet.lumera.io` | RPC endpoint |
+| `LUMERA_REST` | `https://lcd.testnet.lumera.io` | REST/LCD endpoint |
+| `SNAPI_BASE` | `https://snapi.testnet.lumera.io` | SN-API server base URL |
+| `LUMERA_GAS_PRICE` | `0.025ulume` | Gas price |
+
+
+## Derive Signing Keys
+
+Both upload and download require a `SigningIdentity` derived from your mnemonic:
 
 ```rust
-use lumera_sdk_rs::{CascadeSdk, RegisterTicketRequest};
+use lumera_sdk_rs::SigningIdentity;
+
+let identity = SigningIdentity::from_mnemonic(
+    &mnemonic,
+    "lumera",
+    "m/44'/118'/0'/0/0",
+)?;
+```
+
+## Upload a File
+
+Uploads happen in two steps: register the action on-chain, then stream the file to SN-API.
+
+```rust
+use lumera_sdk_rs::RegisterTicketRequest;
 use std::path::PathBuf;
 
-// 1. Derive signing keys from mnemonic
-let (chain_sk, arb_sk) = derive_signing_keys(&mnemonic)?;
+let file_path = PathBuf::from("./my-document.pdf");
 
-// 2. Register on-chain action
+// 1. Register on-chain action
 let registered = sdk.register_ticket(
-    &chain_sk,
-    &arb_sk,
-    &creator,
-    &PathBuf::from("./my-document.pdf"),
+    &identity.chain_signing_key,
+    &identity.arbitrary_signing_key,
+    &identity.address,
+    &file_path,
     RegisterTicketRequest {
         file_name: "my-document.pdf".to_string(),
         is_public: true,
-        expiration_time: expiration.to_string(),
+        expiration_time: expiration.to_string(), // Unix timestamp
     },
 ).await?;
 
-// 3. Upload file to SN-API
+// 2. Upload file to SN-API
 let task = sdk.upload_via_snapi(
     &registered.action_id,
     &registered.auth_signature,
-    &PathBuf::from("./my-document.pdf"),
+    &file_path,
 ).await?;
 
-// 4. Poll upload status
+// 3. Poll upload status
 let status = sdk.snapi.upload_status(&task).await?;
 
-// 5. Download
-let down_task = sdk.request_download(&registered.action_id, &arb_sk).await?;
+println!("Stored with action ID: {}", registered.action_id);
+```
+
+## Download a File
+
+```rust
+// 1. Request a download task with your arbitrary signing key
+let down_task = sdk.request_download(
+    &registered.action_id,
+    &identity.arbitrary_signing_key,
+).await?;
+
+// 2. Stream the file bytes from SN-API
 let bytes = sdk.snapi.download_file(&down_task).await?;
+
+std::fs::write("./downloaded-file.pdf", &bytes)?;
 ```
 
 ## Key Dependencies
 
-- `cosmrs` — Cosmos SDK signing and gRPC
-- `reqwest` — HTTP client with rustls
-- `tokio` — Async runtime
-- `blake3` — File integrity verification
-- `prost` — Protobuf encoding
+- `cosmrs` Cosmos SDK signing and gRPC
+- `reqwest` HTTP client with rustls
+- `tokio` Async runtime
+- `blake3` File integrity verification
+- `prost` Protobuf encoding
 
 ## Next Steps
 
