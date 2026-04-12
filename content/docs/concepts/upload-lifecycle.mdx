@@ -16,7 +16,7 @@ const { fileBytes, dataHash } = await client.Cascade.uploader.prepareFile(file);
 ```
 
 1. The input file (a `Uint8Array`, `File`, or `Blob`) is converted to a `Uint8Array`
-2. A **BLAKE3 hash** is computed over the file bytes — this becomes the permanent content identifier stored on-chain
+2. A **BLAKE3 hash** is computed over the file bytes, this becomes the permanent content identifier stored on-chain
 
 ## Phase 2: Register Action On-Chain
 
@@ -48,7 +48,7 @@ These parameters determine the RaptorQ encoding configuration. Results are cache
 
 The file is processed through the RaptorQ WASM module to generate an erasure-coding **layout**:
 
-- `rq_ids_ic` — a random counter seed in `[0, max_raptor_q_symbols)`
+- `rq_ids_ic` is a random counter seed in `[0, max_raptor_q_symbols)`
 - The layout contains block-level encoding metadata that Supernodes need to store and reconstruct the file
 - The layout JSON is compacted (no whitespace) to match the Go reference implementation
 
@@ -91,14 +91,14 @@ The index file is signed with ADR-036 and included in the on-chain registration.
 
 ### 2f. Create Auth Signature
 
-A separate signature over the `dataHash` is created — this is used to authenticate the file upload to SN-API.
+A separate signature over the `dataHash` is created this is used to authenticate the file upload to SN-API.
 
 ### 2g. Broadcast MsgRequestAction
 
 The SDK simulates the transaction to estimate gas, then signs and broadcasts:
 
 ```ts
-// Simplified — the SDK handles this internally
+// Simplified  the SDK handles this internally
 const msg = {
   typeUrl: "/lumera.action.v1.MsgRequestAction",
   value: {

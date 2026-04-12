@@ -169,7 +169,7 @@ const stream = await client.Cascade.downloader.downloadFile({
 
 ### downloadPrivate
 
-Identical to `download` — authentication is always applied via ADR-036 signature.
+Identical to `download`, authentication is always applied via ADR-036 signature.
 
 ```ts
 const stream = await client.Cascade.downloader.downloadPrivate(actionId);

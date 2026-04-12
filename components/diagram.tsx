@@ -198,7 +198,10 @@ export function Diagram({ name }: { name: string }) {
   };
 
   return (
-    <figure className="my-6 not-prose">
+    <figure
+      className="my-6 not-prose mx-auto"
+      style={def.maxWidth ? { maxWidth: def.maxWidth } : undefined}
+    >
       <svg
         viewBox={def.viewBox}
         className="w-full mx-auto"

@@ -27,8 +27,6 @@ The [Lumera Research Archive](https://github.com/kaleababayneh/Lumera-Research-A
 
 ## Architecture
 
-<Diagram name="research-archive" />
-
 Key design decision: **no backend server**. The entire application runs in the browser, communicating directly with the Lumera blockchain via RPC and with the SN-API for file storage.
 
 ## Three Types of Cascade Files
@@ -123,17 +121,7 @@ const papers = actions.filter(
 
 <Diagram name="collaboration-flow" />
 
-The URL hash fragment (`#key=...`) is never sent to servers — it stays in the browser, making it safe for key transmission via any messaging channel.
-
-## Expiration Time
-
-Cascade actions have an expiration time set at upload. The Research Archive uses:
-
-```ts
-const expirationTime = Math.floor(Date.now() / 1000) + 90000 * 30; // ~31.25 days
-```
-
-For permanent papers, set this to a far-future value. For drafts, a shorter expiration is acceptable since they are working documents.
+The URL hash fragment (`#key=...`) is never sent to servers rather it stays in the browser, making it safe for key transmission via any messaging channel.
 
 ## Local State Management
 
@@ -144,13 +132,13 @@ The app uses `localStorage` for:
 
 Cascade is the **source of truth** for file content; localStorage is a cache for keys and metadata.
 
-## Lessons Learned
+{/* ## Lessons Learned
 
-1. **Browser + Keplr is a great combo**: The SDK works flawlessly in the browser with Keplr for a seamless user experience.
-2. **Client-side encryption over access control**: Upload everything as `isPublic: true` and handle confidentiality with encryption. This simplifies the architecture.
-3. **Filename conventions for discovery**: Use predictable filename patterns (`draft_*`, `invitation_*`) so Lumescope queries can filter actions efficiently.
-4. **Wallet-derived keys eliminate password management**: Users only need their Keplr wallet — no separate passwords to remember or store.
-5. **Stream downloads for large files**: Always use the `ReadableStream` API to avoid loading entire files into memory.
+1. **Client-side encryption over access control**: Upload everything as `isPublic: true` and handle confidentiality with encryption. This simplifies the architecture.
+2. **Filename conventions for discovery**: Use predictable filename patterns (`draft_*`, `invitation_*`) so Lumescope queries can filter actions efficiently.
+3. **Wallet-derived keys eliminate password management**: Users only need their Keplr wallet, no separate passwords to remember or store.
+4. **Stream downloads for large files**: Always use the `ReadableStream` API to avoid loading entire files into memory. 
+*/}
 
 ## Source Code
 

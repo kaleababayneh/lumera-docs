@@ -13,11 +13,11 @@ Before registering, make sure:
 - You have your validator operator address (`VALOPER` — `lumeravaloper1...`)
 - Your validator is bonded and synced
 
-## Step 1 — Fund the Supernode Account
+## Step 1: Fund the Supernode Account
 
 The Supernode account needs LUME tokens to delegate to your validator. There are several ways to fund it.
 
-### Option A — Transfer from your validator wallet
+### Option A - Transfer from your validator wallet
 
 On your **validator host**:
 
@@ -30,7 +30,7 @@ lumerad tx bank send validator <SN_ACCOUNT> <amount>ulume \
 
 Replace `<SN_ACCOUNT>` with your Supernode's address and `<amount>` with the amount in ulume. The combined stake from your validator self-delegation and this SN account delegation must meet the on-chain minimum (currently 10,000 LUME on testnet-2).
 
-### Option B — Testnet faucet or Discord
+### Option B - Testnet faucet or Discord
 
 Request testnet tokens for your `SN_ACCOUNT` address from the [faucet](https://faucet.astrostake.xyz/lumera) or [Discord](https://discord.gg/lumeraprotocol).
 
@@ -38,7 +38,7 @@ Request testnet tokens for your `SN_ACCOUNT` address from the [faucet](https://f
 Supernode registration uses a **LEP-3 dual-source stake** model. The minimum is the combined total of your validator self-delegation + SN account delegation. On testnet-2, this is currently **10,000 LUME**. Check the current value with `lumerad query supernode params`. This parameter is governable and can change.
 </Callout>
 
-## Step 2 — Delegate from Supernode Account to Validator
+## Step 2: Delegate from Supernode Account to Validator
 
 This links the Supernode's stake to your validator. The delegation from the SN account counts toward the combined minimum stake alongside your validator self-delegation.
 
@@ -54,7 +54,7 @@ lumerad tx staking delegate "$VALOPER" 10000000000ulume \
   --fees 7000ulume -y
 ```
 
-Adjust the amount as needed. `10000000000ulume` = 10,000 LUME. If your validator already has substantial self-delegation, you may need less from the SN account — only the combined total must meet the minimum.
+Adjust the amount as needed. `10000000000ulume` = 10,000 LUME. If your validator already has substantial self-delegation, you may need less from the SN account, only the combined total must meet the minimum.
 
 ### Verify the delegation
 
@@ -64,7 +64,7 @@ lumerad query staking delegations <SN_ACCOUNT>
 
 You should see a delegation entry pointing to your validator operator address.
 
-## Step 3 — Register Supernode On-Chain
+## Step 3: Register Supernode On-Chain
 
 <Callout type="warn">
 **This command must run on your validator host**, signed by the validator operator key. It cannot be run from the Supernode server.
@@ -91,7 +91,7 @@ Replace `<SN_PUBLIC_IP>` with your Supernode server's public IP and update the `
 
 A successful response shows `code: 0`.
 
-## Step 4 — Verify Registration
+## Step 4: Verify Registration
 
 ### Check on-chain status
 

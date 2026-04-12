@@ -9,7 +9,7 @@ icon: Lock
 
 ## Overview
 
-Cascade stores files publicly by default — any wallet can download a file if they know the action ID. For private data, you can **encrypt files client-side** before uploading to Cascade. This guide shows how to implement wallet-based encryption using libsodium.
+Cascade stores files publicly by default i.e. any wallet can download a file if they know the action ID. For private data, you can **encrypt files client-side** before uploading to Cascade. This guide shows how to implement wallet-based encryption using libsodium.
 
 This pattern is used in the [Lumera Research Archive](/docs/guides/research-archive) for encrypted draft papers with secure collaboration.
 
@@ -73,7 +73,7 @@ export async function deriveKeyFromWallet(
 ```
 
 <Callout type="info">
-**Why ADR-036?** By signing a fixed message, the same wallet always produces the same signature, which derives the same encryption key. The key is never stored — it is re-derived on demand. Users only need their wallet to decrypt.
+**Why ADR-036?** By signing a fixed message, the same wallet always produces the same signature, which derives the same encryption key. The key is never stored rather it is re-derived on demand. Users only need their wallet to decrypt.
 </Callout>
 
 ## Encrypting and Decrypting Files

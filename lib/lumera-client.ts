@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
-// Polyfill import.meta.url for CJS context — the SDK's WASM loader needs it
+// Polyfill import.meta.url for CJS context - the SDK's WASM loader needs it
 if (typeof (globalThis as any).importMetaUrl === "undefined") {
   (globalThis as any).importMetaUrl = `file://${__filename}`;
 }

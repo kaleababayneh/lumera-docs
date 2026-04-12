@@ -38,7 +38,7 @@ The on-chain state of your Supernode determines whether it is actively serving t
 
 ## On-Chain Metrics (LEP-4)
 
-Supernodes must self-report metrics every ~400 blocks. If metrics are not reported within the grace period (~100 blocks), the Supernode is moved to `POSTPONED` state. This reporting is handled automatically by `sn-manager` — no manual action is needed.
+Supernodes must self-report metrics every ~400 blocks. If metrics are not reported within the grace period (~100 blocks), the Supernode is moved to `POSTPONED` state. This reporting is handled automatically by `sn-manager`, no manual action is needed.
 
 Reported metrics include: version, CPU/RAM/disk usage, port status, uptime, and peer count.
 
@@ -75,14 +75,14 @@ lumerad tx supernode update-supernode \
 To gracefully stop your Supernode, submit the stop transaction first, then stop the service:
 
 ```bash
-# On validator host — notify the chain
+# On validator host - notify the chain
 lumerad tx supernode stop-supernode $(lumerad keys show validator --bech val -a) "maintenance" \
   --from validator \
   --chain-id lumera-testnet-2 \
   --gas auto --gas-adjustment 1.3 \
   --fees 5000ulume -y
 
-# On Supernode host — stop the service
+# On Supernode host - stop the service
 sudo systemctl stop sn-manager
 ```
 

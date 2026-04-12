@@ -4,7 +4,7 @@ description: Install sn-manager, configure firewall, and initialize your Superno
 icon: Download
 ---
 
-## Step 1 — Prepare the Server
+## Step 1: Prepare the Server
 
 SSH into your **Supernode server** (not the validator) and install the required packages:
 
@@ -17,7 +17,7 @@ sudo apt install -y curl wget jq ufw lz4 tar
 **Never run a Supernode and validator on the same server.** They must be on separate machines. The setup script will refuse to run if it detects a validator service on the same host.
 </Callout>
 
-## Step 2 — Configure Firewall
+## Step 2: Configure Firewall
 
 Open the ports required by sn-manager:
 
@@ -32,7 +32,7 @@ sudo ufw status
 
 You should see all four ports listed as ALLOW.
 
-## Step 3 — Configure Validator gRPC
+## Step 3: Configure Validator gRPC
 
 The Supernode connects to your validator via gRPC on port 9090. By default, gRPC binds to `localhost` and is not reachable from external servers. You need to change this **on your validator host**.
 
@@ -74,9 +74,9 @@ curl -v telnet://<VALIDATOR_IP>:9090 --max-time 3 2>&1 | head -5
 If the connection fails, check that the validator's gRPC is bound to `0.0.0.0` (not `localhost`), the firewall rule is in place, and any cloud provider security groups allow traffic on port 9090.
 </Callout>
 
-Note your validator's IP — you will need it as the `--lumera-grpc` value in the next step.
+Note your validator's IP, you will need it as the `--lumera-grpc` value in the next step.
 
-## Step 4 — Install sn-manager
+## Step 4: Install sn-manager
 
 Download and install the latest sn-manager release:
 
@@ -96,7 +96,7 @@ source ~/.bashrc
 sn-manager version
 ```
 
-## Step 5 — Initialize the Supernode
+## Step 5: Initialize the Supernode
 
 Set a passphrase for the keyring and initialize:
 
@@ -124,7 +124,7 @@ The passphrase must be at least 8 characters. It protects the Supernode wallet k
 **Save the mnemonic that is displayed immediately.** This is the only backup of your Supernode wallet key. If you lose it, you lose access to the Supernode account and any delegated funds.
 </Callout>
 
-The output includes the Supernode account address (`SN_ACCOUNT`  starts with `lumera1...`). Note this address — you will need it for funding, delegation, and registration.
+The output includes the Supernode account address (`SN_ACCOUNT`  starts with `lumera1...`). Note this address: you will need it for funding, delegation, and registration.
 
 ### Recovering an existing key
 
@@ -147,7 +147,7 @@ sn-manager init -y \
 The `--lumera-grpc` must point to a **testnet** gRPC endpoint. Use your validator's IP:9090 or a public testnet gRPC. Do **not** use `grpc.lumera.io:443` that is mainnet.
 </Callout>
 
-## Step 6 — Create the Systemd Service
+## Step 6: Create the Systemd Service
 
 ```bash
 sudo tee /etc/systemd/system/sn-manager.service > /dev/null <<EOF
@@ -185,7 +185,7 @@ sudo systemctl enable sn-manager
 The systemd service file stores your keyring passphrase in plaintext. It is protected by `chmod 600` (root-only read), but be aware of this when managing your server.
 </Callout>
 
-## Step 7 — Start the Supernode
+## Step 7: Start the Supernode
 
 ```bash
 sudo systemctl start sn-manager

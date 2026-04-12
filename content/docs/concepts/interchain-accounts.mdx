@@ -28,7 +28,7 @@ This enables powerful cross-chain use cases:
 
 ### Application-Level Keypairs
 
-A key challenge with ICA is that the ICA address on the host chain has no user-held private key — it is controlled by the controller chain. To solve this, Cascade supports an `app_pubkey` field in `MsgRequestAction`:
+A key challenge with ICA is that the ICA address on the host chain has no user-held private key. It is controlled by the controller chain. To solve this, Cascade supports an `app_pubkey` field in `MsgRequestAction`:
 
 - The application generates a keypair on the controller side
 - The public key is included in the action registration

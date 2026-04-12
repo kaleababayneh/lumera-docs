@@ -50,6 +50,7 @@ export interface DiagramDef {
   borderRadius?: number;    // box corner radius (default 16)
   strokeWidth?: number;     // box border thickness (default 1.3)
   arrowWidth?: number;      // arrow line thickness (default 1.3)
+  maxWidth?: string;        // cap rendered width (e.g. "400px"); without this, SVG fills container
   elements: DiagramElement[];
 }
 
@@ -678,130 +679,6 @@ const sdkArchitecture: DiagramDef = {
   ],
 };
 
-const researchArchive: DiagramDef = {
-  viewBox: "0 0 780 420",
-  title: "Research Archive Architecture",
-  elements: [
-    // Browser SPA outer
-    {
-      type: "box",
-      id: "spa",
-      x: 15,
-      y: 10,
-      w: 750,
-      h: 300,
-      label: "Browser SPA",
-    },
-    // Top modules
-    {
-      type: "box",
-      id: "ui",
-      x: 40,
-      y: 48,
-      w: 210,
-      h: 42,
-      label: "UI (DOM)",
-      variant: "inner",
-    },
-    {
-      type: "box",
-      id: "crypto",
-      x: 275,
-      y: 48,
-      w: 210,
-      h: 42,
-      label: "Crypto (libsodium)",
-      variant: "inner",
-    },
-    {
-      type: "box",
-      id: "cascade-mod",
-      x: 510,
-      y: 48,
-      w: 210,
-      h: 42,
-      label: "Cascade (SDK)",
-      variant: "inner",
-    },
-    // Arrows down
-    { type: "arrow", id: "a1", points: [[145, 90], [145, 115]] },
-    { type: "arrow", id: "a2", points: [[380, 90], [380, 115]] },
-    { type: "arrow", id: "a3", points: [[615, 90], [615, 115]] },
-    // Application Logic
-    {
-      type: "box",
-      id: "logic",
-      x: 30,
-      y: 120,
-      w: 720,
-      h: 115,
-      label: "Application Logic",
-      variant: "accent",
-    },
-    {
-      type: "box",
-      id: "wallet",
-      x: 55,
-      y: 158,
-      w: 200,
-      h: 50,
-      label: "Wallet (Keplr)",
-      variant: "inner",
-    },
-    {
-      type: "box",
-      id: "drafts",
-      x: 280,
-      y: 158,
-      w: 200,
-      h: 50,
-      label: "Drafts (encrypt)",
-      variant: "inner",
-    },
-    {
-      type: "box",
-      id: "papers",
-      x: 505,
-      y: 158,
-      w: 200,
-      h: 50,
-      label: "Papers (plaintext)",
-      variant: "inner",
-    },
-    // External services
-    { type: "arrow", id: "a4", points: [[160, 310], [160, 340]] },
-    { type: "arrow", id: "a5", points: [[390, 310], [390, 340]] },
-    { type: "arrow", id: "a6", points: [[615, 310], [615, 340]] },
-    {
-      type: "box",
-      id: "chain",
-      x: 60,
-      y: 345,
-      w: 200,
-      h: 50,
-      label: "Lumera Chain\n(on-chain tx)",
-    },
-    {
-      type: "box",
-      id: "snapi",
-      x: 290,
-      y: 345,
-      w: 200,
-      h: 50,
-      label: "SN-API\n(file I/O)",
-    },
-    {
-      type: "box",
-      id: "lumescope",
-      x: 515,
-      y: 345,
-      w: 200,
-      h: 50,
-      label: "Lumescope\n(action index)",
-    },
-  ],
-};
-
 const nodeArchitecture: DiagramDef = {
   viewBox: "0 0 720 255",
   title: "Node.js Browser-First Architecture",
@@ -860,17 +737,21 @@ const nodeArchitecture: DiagramDef = {
 };
 
 const collaborationFlow: DiagramDef = {
-  viewBox: "0 0 560 420",
+  viewBox: "0 0 200 415",
   title: "Collaboration Flow",
+  maxWidth: "280px",
+  labelSize: 12,
+  itemSize: 10,
+  pad: 4,
   elements: [
     // Step 1: Owner creates & uploads draft
     {
       type: "box",
       id: "create",
-      x: 55,
-      y: 10,
-      w: 250,
-      h: 115,
+      x: 25,
+      y: 20,
+      w: 150,
+      h: 95,
       label: "Owner",
       variant: "accent",
       items: [
@@ -881,15 +762,15 @@ const collaborationFlow: DiagramDef = {
       ],
     },
     // Arrow down
-    { type: "arrow", id: "a1", points: [[180, 125], [180, 150]] },
+    { type: "arrow", id: "a1", points: [[100, 115], [100, 155]] },
     // Step 2: Owner creates invitation
     {
       type: "box",
       id: "invite",
-      x: 55,
+      x: 25,
       y: 155,
-      w: 250,
-      h: 100,
+      w: 150,
+      h: 80,
       label: "Owner",
       variant: "accent",
       items: [
@@ -898,29 +779,26 @@ const collaborationFlow: DiagramDef = {
         "7. Upload invitation",
       ],
     },
-    // Handoff arrow (down then right then down)
-    {
-      type: "arrow",
-      id: "handoff",
-      points: [[180, 255], [180, 285], [400, 285], [400, 305]],
-    },
+    // Straight arrow down with side label
+    { type: "arrow", id: "handoff", points: [[100, 235], [100, 295]] },
     {
       type: "text",
       id: "handoff-label",
-      x: 290,
-      y: 272,
-      text: "8. Share link (URL hash fragment)",
+      x: 110,
+      y: 265,
+      text: "8. Share link",
       size: 10,
       muted: true,
+      anchor: "start",
     },
     // Step 3: Collaborator decrypts
     {
       type: "box",
       id: "decrypt",
-      x: 265,
-      y: 310,
-      w: 260,
-      h: 100,
+      x: 25,
+      y: 295,
+      w: 150,
+      h: 95,
       label: "Collaborator",
       items: [
         "9. Open link",
@@ -1043,7 +921,6 @@ export const diagrams: Record<string, DiagramDef> = {
   "interchain-accounts": interchainAccounts,
   "encrypted-storage": encryptedStorage,
   "sdk-architecture": sdkArchitecture,
-  "research-archive": researchArchive,
   "node-architecture": nodeArchitecture,
   "collaboration-flow": collaborationFlow,
   "supernode-architecture": supernodeArchitecture,

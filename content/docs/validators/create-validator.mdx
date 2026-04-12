@@ -18,7 +18,7 @@ lumerad status 2>&1 | jq '.sync_info.catching_up'
 # Must be: false
 ```
 
-## Step 1 — Set the Keyring Backend
+## Step 1: Set the Keyring Backend
 
 On headless servers (no GUI), the default `os` keyring backend will hang because there is no system keyring daemon running. Set it to `test` so keys are stored as plain files on disk:
 
@@ -30,7 +30,7 @@ lumerad config set client keyring-backend test --skip-validate
 The `test` backend stores keys unencrypted on disk. This is standard for testnet validators, but for mainnet you should use `file` (password-protected) or a hardware wallet.
 </Callout>
 
-## Step 2 — Create a Wallet
+## Step 2: Create a Wallet
 
 ```bash
 lumerad keys add validator
@@ -62,12 +62,12 @@ lumerad keys show validator --bech val -a
 # Output: lumeravaloper1...
 ```
 
-## Step 3 — Fund Your Wallet
+## Step 3: Fund Your Wallet
 
 You need testnet LUME tokens. Options:
 
-1. **Faucet** — Request tokens from the [Lumera faucet](https://faucet.astrostake.xyz/lumera)
-2. **Discord** — Ask in the [Lumera Discord](https://discord.gg/lumeraprotocol) if the faucet is unavailable
+1. **Faucet**: Request tokens from the [Lumera faucet](https://faucet.astrostake.xyz/lumera)
+2. **Discord**: Ask in the [Lumera Discord](https://discord.gg/lumeraprotocol) if the faucet is unavailable
 
 Check your balance:
 
@@ -77,7 +77,7 @@ lumerad query bank balances $(lumerad keys show validator -a)
 
 You need at least **1 LUME** (1,000,000 ulume) to create a validator, plus extra for gas fees.
 
-## Step 4 — Create the Validator
+## Step 4: Create the Validator
 
 ### Get your validator public key
 
