@@ -37,7 +37,7 @@ export const LUMERA_CHAIN_INFO = {
       coinDenom: "LUME",
       coinMinimalDenom: "ulume",
       coinDecimals: 6,
-      gasPriceStep: { low: 0.01, average: 0.025, high: 0.04 },
+      gasPriceStep: { low: 0.025, average: 0.03, high: 0.04 },
     },
   ],
   stakeCurrency: {
@@ -61,7 +61,7 @@ await window.keplr.experimentalSuggestChain(LUMERA_CHAIN_INFO);
 await window.keplr.enable(CHAIN_ID);
 
 // getOfflineSignerAuto provides getAccounts, signAmino, and signDirect.
-// We only need to add signArbitrary — Cascade uses it for Supernode auth.
+// We only need to add signArbitrary, Cascade uses it for Supernode auth.
 const offlineSigner = await window.keplr.getOfflineSignerAuto(CHAIN_ID);
 const accounts = await offlineSigner.getAccounts();
 
@@ -92,7 +92,7 @@ await window.leap.experimentalSuggestChain(LUMERA_CHAIN_INFO);
 await window.leap.enable(CHAIN_ID);
 
 // getOfflineSignerAuto provides getAccounts, signAmino, and signDirect.
-// We only need to add signArbitrary — Cascade uses it for Supernode auth.
+// We only need to add signArbitrary, Cascade uses it for Supernode auth.
 const offlineSigner = await window.leap.getOfflineSignerAuto(CHAIN_ID);
 const accounts = await offlineSigner.getAccounts();
 
@@ -177,7 +177,7 @@ const client = await createLumeraClient({
 ```
 
 <Callout type="warn">
-**Security**: Never hardcode mnemonics. Use environment variables or a secrets manager. For browser apps, always use wallet extensions (Keplr/Leap) which keep private keys in the extension sandbox.
+**Security**: Never hardcode mnemonics. Use environment variables or a secrets manager.
 </Callout>
 
 ## Client Configuration Options
@@ -230,19 +230,17 @@ const client = await createLumeraClient({
 Once created, the client exposes two primary sub-clients:
 
 ```ts
-// Blockchain operations
-client.Blockchain.getActionParams();
-client.Blockchain.getAction(actionId);
-client.Blockchain.getActionFee(dataSizeBytes);
-client.Blockchain.getSupernodes();
+// --- Blockchain queries (nested under Action / Supernode / Tx) ---
+client.Blockchain.Action.getParams();
+client.Blockchain.Action.getAction(actionId);
+client.Blockchain.Action.getActionFee(dataSizeKb); // size in KB, rounded up
+client.Blockchain.Supernode.listSupernodes();
+client.Blockchain.Tx.signAndBroadcast(messages, fee);
 
-// Cascade storage operations
-client.Cascade.uploader.uploadFile(file, options);
-client.Cascade.uploader.prepareFile(file);
-client.Cascade.uploader.registerAction(prepared, options);
-client.Cascade.uploader.sendFileToSupernodes(actionId, sig, file, options);
-client.Cascade.downloader.download(actionId);
-client.Cascade.downloader.downloadFile(options);
+// --- Cascade storage (high-level) ---
+client.Cascade.uploader.uploadFile(file, params);    // upload + monitor
+client.Cascade.downloader.download(actionId);        // public download
+client.Cascade.downloader.downloadPrivate(actionId); // authenticated download
 ```
 
 ## Next Steps
