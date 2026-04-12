@@ -1,21 +1,14 @@
 {
   "title": "Documentation",
-  "root": true,
+  "root": false,
   "pages": [
     "index",
-    "---Getting Started---",
     "getting-started",
-    "---Guides---",
     "guides",
-    "---Concepts---",
     "concepts", 
-    "---Reference---",
     "reference",
-    "---Validators---",
     "validators",
-    "---Supernodes---",
     "supernodes",
-    "---Launch App---",
     "app"
   ]
 }

@@ -8,6 +8,43 @@ icon: Bug
 
 These are the errors you will most likely run into when building with Cascade.
 
+### RPC Connection Errors
+
+If the Lumera RPC node is down or unreachable, client creation and blockchain transactions will fail:
+
+```ts
+try {
+  const client = await createLumeraClient({ preset: "testnet", signer, address, gasPrice: "0.025ulume" });
+} catch (err) {
+  // "Failed to connect to RPC endpoint" or "ECONNREFUSED"
+  console.error("Cannot reach RPC node. Check your network or try a different endpoint.");
+}
+```
+
+**Fix:** Switch to a different RPC endpoint, or wait and retry. You can pass a custom endpoint instead of the preset:
+
+```ts
+const client = await createLumeraClient({
+  chainId: "lumera-testnet-2",
+  rpcUrl: "https://lumera-testnet-rpc.polkachu.com",
+  lcdUrl: "https://lumera-testnet-api.polkachu.com",
+  snapiUrl: "https://snapi.testnet.lumera.io",
+  signer,
+  address,
+  gasPrice: "0.025ulume",
+});
+```
+### Insufficient Funds
+
+Uploading requires LUME tokens to pay the action fee. If your wallet is empty:
+
+```
+"insufficient funds: 0ulume is smaller than 50000ulume"
+```
+
+**Fix:** Fund your wallet with testnet tokens from the [Lumera faucet](https://faucet.astrostake.xyz/lumera) before uploading.
+
+
 ### Keplr Extension Not Found
 
 The user hasn't installed Keplr or the page loaded before the extension injected `window.keplr`.
@@ -26,49 +63,6 @@ async function waitForKeplr(timeout = 3000): Promise<boolean> {
   });
 }
 ```
-
-### RPC Connection Errors
-
-If the Lumera RPC node is down or unreachable, client creation and blockchain transactions will fail:
-
-```ts
-try {
-  const client = await createLumeraClient({ preset: "testnet", signer, address, gasPrice: "0.025ulume" });
-} catch (err) {
-  // "Failed to connect to RPC endpoint" or "ECONNREFUSED"
-  console.error("Cannot reach RPC node. Check your network or try a different endpoint.");
-}
-```
-
-**Fix:** Switch to a different RPC endpoint, or wait and retry. You can pass a custom endpoint instead of the preset:
-
-```ts
-const client = await createLumeraClient({
-  // ...
-  rpcUrl: "https://lumera-testnet-rpc.polkachu.com",
-});
-```
-
-### Account Does Not Exist on Chain
-
-The wallet address has no balance on Lumera testnet.
-
-**Fix:** Get tokens from the [Lumera faucet](https://faucet.astrostake.xyz/lumera), then verify:
-
-```ts
-const balance = await client.Blockchain.getBalance(address, "ulume");
-console.log("Balance:", balance);
-```
-
-### Insufficient Funds
-
-Uploading requires LUME tokens to pay the action fee. If your wallet is empty:
-
-```
-"insufficient funds: 0ulume is smaller than 50000ulume"
-```
-
-**Fix:** Fund your wallet with testnet tokens from the [Lumera faucet](https://faucet.astrostake.xyz/lumera) before uploading.
 
 ### Wallet Popup Rejected
 
@@ -156,7 +150,7 @@ The Supernodes could not reconstruct the file. This can happen with very recent 
 
 **Fix:**
 1. Wait a few minutes after upload before attempting download
-2. Verify the action status: `client.Blockchain.getAction(actionId)`
+2. Verify the action status: `client.Blockchain.Action.getAction(actionId)`
 3. Check that `state === "ACTION_STATE_DONE"`
 
 ### Private File Access Denied
@@ -217,31 +211,6 @@ taskOptions: {
 <Callout type="warn">
   If an upload times out, the task may still be processing on the supernode. Do not retry immediately or you may create a duplicate action on-chain.
 </Callout>
-
-## Simple Retry Helper
-
-For operations that are safe to retry (like downloads or uploads that failed before hitting the chain), a simple wrapper works well:
-
-```ts
-async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      if (i === attempts) throw err;
-      const delay = 1000 * Math.pow(2, i - 1);
-      console.warn(`Attempt ${i} failed, retrying in ${delay}ms...`);
-      await new Promise((r) => setTimeout(r, delay));
-    }
-  }
-  throw new Error("Unreachable");
-}
-
-// Usage
-const stream = await withRetry(() =>
-  client.Cascade.downloader.download(actionId)
-);
-```
 
 ## Getting Help
 
