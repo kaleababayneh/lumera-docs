@@ -1,5 +1,5 @@
 ---
-title: JavaScript/TypeScript SDK
+title: JavaScript/ TypeScript SDK
 description: Overview of the @lumera-protocol/sdk-js architecture and modules.
 icon: Code
 ---
@@ -14,7 +14,7 @@ The [JavaScript/ TypeScript SDK](https://github.com/LumeraProtocol/sdk-js) is th
 # Initialize a project if you don't have one yet
 npm init -y
 
-# Install the SDK and peer dependencies
+# Install the SDK along with dependencies for transaction signing and blockchain queries
 npm install @lumera-protocol/sdk-js @cosmjs/proto-signing @cosmjs/stargate
 ```
 
@@ -47,15 +47,15 @@ The `signer` must support `signDirect`, `signAmino`, and `signArbitrary` (ADR-03
 
 ```ts
 const file = new TextEncoder().encode("Hello, Lumera!");
-const expirationTime = String(Math.floor(Date.now() / 1000) + 25 * 60 * 60);
+const expirationTime = String(Math.floor(Date.now() / 1000) + 25 * 60 * 60); // 25 hours from now 
 
-const result = await client.Cascade.uploader.uploadFile(file, {
+const task = await client.Cascade.uploader.uploadFile(file, {
   fileName: "hello.txt",
   isPublic: true,
   expirationTime,
 });
 
-console.log("Action ID:", result.action_id);
+console.log("Upload task:", task.taskId, "status:", task.status);
 ```
 
 ## Download a File
@@ -75,9 +75,9 @@ while (true) {
 ## Query the Chain
 
 ```ts
-// Action parameters and fees
+// Action parameters and fees (getActionFee takes size in KB, rounded up)
 const params = await client.Blockchain.Action.getParams();
-const fee = await client.Blockchain.Action.getActionFee(fileSizeBytes);
+const fee = await client.Blockchain.Action.getActionFee(Math.ceil(file.length / 1024));
 
 // Look up a specific action
 const action = await client.Blockchain.Action.getAction(actionId);
@@ -91,16 +91,16 @@ const nodes = await client.Blockchain.Supernode.listSupernodes();
 The SDK provides helpers for browser wallet integration:
 
 ```ts
-import { getKeplrSigner, getLeapSigner, isKeplrAvailable } from "@lumera-protocol/sdk-js";
+import { getKeplrSigner, isKeplrAvailable } from "@lumera-protocol/sdk-js";
 
-// Keplr
+if (!isKeplrAvailable()) {
+  throw new Error("Please install the Keplr extension");
+}
+
 const keplrSigner = await getKeplrSigner("lumera-testnet-2");
-
-// Leap
-const leapSigner = await getLeapSigner("lumera-testnet-2");
 ```
 
-These return a unified signer with `signDirect`, `signAmino`, and `signArbitrary` already wired up.
+`getKeplrSigner` returns a unified signer with `signDirect`, `signAmino`, and `signArbitrary` already wired up.
 
 ## Key Exports
 
@@ -129,7 +129,6 @@ import {
 
   // Wallet
   getKeplrSigner,
-  getLeapSigner,
   isKeplrAvailable,
 } from "@lumera-protocol/sdk-js";
 ```
