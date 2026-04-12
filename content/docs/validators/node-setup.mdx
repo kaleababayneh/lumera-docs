@@ -26,6 +26,15 @@ Then re-run the install command above.
 
 ## Step 2: Add Swap
 
+Check current memory first:
+
+```bash
+free -h           # total RAM + existing swap
+swapon --show     # active swap files (empty if none)
+```
+
+If you already have ≥16 GB RAM or existing swap, skip to Step 3.
+
 Building from source can exceed 8 GB RAM. If your server has 8 GB or less, add swap:
 
 ```bash
