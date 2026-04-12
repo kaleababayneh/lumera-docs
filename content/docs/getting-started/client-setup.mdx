@@ -177,29 +177,37 @@ const client = await createLumeraClient({
 ```
 
 <Callout type="warn">
-**Security**: Never hardcode mnemonics. Use environment variables or a secrets manager.
+**Security**: Never hardcode mnemonics. Use environment variables or a secrets manager. 
 </Callout>
 
 ## Client Configuration Options
 
 ```ts
-interface CreateLumeraClientOptions {
+interface LumeraClientConfig {
   // Use a preset for testnet or mainnet endpoints
   preset?: "testnet" | "mainnet";
 
   // Or specify endpoints manually
-  rpcEndpoint?: string;
-  lcdEndpoint?: string;
-  snapiEndpoint?: string;
+  // (without a preset, rpcUrl, chainId, and snapiUrl are all required)
+  rpcUrl?: string;
+  lcdUrl?: string;
+  chainId?: string;
+  snapiUrl?: string;
 
-  // Signer (wallet or DirectSecp256k1HdWallet)
-  signer?: OfflineSigner;
+  // Signer (wallet or DirectSecp256k1HdWallet) — required
+  signer: OfflineSigner;
 
-  // Sender address
-  address?: string;
+  // Sender bech32 address — required
+  address: string;
 
   // Gas price for transaction fee estimation
   gasPrice?: string;
+
+  // HTTP client options for SN-API requests
+  http?: {
+    timeout?: number;    // default 30000
+    maxRetries?: number; // default 3
+  };
 }
 ```
 
@@ -216,9 +224,10 @@ For local development or self-hosted nodes:
 
 ```ts
 const client = await createLumeraClient({
-  rpcEndpoint: "http://localhost:26657",
-  lcdEndpoint: "http://localhost:1317",
-  snapiEndpoint: "http://localhost:8080",
+  chainId: "<your-chain-id>", // whatever you passed to `lumerad init --chain-id`
+  rpcUrl: "http://localhost:26657",
+  lcdUrl: "http://localhost:1317",
+  snapiUrl: "http://localhost:8080",
   signer: wallet,
   address: account.address,
   gasPrice: "0.025ulume",
@@ -235,7 +244,7 @@ client.Blockchain.Action.getParams();
 client.Blockchain.Action.getAction(actionId);
 client.Blockchain.Action.getActionFee(dataSizeKb); // size in KB, rounded up
 client.Blockchain.Supernode.listSupernodes();
-client.Blockchain.Tx.signAndBroadcast(messages, fee);
+client.Blockchain.Tx.signAndBroadcast(signerAddress, messages, fee);
 
 // --- Cascade storage (high-level) ---
 client.Cascade.uploader.uploadFile(file, params);    // upload + monitor
