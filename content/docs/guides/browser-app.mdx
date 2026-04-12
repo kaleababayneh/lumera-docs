@@ -302,11 +302,11 @@ downloadBtn.addEventListener("click", async () => {
 npm run dev
 ```
 
-Open `http://localhost:5173`, connect Keplr, and try uploading a file. The returned action ID is your permanent reference — use it to retrieve the file from anywhere, at any time.
+Open `http://localhost:5173`, connect Keplr, and try uploading a file. The returned action ID is your permanent reference, use it to retrieve the file from anywhere, at any time.
 
 ## Key Takeaways
 
-1. **Always use `getKeplrSigner`** (or `getLeapSigner`) from the SDK — these wrap the wallet extension's signer with ADR-036 `signArbitrary` support that Cascade requires.
+1. **Always use `getKeplrSigner`** (or `getLeapSigner`) from the SDK which wrap the wallet extension's signer with ADR-036 `signArbitrary` support that Cascade requires.
 2. **The action ID is your permanent reference**. Store it in your database, on-chain, or wherever your application tracks state.
 3. **Uploads are two-phase**: first an on-chain transaction (fees, metadata), then a file transfer to SN-API. The SDK handles both.
 4. **Downloads are streaming**: use `ReadableStream` to handle large files without loading everything into memory at once.

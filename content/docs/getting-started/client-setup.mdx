@@ -53,30 +53,21 @@ export const LUMERA_CHAIN_INFO = {
 ### Browser with Keplr Wallet
 
 ```ts title="keplr-client.ts"
-import { createLumeraClient } from "@lumera-protocol/sdk-js";
+import { createLumeraClient, getKeplrSigner } from "@lumera-protocol/sdk-js";
 import { CHAIN_ID, LUMERA_CHAIN_INFO } from "./chain-config";
 
 // Register the Lumera chain and request wallet access
 await window.keplr.experimentalSuggestChain(LUMERA_CHAIN_INFO);
-await window.keplr.enable(CHAIN_ID);
 
-// getOfflineSignerAuto provides getAccounts, signAmino, and signDirect.
-// We only need to add signArbitrary, Cascade uses it for Supernode auth.
-const offlineSigner = await window.keplr.getOfflineSignerAuto(CHAIN_ID);
-const accounts = await offlineSigner.getAccounts();
-
-const signer = {
-  ...offlineSigner,
-  async signArbitrary(_chainId: string, signerAddress: string, data: string | Uint8Array) {
-    const result = await window.keplr.signArbitrary(_chainId, signerAddress, data);
-    return { signed: data, signature: result.signature, pub_key: result.pub_key };
-  },
-};
+// getKeplrSigner returns a unified signer with getAccounts, signDirect,
+// signAmino, and signArbitrary already wired up.
+const signer = await getKeplrSigner(CHAIN_ID);
+const [account] = await signer.getAccounts();
 
 const client = await createLumeraClient({
   preset: "testnet",
   signer,
-  address: accounts[0].address,
+  address: account.address,
   gasPrice: "0.025ulume",
 });
 ```
@@ -98,7 +89,7 @@ const accounts = await offlineSigner.getAccounts();
 
 const signer = {
   ...offlineSigner,
-  async signArbitrary(_chainId: string, signerAddress: string, data: string | Uint8Array) {
+  async signArbitrary(_chainId: string, signerAddress: string, data: string) {
     const result = await window.leap.signArbitrary(_chainId, signerAddress, data);
     return { signed: data, signature: result.signature, pub_key: result.pub_key };
   },
@@ -114,7 +105,7 @@ const client = await createLumeraClient({
 
 ### Node.js with Mnemonic
 
-In Node.js you need both a Direct signer and an Amino signer to support `signArbitrary`, which Cascade requires for Supernode authentication:
+In Node.js you need a Direct signer for transaction signing and an Amino signer for `signArbitrary`, which Cascade uses for Supernode authentication:
 
 ```ts title="node-client.ts"
 import { createLumeraClient } from "@lumera-protocol/sdk-js";
@@ -247,9 +238,8 @@ client.Blockchain.Supernode.listSupernodes();
 client.Blockchain.Tx.signAndBroadcast(signerAddress, messages, fee);
 
 // --- Cascade storage (high-level) ---
-client.Cascade.uploader.uploadFile(file, params);    // upload + monitor
-client.Cascade.downloader.download(actionId);        // public download
-client.Cascade.downloader.downloadPrivate(actionId); // authenticated download
+client.Cascade.uploader.uploadFile(file, params); // upload + monitor
+client.Cascade.downloader.download(actionId);     // signs the action ID via ADR-036
 ```
 
 ## Next Steps
