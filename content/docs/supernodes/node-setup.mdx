@@ -63,12 +63,21 @@ Replace `<SUPERNODE_IP>` with your Supernode server's public IP address.
 
 ### Verify connectivity
 
-Back on your **Supernode server**, test that gRPC is reachable:
+First, on the **validator**, confirm `lumera` is actually listening on all interfaces:
+
+```bash
+sudo ss -tlnp | grep 9090
+```
+
+You should see a line containing `*:9090` or `0.0.0.0:9090`. If it still shows `127.0.0.1:9090`, the edit to `app.toml` did not take effect — re-check the file and restart `lumera` again before continuing.
+
+Then, on the **Supernode server**, test that gRPC is reachable from the other side:
 
 ```bash
 curl -v telnet://<VALIDATOR_IP>:9090 --max-time 3 2>&1 | head -5
-# Should show: "Connected to <VALIDATOR_IP> port 9090"
 ```
+
+You should see `Connected to <VALIDATOR_IP> port 9090`.
 
 <Callout type="warn">
 If the connection fails, check that the validator's gRPC is bound to `0.0.0.0` (not `localhost`), the firewall rule is in place, and any cloud provider security groups allow traffic on port 9090.
@@ -116,8 +125,12 @@ sn-manager init -y \
 
 Replace `<VALIDATOR_IP>` with your validator server's IP address.
 
+<Callout type="warn">
+**`--keyring-passphrase-env` takes the *name* of an environment variable, not the passphrase itself.
+</Callout>
+
 <Callout type="info">
-The passphrase must be at least 8 characters. It protects the Supernode wallet key stored in the file-based keyring.
+The passphrase must be at least 8 characters. It protects the Supernode wallet key stored in the file-based keyring. **Write it down now** — you will need to enter the exact same value in the systemd service file in Step 6.
 </Callout>
 
 <Callout type="error">
@@ -172,6 +185,10 @@ EOF
 ```
 
 Replace `your-secure-passphrase` with the passphrase you chose in Step 5.
+
+<Callout type="error">
+The `SUPERNODE_PASSPHRASE` in this service file must be **exactly** the passphrase you used in Step 5 — character for character, with no typos or trailing whitespace. Any mismatch causes the SuperNode process to loop on `incorrect passphrase` at startup and fail to load the keyring. This is the single most common post-install failure, so double-check the value before starting the service.
+</Callout>
 
 Secure the service file (it contains your passphrase) and enable it:
 

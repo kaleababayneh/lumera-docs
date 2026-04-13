@@ -17,6 +17,20 @@ Before registering, make sure:
 
 The Supernode account needs LUME tokens to delegate to your validator. There are several ways to fund it.
 
+### Find your Supernode account address
+
+If you did not note the `SN_ACCOUNT` address when you ran `sn-manager init`, you can retrieve it at any time from the **Supernode server**:
+
+```bash
+# List all keys in the Supernode keyring
+lumerad keys list --keyring-backend file
+
+# Or print just the bech32 address of the supernode key
+lumerad keys show supernode -a --keyring-backend file
+```
+
+You will be prompted for the keyring passphrase. The address starts with `lumera1...` — this is your `SN_ACCOUNT`, and it is what you pass to every command below.
+
 ### Option A - Transfer from your validator wallet
 
 On your **validator host**:
