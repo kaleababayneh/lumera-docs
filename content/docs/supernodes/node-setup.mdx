@@ -10,7 +10,7 @@ SSH into your **Supernode server** (not the validator) and install the required 
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl wget jq ufw lz4 tar
+sudo apt install -y curl wget jq ufw lz4 tar golang-go
 ```
 
 <Callout type="error">
@@ -231,9 +231,52 @@ sn-manager check
 The health check may not pass until the Supernode is registered on-chain (next page). This is expected.
 </Callout>
 
+## Step 8: Install lumerad CLI (Required for Registration)
+
+The registration flow on the next page requires signing a `staking delegate` transaction from the Supernode key. Because that key lives in `~/.supernode/keys/` on **this host**, the delegation must be signed on this same machine.
+
+<Callout type="info">
+You only need the `lumerad` **CLI binary** here, not a full chain node. Do **not** run `lumerad init` or `lumerad start` on this host — doing so would spin up a second, unrelated chain node in `~/.lumera/` that has nothing to do with your Supernode. You are only installing the binary so you can run `lumerad tx` and `lumerad keys` subcommands against the Supernode keyring.
+</Callout>
+
+### Build lumerad from source
+
+Clone the Lumera repository, check out the latest stable tag, and build the binary into `~/go/bin/`:
+
+```bash
+git clone https://github.com/LumeraProtocol/lumera.git ~/lumera-src
+cd ~/lumera-src
+git checkout v1.11.1   # replace with the current stable tag if newer
+go build -o ~/go/bin/lumerad ./cmd/lumera
+```
+
+### Add lumerad to your PATH
+
+By default, `~/go/bin` is not on your shell `PATH`, so `lumerad` will return `command not found` even after a successful build. Add it:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+lumerad version
+```
+
+You should see a version string printed. Your Supernode host is now ready to sign the delegation transaction in [Register Supernode, Step 2](/docs/supernodes/register).
+
+<Callout type="warn">
+Every `lumerad` command you run on the Supernode host **must** include `--keyring-backend file` and `--keyring-dir ~/.supernode/keys`, because the Supernode key lives at `~/.supernode/keys/` and uses the file keyring backend, neither of which are `lumerad`'s defaults. For transaction commands (`lumerad tx ...`), you also need `--node <RPC_ENDPOINT>` to point the CLI at a CometBFT RPC for testnet-2, since the Supernode host has no local chain node. Use a public testnet endpoint such as `https://lumera-testnet-rpc.polkachu.com/`, or `tcp://<VALIDATOR_IP>:26657` if you prefer to broadcast through your own validator (which requires opening port 26657). Do not use `https://rpc.lumera.io:443` — that is mainnet.
+
+Quickly verify the setup by printing the SN key's address — it should match the one you noted during Step 5:
+
+```bash
+lumerad keys show supernode -a --keyring-backend file --keyring-dir ~/.supernode/keys
+```
+
+You will be prompted for the keyring passphrase (the one you set in Step 5). A successful output is a single `lumera1...` line.
+</Callout>
+
 ## Next Steps
 
-With sn-manager running, proceed to fund, delegate, and register your Supernode on-chain.
+With sn-manager running and `lumerad` installed, proceed to fund, delegate, and register your Supernode on-chain.
 
 <Cards>
   <Card title="Register Supernode" href="/docs/supernodes/register" />
