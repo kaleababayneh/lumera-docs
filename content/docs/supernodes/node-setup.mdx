@@ -32,13 +32,34 @@ sudo ufw status
 
 You should see all four ports listed as ALLOW.
 
-## Step 3: Configure Validator gRPC
+## Step 3: Choose a Lumera gRPC Endpoint
 
-The Supernode connects to your validator via gRPC on port 9090. By default, gRPC binds to `localhost` and is not reachable from external servers. You need to change this **on your validator host**.
+The Supernode needs a gRPC endpoint to query the chain and broadcast its on-chain messages. You have two options.
 
-### Bind gRPC to all interfaces
+### Option 1 — Use a public testnet gRPC endpoint (recommended)
 
-SSH into your **validator server** and run:
+The simplest and most common setup is to point `sn-manager` at one of the community-run public testnet-2 gRPC endpoints. You do **not** need to touch your validator, open any ports on it, or edit `app.toml`. Pick any of the endpoints listed on the [Community Endpoints](/docs/resources/community) page, for example:
+
+- `https://lumera-testnet-grpc.linknode.org` (Astrostake)
+- `lumera-testnet-grpc.stakerhouse.com:443` (StakerHouse)
+- `https://grpc-t.lumera.nodestake.org/` (Nodestake)
+
+Note the endpoint you picked — you will pass it as `--lumera-grpc` in Step 5.
+
+<Callout type="warn">
+Use a **testnet** gRPC endpoint. Do **not** use `grpc.lumera.io:443` — that is mainnet.
+</Callout>
+
+### Option 2 — Self-host your validator's gRPC (advanced)
+
+If you prefer to route Supernode traffic through your own validator instead of a third-party endpoint, you can expose the validator's built-in gRPC port. This gives you sovereignty and lower latency, but increases the validator's attack surface and requires you to maintain firewall rules in two places.
+
+Only follow this section if you have a specific reason to avoid public endpoints.
+
+<details>
+<summary>Expose validator gRPC on port 9090</summary>
+
+**Bind gRPC to all interfaces.** SSH into your **validator server** and run:
 
 ```bash
 # Check current gRPC config
@@ -51,39 +72,32 @@ sed -i 's|address = "localhost:9090"|address = "0.0.0.0:9090"|' ~/.lumera/config
 sudo systemctl restart lumera
 ```
 
-### Restrict access to the Supernode IP
-
-Do not expose port 9090 publicly. Allow only your Supernode's IP:
+**Restrict access to the Supernode IP.** Do not expose port 9090 publicly:
 
 ```bash
 sudo ufw allow from <SUPERNODE_IP> to any port 9090 proto tcp comment "SuperNode gRPC"
 ```
 
-Replace `<SUPERNODE_IP>` with your Supernode server's public IP address.
+Replace `<SUPERNODE_IP>` with your Supernode server's public IP address. You must **also** open the port in your cloud provider's firewall (Azure NSG, AWS Security Group, GCP VPC firewall, DigitalOcean Cloud Firewall) — ufw alone is not enough.
 
-### Verify connectivity
-
-First, on the **validator**, confirm `lumera` is actually listening on all interfaces:
+**Verify the listener.** On the validator:
 
 ```bash
 sudo ss -tlnp | grep 9090
 ```
 
-You should see a line containing `*:9090` or `0.0.0.0:9090`. If it still shows `127.0.0.1:9090`, the edit to `app.toml` did not take effect — re-check the file and restart `lumera` again before continuing.
+You should see `*:9090` or `0.0.0.0:9090`. A line containing `127.0.0.1:9090` means the `app.toml` edit did not apply — re-check the file and restart `lumera` again.
 
-Then, on the **Supernode server**, test that gRPC is reachable from the other side:
+**Verify reachability from the Supernode:**
 
 ```bash
 curl -v telnet://<VALIDATOR_IP>:9090 --max-time 3 2>&1 | head -5
 ```
 
-You should see `Connected to <VALIDATOR_IP> port 9090`.
+You should see `Connected to <VALIDATOR_IP> port 9090`. A timeout usually means the cloud firewall is blocking — `ufw` is not the only layer.
 
-<Callout type="warn">
-If the connection fails, check that the validator's gRPC is bound to `0.0.0.0` (not `localhost`), the firewall rule is in place, and any cloud provider security groups allow traffic on port 9090.
-</Callout>
-
-Note your validator's IP, you will need it as the `--lumera-grpc` value in the next step.
+You will pass `<VALIDATOR_IP>:9090` as `--lumera-grpc` in Step 5.
+</details>
 
 ## Step 4: Install sn-manager
 
@@ -119,11 +133,11 @@ sn-manager init -y \
   --key-name supernode \
   --supernode-addr 0.0.0.0 \
   --supernode-port 4444 \
-  --lumera-grpc <VALIDATOR_IP>:9090 \
+  --lumera-grpc https://lumera-testnet-grpc.linknode.org \
   --chain-id lumera-testnet-2
 ```
 
-Replace `<VALIDATOR_IP>` with your validator server's IP address.
+Use whichever public testnet gRPC endpoint you chose in Step 3. If you picked Option 2 (self-host) instead, replace the URL with `<VALIDATOR_IP>:9090`.
 
 <Callout type="warn">
 **`--keyring-passphrase-env` takes the *name* of an environment variable, not the passphrase itself.
@@ -151,13 +165,13 @@ sn-manager init -y \
   --key-name supernode \
   --supernode-addr 0.0.0.0 \
   --supernode-port 4444 \
-  --lumera-grpc <VALIDATOR_IP>:9090 \
+  --lumera-grpc https://lumera-testnet-grpc.linknode.org \
   --chain-id lumera-testnet-2 \
   --recover --mnemonic "your 24 word mnemonic phrase here"
 ```
 
 <Callout type="warn">
-The `--lumera-grpc` must point to a **testnet** gRPC endpoint. Use your validator's IP:9090 or a public testnet gRPC. Do **not** use `grpc.lumera.io:443` that is mainnet.
+The `--lumera-grpc` must point to a **testnet** gRPC endpoint. Use one of the public endpoints from Step 3, or `<VALIDATOR_IP>:9090` if you self-hosted. Do **not** use `grpc.lumera.io:443` that is mainnet.
 </Callout>
 
 ## Step 6: Create the Systemd Service

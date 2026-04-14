@@ -8,13 +8,20 @@ icon: Server
 
 A Supernode is a compute-intensive node that extends a Lumera validator with specialized services. While validators handle consensus and block production, Supernodes handle the heavy lifting: **Cascade storage**, **Sense verification**, and **AI inference** tasks.
 
-Every Supernode is paired with a validator but **must run on a separate server**. The Supernode communicates with its validator over gRPC and maintains its own account, keys, and stake delegation.
+Every Supernode is paired with a validator but **must run on a separate server**. The Supernode maintains its own account, keys, and stake delegation, and talks to the Lumera chain over gRPC — typically through a public testnet endpoint rather than directly to its own validator.
 
 ## Architecture
 
 <Diagram name="supernode-architecture" />
 
-The Supernode connects to the validator's gRPC endpoint (port 9090) as a client to query the chain and broadcast transactions. Supernodes also form a peer-to-peer mesh using a Kademlia DHT (port 4445) for data replication and storage challenge proofs across the network. All on-chain registration and lifecycle transactions are signed by the validator operator key.
+The Supernode and its validator are two **independent hosts that meet on-chain**, not two machines wired directly together. The validator produces blocks on Lumera through its normal consensus P2P on port 26656. The Supernode separately talks to the Lumera chain via gRPC — through a public testnet endpoint — to read state and broadcast its own messages. Neither host makes a persistent network connection to the other.
+
+What actually ties them together is a pair of on-chain records:
+
+- **`register-supernode(VALOPER, SN_ENDPOINT, SN_ACCOUNT)`** — signed by the validator operator key, this chain message binds a specific Supernode endpoint and account to a specific validator. Only that validator's operator can register, update, or retire this Supernode.
+- **Stake delegation from `SN_ACCOUNT` to `VALOPER`** — under LEP-3, the combined total of validator self-delegation and this SN-account delegation must meet the network's minimum stake.
+
+Together those two facts form the entire Supernode ↔ validator relationship. Supernodes also form a peer-to-peer mesh with *other Supernodes* using a Kademlia DHT (port 4445) for data replication and storage challenge proofs across the network — again, a chain-wide link, not a wire to any particular validator.
 
 ## Key Information
 
@@ -23,7 +30,7 @@ The Supernode connects to the validator's gRPC endpoint (port 9090) as a client 
 | Chain ID | `lumera-testnet-2` |
 | Binary | `sn-manager` ([releases](https://github.com/LumeraProtocol/supernode/releases)) |
 | Config directory | `~/.supernode` |
-| gRPC endpoint | Your validator's IP:9090 (see [Node Setup, Step 3](/docs/supernodes/node-setup#step-3--configure-validator-grpc)) |
+| gRPC endpoint | Public testnet gRPC (see [Community Endpoints](/docs/resources/community)) or self-hosted `<VALIDATOR_IP>:9090` |
 | Min stake (testnet-2) | 10,000 LUME combined (self-delegation + SN account) |
 | Supernode explorer | [portal.testnet.lumera.io/supernodes](https://portal.testnet.lumera.io/lumera-testnet-2/supernodes) |
 | Supernode API | [list_super_nodes](https://lumera-testnet-api.bonynode.online/LumeraProtocol/lumera/supernode/v1/list_super_nodes) |
@@ -88,11 +95,11 @@ ARM processors are not supported. HDDs are not suitable. NVMe SSDs are required 
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
-| 26656 | TCP | CometBFT P2P (public) |
-| 9090 | TCP | gRPC must be open **only** to the Supernode IP |
+| 26656 | TCP | CometBFT P2P (public, standard validator requirement) |
+| 9090 | TCP | gRPC — **only** required if you self-host the Supernode's gRPC path |
 
-<Callout type="warn">
-Port 9090 is bound to `localhost` by default. You must change it to `0.0.0.0:9090` and restrict access to your Supernode's IP only. See [Node Setup, Step 3](/docs/supernodes/node-setup#step-3--configure-validator-grpc) for instructions.
+<Callout type="info">
+Most operators do **not** need to open port 9090 on their validator. By default, the Supernode uses a public testnet gRPC endpoint and never talks to your validator directly at runtime. Only expose 9090 if you are following the self-host option in [Node Setup, Step 3](/docs/supernodes/node-setup#step-3-choose-a-lumera-grpc-endpoint), and if you do, restrict it to your Supernode's IP only.
 </Callout>
 
 ## Prerequisites
