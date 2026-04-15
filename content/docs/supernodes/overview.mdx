@@ -14,12 +14,11 @@ Every Supernode is paired with a validator but **must run on a separate server**
 
 <Diagram name="supernode-architecture" />
 
-The Supernode and its validator are two **independent hosts that meet on-chain**. The validator produces blocks on Lumera through its normal consensus P2P on port 26656. The Supernode separately talks to the Lumera chain via gRPC to read state and broadcast its own messages. Neither host makes a persistent network connection to the other.
-
+The Supernode and its validator are two **independent hosts that meet on-chain**. The validator produces blocks on Lumera through its normal consensus P2P on port 26656. The Supernode separately talks to the Lumera chain via gRPC to read state and broadcast its own messages.
 What actually ties them together is a pair of on-chain records:
 
-- **`register-supernode(VALOPER, SN_ENDPOINT, SN_ACCOUNT)`** — signed by the validator operator key, this chain message binds a specific Supernode endpoint and account to a specific validator. Only that validator's operator can register, update, or retire this Supernode.
-- **Stake delegation from `SN_ACCOUNT` to `VALOPER`** — under LEP-3, the combined total of validator self-delegation and this SN-account delegation must meet the network's minimum stake.
+- **`register-supernode(VALOPER, SN_ENDPOINT, SN_ACCOUNT)`**  signed by the validator operator key, this chain message binds a specific Supernode endpoint and account to a specific validator. Only that validator's operator can register, update, or retire this Supernode.
+- **Stake delegation from `SN_ACCOUNT` to `VALOPER`**  under LEP-3, the combined total of validator self-delegation and this SN-account delegation must meet the network's minimum stake.
 
 Together those two facts form the entire Supernode ↔ validator relationship. Supernodes also form a peer-to-peer mesh with *other Supernodes* using a Kademlia DHT (port 4445) for data replication and storage challenge proofs across the network.
 
@@ -96,7 +95,7 @@ ARM processors are not supported. HDDs are not suitable. NVMe SSDs are required 
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 26656 | TCP | CometBFT P2P (public, standard validator requirement) |
-| 9090 | TCP | gRPC — **only** required if you self-host the Supernode's gRPC path |
+| 9090 | TCP | gRPC|
 
 
 ## Prerequisites
