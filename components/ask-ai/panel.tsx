@@ -9,7 +9,6 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   type FormEvent,
   useEffect,
@@ -87,24 +86,18 @@ export function AskAiPanel() {
   const isEmpty = messages.length === 0;
   const isStreaming = status === "streaming" || status === "submitted";
 
-  return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] md:bg-black/20"
-          />
+  if (!open) return null;
 
-          <motion.div
-            layoutId="ask-ai-shell"
-            transition={{ type: "spring", stiffness: 320, damping: 32 }}
-            className="fixed inset-x-3 bottom-3 top-3 z-50 flex flex-col overflow-hidden rounded-2xl border border-fd-border bg-fd-background/95 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)] backdrop-blur-xl md:inset-y-4 md:left-auto md:right-4 md:w-[440px]"
-          >
+  return (
+    <>
+      <div
+        onClick={() => setOpen(false)}
+        className="fixed inset-0 z-40 bg-black/30 md:bg-black/20"
+      />
+
+      <div
+        className="fixed inset-x-3 bottom-3 top-3 z-50 flex flex-col overflow-hidden rounded-2xl border border-fd-border bg-fd-background shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)] md:inset-y-4 md:left-auto md:right-4 md:w-[440px]"
+      >
             <div className="relative flex items-center gap-3 border-b border-fd-border bg-gradient-to-r from-teal-500/10 via-transparent to-emerald-500/10 px-4 py-3">
               <div className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-sm dark:from-teal-400 dark:to-emerald-400 dark:text-teal-950">
                 <Sparkles className="size-4" />
@@ -239,10 +232,8 @@ export function AskAiPanel() {
                 <span>Answers may be inaccurate · verify in docs</span>
               </div>
             </form>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+      </div>
+    </>
   );
 }
 
