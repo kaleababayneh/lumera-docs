@@ -38,8 +38,13 @@ export function AskAiPanel() {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { messages, sendMessage, status, stop, setMessages } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
+    onError: (err) => {
+      console.error("[ask-ai] chat error:", err);
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    },
   });
 
   useAutosize(taRef, input);
@@ -68,11 +73,13 @@ export function AskAiPanel() {
     e?.preventDefault();
     const text = input.trim();
     if (!text || status === "streaming") return;
+    setErrorMsg(null);
     sendMessage({ text }, { body: { currentUrl: pathname } });
     setInput("");
   }
 
   function sendSuggestion(prompt: string) {
+    setErrorMsg(null);
     sendMessage({ text: prompt }, { body: { currentUrl: pathname } });
   }
 
@@ -80,6 +87,7 @@ export function AskAiPanel() {
     stop();
     setMessages([]);
     setInput("");
+    setErrorMsg(null);
     taRef.current?.focus();
   }
 
@@ -141,12 +149,22 @@ export function AskAiPanel() {
                     const parts = (m as unknown as {
                       parts?: Array<{ type: string; text?: string }>;
                     }).parts;
-                    const text = Array.isArray(parts)
+                    const textOnly = Array.isArray(parts)
                       ? parts
                           .filter((p) => p.type === "text")
                           .map((p) => p.text ?? "")
                           .join("")
-                      : ((m as unknown as { content?: string }).content ?? "");
+                      : "";
+                    const reasoningOnly = Array.isArray(parts)
+                      ? parts
+                          .filter((p) => p.type === "reasoning")
+                          .map((p) => p.text ?? "")
+                          .join("")
+                      : "";
+                    const fallback =
+                      (m as unknown as { content?: string }).content ?? "";
+                    const text =
+                      textOnly || reasoningOnly || fallback;
                     const metadata = (m as unknown as {
                       metadata?: { citations?: Citation[] };
                     }).metadata;
@@ -177,6 +195,11 @@ export function AskAiPanel() {
                     messages[messages.length - 1]?.role === "user" && (
                       <ThinkingBubble label="Searching docs…" />
                     )}
+                  {errorMsg && (
+                    <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+                      {errorMsg}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

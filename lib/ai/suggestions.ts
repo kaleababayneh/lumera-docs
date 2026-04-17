@@ -1,7 +1,7 @@
 export const STARTER_SUGGESTIONS = [
   {
     label: "What is Cascade?",
-    prompt: "What is Cascade and how does it compare to IPFS and Arweave?",
+    prompt: "What is Cascade ?",
   },
   {
     label: "Upload a file",

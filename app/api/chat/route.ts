@@ -53,6 +53,16 @@ export async function POST(req: Request) {
       system,
       messages: convertToModelMessages(messages),
       temperature: 0.3,
+      onError: ({ error }) => {
+        console.error("[ai] stream error:", error);
+      },
+      onFinish: ({ finishReason, text, usage }) => {
+        console.log("[ai] stream finished:", {
+          finishReason,
+          textLen: text?.length ?? 0,
+          usage,
+        });
+      },
     });
   }
 
@@ -72,6 +82,10 @@ export async function POST(req: Request) {
       if (part.type === "start") return { citations, model: modelTag };
       return undefined;
     },
-    sendReasoning: false,
+    sendReasoning: true,
+    onError: (error) => {
+      console.error("[ai] UI stream error:", error);
+      return error instanceof Error ? error.message : "Stream error";
+    },
   });
 }
