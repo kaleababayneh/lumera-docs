@@ -53,6 +53,12 @@ export async function POST(req: Request) {
       system,
       messages: convertToModelMessages(messages),
       temperature: 0.3,
+      providerOptions: {
+        groq: {
+          reasoningEffort: "medium",
+          reasoningFormat: "parsed",
+        },
+      },
       onError: ({ error }) => {
         console.error("[ai] stream error:", error);
       },
@@ -82,7 +88,7 @@ export async function POST(req: Request) {
       if (part.type === "start") return { citations, model: modelTag };
       return undefined;
     },
-    sendReasoning: true,
+    sendReasoning: false,
     onError: (error) => {
       console.error("[ai] UI stream error:", error);
       return error instanceof Error ? error.message : "Stream error";
