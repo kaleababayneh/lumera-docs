@@ -225,11 +225,8 @@ export function AskAiPanel() {
                   </button>
                 )}
               </div>
-              <div className="mt-1.5 flex items-center justify-between px-1 text-[10px] text-fd-muted-foreground">
-                <span>
-                  Enter to send · Shift+Enter for newline · Esc to close
-                </span>
-                <span>Answers may be inaccurate · verify in docs</span>
+              <div className="mt-1.5 text-center text-[10px] text-fd-muted-foreground">
+                Answers may be inaccurate · verify in docs
               </div>
             </form>
       </div>
