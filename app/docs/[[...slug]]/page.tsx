@@ -11,6 +11,7 @@ import { Diagram } from "@/components/diagram";
 import { type Metadata } from "next";
 import { Edit } from "lucide-react";
 import { CopyMarkdownButton, OpenPopover } from "@/lib/page-actions";
+import { AskAiTocButton } from "@/components/ask-ai/toc-button";
 
 const owner = "kaleababayneh";
 const repo = "lumera-docs";
@@ -35,6 +36,7 @@ export default async function Page(props: {
       full={page.data.full}
       tableOfContent={{
         style: "clerk",
+        header: <AskAiTocButton />,
       }}
       lastUpdate={page.data.lastModified}
     >
