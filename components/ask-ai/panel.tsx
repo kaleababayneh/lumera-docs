@@ -98,17 +98,14 @@ export function AskAiPanel() {
       <div
         className="fixed inset-x-3 bottom-3 top-3 z-50 flex flex-col overflow-hidden rounded-2xl border border-fd-border bg-fd-background shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)] md:inset-y-4 md:left-auto md:right-4 md:w-[440px]"
       >
-            <div className="relative flex items-center gap-3 border-b border-fd-border bg-gradient-to-r from-teal-500/10 via-transparent to-emerald-500/10 px-4 py-3">
-              <div className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-sm dark:from-teal-400 dark:to-emerald-400 dark:text-teal-950">
+            <div className="flex items-center gap-3 border-b border-fd-border bg-fd-card px-4 py-3">
+              <div className="grid size-8 place-items-center rounded-md bg-fd-primary/10 text-fd-primary">
                 <Sparkles className="size-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold leading-tight">Lumera AI</div>
+                <div className="text-sm font-semibold leading-tight text-fd-foreground">Lumera AI</div>
                 <div className="flex items-center gap-1.5 text-[11px] text-fd-muted-foreground">
-                  <span className="relative flex size-1.5">
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-teal-400 opacity-60" />
-                    <span className="relative inline-flex size-1.5 rounded-full bg-teal-500" />
-                  </span>
+                  <span className="size-1.5 rounded-full bg-fd-primary" />
                   <span>{process.env.NEXT_PUBLIC_AI_MODEL_LABEL ?? "GPT-OSS 120B · free tier"}</span>
                 </div>
               </div>
@@ -186,9 +183,9 @@ export function AskAiPanel() {
 
             <form
               onSubmit={submit}
-              className="border-t border-fd-border bg-fd-card/40 px-3 py-3"
+              className="border-t border-fd-border bg-fd-card px-3 py-3"
             >
-              <div className="flex items-end gap-2 rounded-xl border border-fd-border bg-fd-background px-3 py-2 shadow-sm focus-within:border-teal-500/60 focus-within:ring-2 focus-within:ring-teal-500/20">
+              <div className="flex items-end gap-2 rounded-md border border-fd-border bg-fd-background px-3 py-2 transition focus-within:border-fd-primary/60 focus-within:ring-2 focus-within:ring-fd-primary/20">
                 <textarea
                   ref={taRef}
                   value={input}
@@ -201,13 +198,13 @@ export function AskAiPanel() {
                   }}
                   rows={1}
                   placeholder="Ask anything about Lumera…"
-                  className="max-h-40 flex-1 resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-fd-muted-foreground/70"
+                  className="pb-2 max-h-42 flex-1 resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-fd-muted-foreground/70"
                 />
                 {isStreaming ? (
                   <button
                     type="button"
                     onClick={() => stop()}
-                    className="grid size-8 place-items-center rounded-lg bg-fd-muted text-fd-foreground transition hover:bg-fd-accent"
+                    className="grid size-8 place-items-center rounded-md bg-fd-muted text-fd-foreground transition hover:bg-fd-accent"
                     title="Stop"
                     aria-label="Stop generating"
                   >
@@ -217,7 +214,7 @@ export function AskAiPanel() {
                   <button
                     type="submit"
                     disabled={!input.trim()}
-                    className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-sm transition hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 dark:from-teal-400 dark:to-emerald-400 dark:text-teal-950"
+                    className="grid size-8 place-items-center rounded-md bg-fd-primary text-fd-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                     title="Send (Enter)"
                     aria-label="Send"
                   >
@@ -237,10 +234,7 @@ export function AskAiPanel() {
 function ThinkingBubble({ label = "Thinking…" }: { label?: string }) {
   return (
     <div className="flex items-center gap-2 text-xs text-fd-muted-foreground">
-      <span className="relative flex size-3 items-center justify-center">
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-teal-400 opacity-50" />
-        <Loader2 className="relative size-3 animate-spin text-teal-500" />
-      </span>
+      <Loader2 className="size-3 animate-spin text-fd-primary" />
       <span>{label}</span>
     </div>
   );
@@ -255,17 +249,14 @@ function EmptyState({
 }) {
   const onDocsPage = pathname?.startsWith("/docs/") && pathname !== "/docs";
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-5 py-6 text-center">
-      <div className="relative">
-        <div className="absolute inset-0 -z-10 animate-pulse rounded-full bg-gradient-to-br from-teal-500/40 to-emerald-500/40 blur-2xl" />
-        <div className="grid size-14 place-items-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-xl dark:from-teal-400 dark:to-emerald-400 dark:text-teal-950">
-          <Sparkles className="size-7" />
-        </div>
+    <div className="flex h-full flex-col items-center justify-center gap-4 py-6 text-center">
+      <div className="grid size-10 place-items-center rounded-md bg-fd-primary/10 text-fd-primary">
+        <Sparkles className="size-5" />
       </div>
       <div className="space-y-1">
-        <div className="text-base font-semibold">Ask anything about Lumera</div>
+        <div className="text-sm font-semibold text-fd-foreground">Ask anything about Lumera</div>
         <div className="text-xs text-fd-muted-foreground">
-          Grounded in the Cascade docs · cites its sources · streams fast
+          Grounded in the Cascade docs · cites its sources
         </div>
       </div>
 
@@ -273,12 +264,12 @@ function EmptyState({
         <button
           onClick={() =>
             onSuggest(
-              `Explain the page I'm currently on (${pathname}) in plain English, then give one code example.`,
+              `Explain the page I'm currently on (${pathname}) in plain English.`,
             )
           }
-          className="group inline-flex items-center gap-2 rounded-full border border-teal-500/30 bg-teal-500/5 px-3 py-1.5 text-xs font-medium text-teal-700 transition hover:border-teal-500/50 hover:bg-teal-500/10 dark:text-teal-300"
+          className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-secondary px-2.5 py-1 text-xs font-medium text-fd-foreground transition hover:border-fd-primary/50 hover:bg-fd-accent"
         >
-          <Sparkles className="size-3" />
+          <Sparkles className="size-3 text-fd-primary" />
           Explain this page
         </button>
       )}
@@ -288,11 +279,11 @@ function EmptyState({
           <button
             key={s.label}
             onClick={() => onSuggest(s.prompt)}
-            className="group rounded-xl border border-fd-border bg-fd-card/50 p-3 text-left text-xs text-fd-foreground transition hover:border-teal-500/40 hover:bg-teal-500/5"
+            className="group rounded-md border border-fd-border bg-fd-card p-3 text-left text-xs text-fd-foreground transition hover:border-fd-primary/40 hover:bg-fd-accent"
           >
             <div className="flex items-center justify-between">
               <span className="font-medium">{s.label}</span>
-              <ArrowUp className="size-3 rotate-45 text-fd-muted-foreground transition group-hover:text-teal-500" />
+              <ArrowUp className="size-3 rotate-45 text-fd-muted-foreground transition group-hover:text-fd-primary" />
             </div>
           </button>
         ))}

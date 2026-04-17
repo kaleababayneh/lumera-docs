@@ -16,7 +16,7 @@ export function ChatMessage({ role, content, citations, streaming }: Props) {
   if (role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-teal-500 to-emerald-500 px-3.5 py-2 text-sm text-white shadow-sm dark:from-teal-400 dark:to-emerald-400 dark:text-teal-950">
+        <div className="max-w-[85%] rounded-lg rounded-br-sm bg-fd-primary px-3 py-2 text-sm text-fd-primary-foreground">
           {content}
         </div>
       </div>
@@ -36,7 +36,7 @@ export function ChatMessage({ role, content, citations, streaming }: Props) {
                 return (
                   <Link
                     href={h}
-                    className="text-teal-600 underline decoration-teal-500/40 underline-offset-2 hover:decoration-teal-500 dark:text-teal-300"
+                    className="text-fd-primary underline decoration-fd-primary/40 underline-offset-2 hover:decoration-fd-primary"
                   >
                     {children}
                   </Link>
@@ -47,7 +47,7 @@ export function ChatMessage({ role, content, citations, streaming }: Props) {
                   href={h}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="text-teal-600 underline decoration-teal-500/40 underline-offset-2 hover:decoration-teal-500 dark:text-teal-300"
+                  className="text-fd-primary underline decoration-fd-primary/40 underline-offset-2 hover:decoration-fd-primary"
                   {...p}
                 >
                   {children}
@@ -59,7 +59,7 @@ export function ChatMessage({ role, content, citations, streaming }: Props) {
               if (isInline) {
                 return (
                   <code
-                    className="rounded-md border border-fd-border bg-fd-muted px-1 py-0.5 text-[0.85em] text-teal-700 dark:text-teal-300"
+                    className="rounded-md border border-fd-border bg-fd-muted px-1 py-0.5 text-[0.85em] text-fd-primary"
                     {...p}
                   >
                     {children}
@@ -73,17 +73,17 @@ export function ChatMessage({ role, content, citations, streaming }: Props) {
               );
             },
             pre: ({ children }) => (
-              <pre className="my-3 overflow-x-auto rounded-lg border border-fd-border bg-fd-muted/60 p-3 text-[0.82em] leading-relaxed">
+              <pre className="my-3 overflow-x-auto rounded-md border border-fd-border bg-fd-muted p-3 text-[0.82em] leading-relaxed">
                 {children}
               </pre>
             ),
             ul: ({ children }) => (
-              <ul className="my-2 ml-4 list-disc space-y-1 marker:text-teal-500">
+              <ul className="my-2 ml-4 list-disc space-y-1 marker:text-fd-primary">
                 {children}
               </ul>
             ),
             ol: ({ children }) => (
-              <ol className="my-2 ml-4 list-decimal space-y-1 marker:text-teal-500">
+              <ol className="my-2 ml-4 list-decimal space-y-1 marker:text-fd-primary">
                 {children}
               </ol>
             ),
@@ -115,7 +115,7 @@ export function ChatMessage({ role, content, citations, streaming }: Props) {
           {content}
         </ReactMarkdown>
         {streaming && (
-          <span className="ml-0.5 inline-block h-3.5 w-[2px] translate-y-[2px] animate-pulse bg-teal-500" />
+          <span className="ml-0.5 inline-block h-3.5 w-[2px] translate-y-[2px] animate-pulse bg-fd-primary" />
         )}
       </div>
       {citations && citations.length > 0 && <Citations items={citations} />}
