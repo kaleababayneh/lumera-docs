@@ -5,6 +5,7 @@ import { SearchToggle } from "fumadocs-ui/components/layout/search-toggle";
 import type { ReactNode } from "react";
 import { baseOptions } from "../layout.config";
 import { AskAi } from "@/components/ask-ai";
+import { AskAiNavButton } from "@/components/ask-ai/nav-button";
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
@@ -15,7 +16,12 @@ export default function Layout({ children }: { children: ReactNode }) {
         nav={{
           ...baseOptions.nav,
           children: (
-            <SidebarCollapseTrigger className="ms-auto max-md:hidden" />
+            <>
+              <div className="ms-auto md:hidden">
+                <AskAiNavButton />
+              </div>
+              <SidebarCollapseTrigger className="ms-auto max-md:hidden" />
+            </>
           ),
         }}
         sidebar={{ collapsible: true }}
