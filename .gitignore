@@ -3,4 +3,6 @@ node_modules
 .source
 .claude
 .env
+.env.local
+.env.*.local
 *.txt

@@ -74,6 +74,17 @@
   max-height: none !important;
 }
 
+/* Ask-AI panel: tighter markdown spacing inside chat bubbles */
+.prose-chat > :first-child { margin-top: 0; }
+.prose-chat > :last-child { margin-bottom: 0; }
+.prose-chat hr { margin: 0.75rem 0; border-color: hsl(var(--fd-border)); }
+.prose-chat blockquote {
+  border-left: 3px solid hsl(var(--fd-primary));
+  padding-left: 0.75rem;
+  color: hsl(var(--fd-muted-foreground));
+  margin: 0.5rem 0;
+}
+
 /* Dark Mode */
 .dark {
   --fd-background: 180 15% 5.5%;
