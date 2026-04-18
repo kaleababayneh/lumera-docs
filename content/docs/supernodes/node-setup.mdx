@@ -36,7 +36,7 @@ You should see all four ports listed as ALLOW.
 
 The Supernode needs a gRPC endpoint to query the chain and broadcast its on-chain messages. You have two options.
 
-### Option 1 — Use a public testnet gRPC endpoint (recommended)
+### Option 1: Use a public testnet gRPC endpoint (recommended)
 
 The simplest and most common setup is to point `sn-manager` at one of the community-run public testnet-2 gRPC endpoints. You do **not** need to touch your validator, open any ports on it, or edit `app.toml`. Pick any of the endpoints listed on the [Community Endpoints](/docs/resources/community) page, for example:
 
@@ -48,7 +48,7 @@ Note the endpoint you picked, you will pass it as `--lumera-grpc` in Step 5.
 
 
 
-### Option 2 — Self-host your validator's gRPC (advanced)
+### Option 2: Self-host your validator's gRPC (advanced)
 
 If you prefer to route Supernode traffic through your own validator instead of a third-party endpoint, you can expose the validator's built-in gRPC port. This gives you sovereignty and lower latency, but increases the validator's attack surface and requires you to maintain firewall rules in two places.
 
@@ -169,7 +169,7 @@ sn-manager init -y \
 ```
 
 <Callout type="warn">
-The `--lumera-grpc` must point to a **testnet** gRPC endpoint. Use one of the public endpoints from Step 3, or `<VALIDATOR_IP>:9090` if you self-hosted. Do **not** use `grpc.lumera.io:443` that is mainnet.
+The `--lumera-grpc` must point to a **testnet** gRPC endpoint. Use one of the public endpoints from Step 3, or `<VALIDATOR_IP>:9090` if you self-hosted.
 </Callout>
 
 ## Step 6: Create the Systemd Service
@@ -275,7 +275,7 @@ lumerad version
 You should see a version string printed. Your Supernode host is now ready to sign the delegation transaction in [Register Supernode, Step 2](/docs/supernodes/register).
 
 <Callout type="warn">
-Every `lumerad` command you run on the Supernode host **must** include `--keyring-backend file` and `--keyring-dir ~/.supernode/keys`, because the Supernode key lives at `~/.supernode/keys/` and uses the file keyring backend, neither of which are `lumerad`'s defaults. For transaction commands (`lumerad tx ...`), you also need `--node <RPC_ENDPOINT>` to point the CLI at a CometBFT RPC for testnet-2, since the Supernode host has no local chain node. Use a public testnet endpoint such as `https://lumera-testnet-rpc.polkachu.com/`, or `tcp://<VALIDATOR_IP>:26657` if you prefer to broadcast through your own validator (which requires opening port 26657). Do not use `https://rpc.lumera.io:443` — that is mainnet.
+Every `lumerad` command you run on the Supernode host **must** include `--keyring-backend file` and `--keyring-dir ~/.supernode/keys`, because the Supernode key lives at `~/.supernode/keys/` and uses the file keyring backend, neither of which are `lumerad`'s defaults. For transaction commands (`lumerad tx ...`), you also need `--node <RPC_ENDPOINT>` to point the CLI at a CometBFT RPC for testnet-2, since the Supernode host has no local chain node. Use a public testnet endpoint such as `https://lumera-testnet-rpc.polkachu.com/`, or `tcp://<VALIDATOR_IP>:26657` if you prefer to broadcast through your own validator (which requires opening port 26657). 
 
 Quickly verify the setup by printing the SN key's address — it should match the one you noted during Step 5:
 

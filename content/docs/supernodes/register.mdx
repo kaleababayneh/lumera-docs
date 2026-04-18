@@ -21,7 +21,7 @@ The Supernode account needs LUME tokens to delegate to your validator. There are
 
 If you did not note the `SN_ACCOUNT` address when you ran `sn-manager init`, you can retrieve it at any time from the **Supernode server** in one of two ways.
 
-**Option 1 — Read it from the SuperNode config file** (no `lumerad` call needed):
+**Option 1: Read it from the SuperNode config file** (no `lumerad` call needed):
 
 ```bash
 cat ~/.supernode/config.yml | grep -i -A1 -E 'address|key'
@@ -41,7 +41,7 @@ keyring:
 
 The value next to `identity:` (starts with `lumera1...`) is your `SN_ACCOUNT`.
 
-**Option 2 — Use the `lumerad` CLI** (installed in [Node Setup, Step 8](/docs/supernodes/node-setup)):
+**Option 2: Use the `lumerad` CLI** (installed in [Node Setup, Step 8](/docs/supernodes/node-setup)):
 
 ```bash
 # Print just the bech32 address of the supernode key
@@ -54,7 +54,7 @@ lumerad keys list --keyring-backend file --keyring-dir ~/.supernode/keys
 You will be prompted for the keyring passphrase. The address starts with `lumera1...` — this is your `SN_ACCOUNT`, and it is what you pass to every command below.
 
 <Callout type="warn">
-Every `lumerad` command you run on the Supernode host **must** include **both** `--keyring-backend file` **and** `--keyring-dir ~/.supernode/keys`. The Supernode stores its keyring at `~/.supernode/keys/`, not in `lumerad`'s default `~/.lumera/keyring-os/` location. If you omit either flag, `lumerad` falls back to its defaults, fails to find the key, and prints a misleading error like `supernode.info: key not found` or `supernode is not a valid name or address: decoding bech32 failed`. These errors mean "wrong keyring directory," not "wrong passphrase."
+Every `lumerad` command you run on the Supernode host **must** include **both** `--keyring-backend file` **and** `--keyring-dir ~/.supernode/keys`. The Supernode stores its keyring at `~/.supernode/keys/`, not in `lumerad`'s default `~/.lumera/keyring-os/` location.
 </Callout>
 
 ### Option A - Transfer from your validator wallet
@@ -90,7 +90,7 @@ On your **validator host**, retrieve the `VALOPER` address (starts with `lumerav
 lumerad keys show validator --bech val -a
 ```
 
-This prints the bech32 operator address, which is what you pass as `<VALOPER>` in both Step 2 and Step 3. Note it down — you will need it twice.
+This prints the bech32 operator address, which is what you pass as `<VALOPER>` in both Step 2 and Step 3. Note it down, you will need it twice.
 
 ### Run the delegation
 
@@ -115,7 +115,7 @@ You will be prompted for the Supernode keyring passphrase. A successful broadcas
 The four flags marked above are all mandatory on the Supernode host and cannot be omitted:
 
 - `--keyring-backend file` and `--keyring-dir ~/.supernode/keys` tell `lumerad` where the Supernode key actually lives (not in its default `~/.lumera/keyring-os/`).
-- `--node https://lumera-testnet-rpc.polkachu.com/` points the CLI at a public **testnet-2** CometBFT RPC endpoint, because the Supernode host has no local chain node to broadcast through. Do **not** use `https://rpc.lumera.io:443` — that is mainnet, and queries against it will return `account ... not found` for your testnet SN account.
+- `--node https://lumera-testnet-rpc.polkachu.com/` points the CLI at a public **testnet-2** CometBFT RPC endpoint, because the Supernode host has no local chain node to broadcast through. 
 - `--from supernode` selects the Supernode key inside that keyring as the signer.
 
 If you would rather broadcast through your own validator instead of a public endpoint, use `--node tcp://<VALIDATOR_IP>:26657` and open port `26657` on the validator from the Supernode IP — **both** in `ufw` and in your cloud provider firewall — the same way you opened `9090` in [Node Setup, Step 3](/docs/supernodes/node-setup).
