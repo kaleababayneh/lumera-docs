@@ -787,7 +787,7 @@ const collaborationFlow: DiagramDef = {
       x: 110,
       y: 265,
       text: "8. Share link",
-      size: 10,
+      size: 7,
       muted: true,
       anchor: "start",
     },
