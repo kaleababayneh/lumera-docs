@@ -112,10 +112,12 @@ export function AskAiPanel() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold leading-tight text-fd-foreground">Lumera AI</div>
+                {/** 
                 <div className="flex items-center gap-1.5 text-[11px] text-fd-muted-foreground">
                   <span className="size-1.5 rounded-full bg-fd-primary" />
                   <span>{process.env.NEXT_PUBLIC_AI_MODEL_LABEL ?? "GPT-OSS 120B · free tier"}</span>
                 </div>
+                  */}
               </div>
               {messages.length > 0 && (
                 <button
