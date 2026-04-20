@@ -7,6 +7,7 @@ import {
 } from "fumadocs-ui/page";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Diagram } from "@/components/diagram";
+import { YouTube } from "@/components/youtube";
 import { Edit } from "lucide-react";
 import { CopyMarkdownButton, OpenPopover } from "@/lib/page-actions";
 
@@ -42,7 +43,7 @@ export default async function HomePage() {
         />
       </div>
       <DocsBody>
-        <MDX components={{ ...defaultMdxComponents, Diagram }} />
+        <MDX components={{ ...defaultMdxComponents, Diagram, YouTube }} />
       </DocsBody>
       <a
         href={editUrl}

@@ -8,6 +8,7 @@ import {
 import { notFound } from "next/navigation";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Diagram } from "@/components/diagram";
+import { YouTube } from "@/components/youtube";
 import { type Metadata } from "next";
 import { Edit } from "lucide-react";
 import { CopyMarkdownButton, OpenPopover } from "@/lib/page-actions";
@@ -47,7 +48,7 @@ export default async function Page(props: {
         <OpenPopover githubUrl={githubUrl} pageUrl={pageUrl} />
       </div>
       <DocsBody>
-        <MDX components={{ ...defaultMdxComponents, Diagram }} />
+        <MDX components={{ ...defaultMdxComponents, Diagram, YouTube }} />
       </DocsBody>
       <a
         href={editUrl}
