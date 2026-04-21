@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       const friendly = /bech32|invalid checksum|invalid to address|decoding bech32/i.test(
         raw,
       )
-        ? "Invalid Lumera address — the checksum doesn't match. Double-check the address and try again."
+        ? "Invalid Lumera address, the checksum doesn't match. Double-check the address and try again."
         : raw;
       return Response.json(
         {
