@@ -36,9 +36,15 @@ export async function POST(req: Request) {
     };
 
     if (!upstream.ok) {
+      const raw = data.error ?? `Faucet upstream responded ${upstream.status}`;
+      const friendly = /bech32|invalid checksum|invalid to address|decoding bech32/i.test(
+        raw,
+      )
+        ? "Invalid Lumera address — the checksum doesn't match. Double-check the address and try again."
+        : raw;
       return Response.json(
         {
-          error: data.error ?? `Faucet upstream responded ${upstream.status}`,
+          error: friendly,
           retryAfterHours: data.retryAfterHours,
           retryAfterMinutes: data.retryAfterMinutes,
         },
