@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   ArrowRight,
-  ArrowUpRight,
   CheckCircle2,
   Droplets,
   Loader2,
@@ -76,10 +75,10 @@ export function FaucetForm() {
   const loading = status.kind === "loading";
 
   return (
-    <div className="relative mx-auto w-full max-w-3xl">
+    <div className="relative mx-auto w-full max-w-xl">
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-x-20 -top-20 -bottom-10 -z-10 rounded-4xl bg-[radial-gradient(ellipse_at_top,hsl(var(--fd-primary)/0.15),transparent_65%)] blur-3xl"
+        className="pointer-events-none absolute -inset-x-16 -top-16 -bottom-8 -z-10 rounded-4xl bg-[radial-gradient(ellipse_at_top,hsl(var(--fd-primary)/0.15),transparent_65%)] blur-3xl"
       />
 
       <form
@@ -87,29 +86,29 @@ export function FaucetForm() {
           e.preventDefault();
           void submit();
         }}
-        className="relative flex flex-col gap-8 overflow-hidden rounded-3xl border border-fd-border bg-fd-card/80 p-10 shadow-[0_1px_0_0_hsl(var(--fd-border)),0_30px_80px_-30px_hsl(var(--fd-primary)/0.35)] backdrop-blur-sm md:p-12"
+        className="relative flex flex-col gap-6 overflow-hidden rounded-2xl border border-fd-border bg-fd-card/80 p-7 shadow-[0_1px_0_0_hsl(var(--fd-border)),0_24px_60px_-30px_hsl(var(--fd-primary)/0.35)] backdrop-blur-sm md:p-8"
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-20 -top-20 size-64 rounded-full bg-fd-primary/10 blur-3xl"
+          className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-fd-primary/10 blur-3xl"
         />
 
-        <div className="relative flex items-center gap-4">
-          <div className="grid size-14 place-items-center rounded-2xl bg-fd-primary/10 text-fd-primary ring-1 ring-fd-primary/20">
-            <Droplets className="size-7" />
+        <div className="relative flex items-center gap-3">
+          <div className="grid size-11 place-items-center rounded-xl bg-fd-primary/10 text-fd-primary ring-1 ring-fd-primary/20">
+            <Droplets className="size-5" />
           </div>
           <div className="min-w-0">
-            <div className="text-lg font-semibold text-fd-foreground">
+            <div className="text-base font-semibold text-fd-foreground">
               Get testnet tokens
             </div>
-            <div className="text-sm text-fd-muted-foreground">
+            <div className="text-xs text-fd-muted-foreground">
               0.25 LUME · once per 24 hours
             </div>
           </div>
         </div>
 
-        <label className="relative flex flex-col gap-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-fd-muted-foreground">
+        <label className="relative flex flex-col gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-fd-muted-foreground">
             Lumera address
           </span>
           <input
@@ -123,12 +122,11 @@ export function FaucetForm() {
             autoComplete="off"
             spellCheck={false}
             disabled={loading}
-            style={{ paddingLeft: '20px' }} 
-            className="h-14 rounded-xl border border-fd-border bg-fd-background px-6 font-mono text-base text-fd-foreground outline-none transition placeholder:text-fd-muted-foreground/60 focus:border-fd-primary/60 focus:ring-2 focus:ring-fd-primary/20 disabled:opacity-60"
+            className="h-11 rounded-lg border border-fd-border bg-fd-background px-4 font-mono text-sm text-fd-foreground outline-none transition placeholder:text-fd-muted-foreground/60 focus:border-fd-primary/60 focus:ring-2 focus:ring-fd-primary/20 disabled:opacity-60"
           />
-          <span className="text-xs text-fd-muted-foreground/80">
+          <span className="text-[11px] text-fd-muted-foreground/80">
             Addresses start with{" "}
-            <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-[11px]">
+            <code className="rounded bg-fd-muted px-1 py-0.5 font-mono text-[10px]">
               lumera1…
             </code>
           </span>
@@ -137,7 +135,7 @@ export function FaucetForm() {
         <button
           type="submit"
           disabled={loading || !address.trim()}
-          className="group relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-fd-primary px-6 text-base font-semibold text-fd-primary-foreground shadow-[0_8px_24px_-6px_hsl(var(--fd-primary)/0.6)] transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          className="group relative inline-flex h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-lg bg-fd-primary px-4 text-sm font-semibold text-fd-primary-foreground shadow-[0_6px_20px_-6px_hsl(var(--fd-primary)/0.6)] transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
           <span
             aria-hidden
