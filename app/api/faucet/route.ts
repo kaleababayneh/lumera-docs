@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
-const ADDRESS_PATTERN = /^lumera[0-9a-z]{30,}$/;
+const FAUCET_ENDPOINT = "https://lumerapp.up.railway.app/api/faucet";
+const ADDRESS_PATTERN = /^lumera1[a-z0-9]{38,58}$/;
 
 type Body = { address?: string };
 
@@ -17,43 +18,38 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid Lumera address" }, { status: 400 });
   }
 
-  const endpoint = process.env.FAUCET_API_URL;
-  if (!endpoint) {
-    return Response.json(
-      { error: "Faucet is not configured (FAUCET_API_URL missing)" },
-      { status: 503 },
-    );
-  }
-
   try {
-    const upstream = await fetch(endpoint, {
+    const upstream = await fetch(FAUCET_ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(process.env.FAUCET_API_KEY
-          ? { Authorization: `Bearer ${process.env.FAUCET_API_KEY}` }
-          : {}),
-      },
-      body: JSON.stringify({ address, amount: "0.25", denom: "LUME" }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address }),
     });
 
-    const data = (await upstream.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
+    const data = (await upstream.json().catch(() => ({}))) as {
+      txHash?: string;
+      amount?: string;
+      to?: string;
+      explorerUrl?: string;
+      error?: string;
+      retryAfterHours?: number;
+      retryAfterMinutes?: number;
+    };
 
     if (!upstream.ok) {
-      const msg =
-        (typeof data.error === "string" && data.error) ||
-        (typeof data.message === "string" && data.message) ||
-        `Faucet upstream responded ${upstream.status}`;
-      return Response.json({ error: msg }, { status: upstream.status });
+      return Response.json(
+        {
+          error: data.error ?? `Faucet upstream responded ${upstream.status}`,
+          retryAfterHours: data.retryAfterHours,
+          retryAfterMinutes: data.retryAfterMinutes,
+        },
+        { status: upstream.status },
+      );
     }
 
     return Response.json({
-      txHash: typeof data.txHash === "string" ? data.txHash : undefined,
-      amount:
-        typeof data.amount === "string" ? data.amount : "0.25 LUME",
+      txHash: data.txHash,
+      amount: data.amount ?? "0.25 LUME",
+      explorerUrl: data.explorerUrl,
     });
   } catch (err) {
     console.error("[faucet] upstream error:", err);
