@@ -21,6 +21,7 @@ import {
   Workflow,
   PlugZap,
   Route,
+  Droplets,
   type LucideIcon,
 } from "lucide-react";
 import { type ReactElement, createElement } from "react";
@@ -48,6 +49,7 @@ const icons: Record<string, LucideIcon> = {
   Workflow,
   PlugZap,
   Route,
+  Droplets,
 };
 
 export function createIcon(icon: string | undefined): ReactElement | undefined {

@@ -5,10 +5,11 @@
     "index",
     "getting-started",
     "guides",
-    "concepts", 
+    "concepts",
     "reference",
     "validators",
     "supernodes",
-    "app"
+    "app",
+    "faucet"
   ]
 }
