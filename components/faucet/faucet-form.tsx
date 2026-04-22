@@ -7,6 +7,7 @@ import {
   Droplets,
   Loader2,
   XCircle,
+  ArrowUpRight
 } from "lucide-react";
 
 type Status =
@@ -161,7 +162,7 @@ export function FaucetForm() {
               <div className="font-semibold">
                 {status.amount ? `${status.amount} sent` : "Tokens sent"}
               </div>
-              {/*
+              
               {status.txHash && (
                 <div className="mt-1 truncate font-mono text-xs text-fd-muted-foreground">
                   Tx: {status.txHash}
@@ -178,7 +179,7 @@ export function FaucetForm() {
                   <ArrowUpRight className="size-3" />
                 </a>
               )}
-              */}
+              
             </div>
           </div>
         )}

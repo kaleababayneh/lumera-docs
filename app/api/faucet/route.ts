@@ -52,10 +52,14 @@ export async function POST(req: Request) {
       );
     }
 
+    const explorerUrl = data.txHash
+      ? `https://stake.astrostake.xyz/lumera-testnet/tx/${data.txHash}`
+      : data.explorerUrl;
+
     return Response.json({
       txHash: data.txHash,
       amount: data.amount ?? "0.25 LUME",
-      explorerUrl: data.explorerUrl,
+      explorerUrl,
     });
   } catch (err) {
     console.error("[faucet] upstream error:", err);
