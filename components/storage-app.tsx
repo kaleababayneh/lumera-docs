@@ -2,7 +2,9 @@
 
 import { useState, useRef, useCallback } from "react";
 
-const BACKEND_URL = "https://lumerapp.up.railway.app";
+const BACKEND_URL = "https://api.lumera.help";
+
+const API_KEY = process.env.NEXT_PUBLIC_CASCADE_API_KEY ?? "";
 
 import {
   Upload,
@@ -57,17 +59,23 @@ function UploadCard() {
       const form = new FormData();
       form.append("file", file);
 
-      const res = await fetch(`${BACKEND_URL}/api/upload`, { method: "POST", body: form });
+      const headers: Record<string, string> = {};
+      if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
+      const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", headers, body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
 
+      // cascade-api returns: { action_id, tx_hash, block_height, task_id, filename, size_bytes }
+      const sizeKbs = Math.max(1, Math.round((data.size_bytes ?? 0) / 1024));
       setResult({
-        actionId: data.actionId,
-        fileName: data.fileName,
-        fileSizeKbs: data.fileSizeKbs,
-        explorerUrl: data.explorerUrl,
+        actionId: data.action_id,
+        fileName: data.filename,
+        fileSizeKbs: sizeKbs,
+        explorerUrl: data.tx_hash
+          ? `https://stake.astrostake.xyz/lumera-testnet/tx/${data.tx_hash}`
+          : "",
       });
-      setStatus({ type: "success", message: `Uploaded "${data.fileName}" (${data.fileSizeKbs} KB)` });
+      setStatus({ type: "success", message: `Uploaded "${data.filename}" (${sizeKbs} KB)` });
     } catch (err: any) {
       setStatus({ type: "error", message: err.message });
     }
@@ -170,8 +178,8 @@ function UploadCard() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-fd-muted-foreground transition-colors hover:text-fd-foreground"
             >
-              {/* <ExternalLink className="size-3" />
-              Explorer */}
+               <ExternalLink className="size-3" />
+              Explorer 
             </a>
           </div>
         </div>
@@ -200,7 +208,7 @@ function DownloadCard() {
     });
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/download/${encodeURIComponent(id)}`);
+      const res = await fetch(`${BACKEND_URL}/download/${encodeURIComponent(id)}`);
       if (!res.ok) {
         const err = await res
           .json()
