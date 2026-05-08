@@ -1,0 +1,42 @@
+---
+title: "Try Cascade"
+description: Edit your Lukso Universal Profile right from the docs and watch the LSP-3 metadata land permanently on Cascade.
+icon: PlayCircle
+---
+
+The [Demo page](/docs/lukso/demo) lets you update your real Universal Profile on Lukso mainnet. Every field you fill in becomes either a JSON value (links, tags) or a Cascade-stored asset (images, 3D avatar) referenced from a hash-bound LSP-2 `VerifiableURI` written to your UP via `setData`.
+
+Nothing in the demo is a sandbox; the transactions are real, the Cascade actions are real. The dApp does the same thing the [Universal Profile tutorial](/docs/lukso/universal-profile) walks through step-by-step, just wrapped in a UI.
+
+<Callout>
+You'll need the [Universal Profile Browser Extension](https://my.universalprofile.cloud) connected to a UP that holds at least a few millilyx for gas. If you change your mind mid-flow, just close the extension popup, no transaction is sent until you approve it.
+</Callout>
+
+<Cards>
+  <Card title="Open the demo →" href="/docs/lukso/demo" />
+</Cards>
+
+## What happens when you click "Save to Cascade"
+
+1. Resizes your profile image to 256/512/1024px in the browser, then uploads each variant plus the source image to the cascade-api at [`api.lumera.help/upload`](/docs/lukso/data-provider#post-upload).
+2. Uploads the background image and 3D avatar (if provided) the same way.
+3. Builds a single LSP-3 JSON document that references every Cascade URL with per-asset `verification.{method, data}` (a keccak256 of the file bytes).
+4. Uploads that JSON to Cascade as well.
+5. Encodes a [`VerifiableURI`](/docs/lukso/primer#lsp-2-the-schema-and-verifiableuri) over `(JSON hash, JSON URL)` using `@erc725/erc725.js`.
+6. Calls `setData(LSP3Profile, value)` on your UP. The browser extension prompts for the signature; once mined, your profile is updated.
+
+Every Cascade upload becomes its own action on lumera-testnet-2 with its own `tx_hash`, all listed in the ledger panel of the demo.
+
+## Source
+
+- The embedded component lives at `components/lukso-try-cascade/` in the docs repo.
+- A standalone Next.js version (with a server-side bearer-token proxy instead of browser-direct uploads) lives at [github.com/kaleababayneh/permanent-up](https://github.com/kaleababayneh/permanent-up).
+
+## Next steps
+
+<Cards>
+  <Card title="Open the demo" href="/docs/lukso/demo" />
+  <Card title="How the integration works (LSP-3 walkthrough)" href="/docs/lukso/universal-profile" />
+  <Card title="Data-provider package & cascade-api" href="/docs/lukso/data-provider" />
+  <Card title="Digital assets (LSP-4 / LSP-7 / LSP-8)" href="/docs/lukso/digital-assets" />
+</Cards>

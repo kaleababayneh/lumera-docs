@@ -22,6 +22,11 @@ import {
   PlugZap,
   Route,
   Droplets,
+  UserRound,
+  Coins,
+  Package,
+  PlayCircle,
+  Play,
   type LucideIcon,
 } from "lucide-react";
 import { type ReactElement, createElement } from "react";
@@ -50,6 +55,11 @@ const icons: Record<string, LucideIcon> = {
   PlugZap,
   Route,
   Droplets,
+  UserRound,
+  Coins,
+  Package,
+  PlayCircle,
+  Play,
 };
 
 export function createIcon(icon: string | undefined): ReactElement | undefined {
