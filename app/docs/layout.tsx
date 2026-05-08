@@ -1,17 +1,23 @@
-import { source } from "@/lib/source";
+import { source, isLuksoHost, buildLuksoTree } from "@/lib/source";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { SidebarCollapseTrigger } from "fumadocs-ui/layouts/docs/sidebar";
 import { SearchToggle } from "fumadocs-ui/components/layout/search-toggle";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import { baseOptions } from "../layout.config";
 import { AskAi } from "@/components/ask-ai";
 import { AskAiNavButton } from "@/components/ask-ai/nav-button";
 
-export default function Layout({ children }: { children: ReactNode }) {
+export default async function Layout({ children }: { children: ReactNode }) {
+  const host = (await headers()).get("host");
+  const tree = isLuksoHost(host)
+    ? buildLuksoTree(source.pageTree)
+    : source.pageTree;
+
   return (
     <AskAi>
       <DocsLayout
-        tree={source.pageTree}
+        tree={tree}
         {...baseOptions}
         nav={{
           ...baseOptions.nav,
