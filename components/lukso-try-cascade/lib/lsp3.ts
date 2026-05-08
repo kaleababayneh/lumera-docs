@@ -6,10 +6,9 @@ type ImageEntry = {
 };
 
 type AvatarEntry = {
-  hashFunction: "keccak256(bytes)";
-  hash: `0x${string}`;
   url: string;
   fileType: string;
+  verification: { method: "keccak256(bytes)"; data: `0x${string}` };
 };
 
 export type LSP3ProfileJSON = {

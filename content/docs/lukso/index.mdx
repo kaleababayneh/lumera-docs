@@ -6,9 +6,13 @@ icon: Network
 
 ## The integration in three sentences
 
-[Lukso](https://lukso.network) is an EVM Layer-1 whose flagship feature, **Universal Profiles**, is built on a family of **LSP** standards that reference off-chain JSON metadata via on-chain hash-bound pointers (LSP-2 `VerifiableURI`). Today that metadata is almost always pinned to IPFS through Pinata or Infura, which means it lives only as long as someone keeps paying the pinning bill. Cascade is a strict upgrade for that exact slot: pay once, store forever, with on-chain proof of storage and protocol-level redundancy across the Supernode network.
+[Lukso](https://lukso.network) is an EVM Layer-1 whose flagship feature, **Universal Profiles**, is built on a family of Lukso Standard Proposal **(LSP)** that reference off-chain JSON metadata via on-chain hash-bound pointers (LSP-2 `VerifiableURI`). Today that metadata is almost always pinned to IPFS through Pinata or Infura, which means it lives only as long as someone keeps paying the pinning bill. Cascade is an upgrade for the existing system: pay once, store forever, with on-chain proof of storage and protocol-level redundancy across the Supernode network.
 
-There is no token bridge in scope here. Lukso is not IBC-enabled. The integration is metadata and storage only, which is also exactly where Cascade's value proposition is sharpest.
+Lukso is not IBC-enabled and there is no token bridge. The integration is metadata and storage only.
+
+{/* <Callout>
+Lukso ships an official storage-backend interface in [`tools-data-providers`](https://github.com/lukso-network/tools-data-providers); its `@lukso/data-provider-cascade` package, however, still points at the pre-rebrand Pastel gateway and authenticates with an `Api-key` header. This section documents [`@lumera-protocol/data-provider-cascade`](/docs/lukso/data-provider), the Lumera-owned successor that targets the cascade-api backend, uses `Authorization: Bearer`, and returns hash-bound HTTPS URLs. Same `BaseFormDataUploader` interface, drop-in for any pipeline already targeting the Lukso provider shape.
+</Callout> */}
 
 ## Why this fits
 
@@ -20,7 +24,7 @@ There is no token bridge in scope here. Lukso is not IBC-enabled. The integratio
 | Self-healing | No | Yes, automatic chunk restoration |
 | Reader compatibility | Standard IPFS gateways | Standard HTTPS gateways (cascade-api) |
 
-The reader-compatibility row is the important one for a Lukso integration: **Cascade is a drop-in upgrade**. No reader-side changes, no new wallets, no new schemas. The only thing that changes is who is keeping the bytes alive in 2030.
+**Cascade is a drop-in upgrade**. No reader-side changes, no new wallets, no new schemas. 
 
 ## How a Lukso reader sees it
 
@@ -63,15 +67,11 @@ For a deeper look, see the [Permanence note](/docs/lukso/data-provider#permanenc
 
 ## Where to next
 
+If you have not used Lukso before, start with the [primer](/docs/lukso/primer). If you already know Universal Profiles and just want the working code, jump to the [Universal Profile tutorial](/docs/lukso/universal-profile), which mirrors the bundled `permanent-up-app` reference implementation end-to-end. If you just want to see it work, [Try Cascade](/docs/lukso/try-cascade) walks through the live in-page UP editor.
+
 <Cards>
   <Card title="Lukso primer" href="/docs/lukso/primer" />
   <Card title="Universal Profile tutorial" href="/docs/lukso/universal-profile" />
-  <Card title="Digital assets (LSP-4/7/8)" href="/docs/lukso/digital-assets" />
   <Card title="Data-provider package + cascade-api" href="/docs/lukso/data-provider" />
+  <Card title="Try Cascade" href="/docs/lukso/try-cascade" />
 </Cards>
-
-If you have not used Lukso before, start with the [primer](/docs/lukso/primer). If you already know Universal Profiles and just want the working code, jump straight to the [Universal Profile tutorial](/docs/lukso/universal-profile), which mirrors the open-source `permanent-up-app` reference implementation end-to-end.
-
-## Reference implementation
-
-A working Next.js dApp that implements every flow on this section, from connecting a UP through multi-resolution image upload to writing the LSP-2 `VerifiableURI` on chain, lives at [github.com/kaleababayneh/permanent-up](https://github.com/kaleababayneh/permanent-up). Every code sample on the following pages comes from that repo or from the published `@lumera-protocol/data-provider-cascade` package.

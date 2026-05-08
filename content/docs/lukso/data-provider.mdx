@@ -1,5 +1,5 @@
 ---
-title: Data-provider package & cascade-api
+title: Data-provider package
 description: Reference for @lumera-protocol/data-provider-cascade and the cascade-api HTTP backend it talks to.
 icon: Package
 ---
@@ -12,7 +12,7 @@ This page documents the two pieces of plumbing the Lukso integration uses: the *
 
 Three things differ from the original:
 
-1. **Endpoint is owned by Lumera**, not the legacy Pastel gateway.
+1. **Endpoint is owned by Lumera**, not the legacy Pastel gateway. The upstream `@lukso/data-provider-cascade` still hard-codes `https://gateway-api.pastel.network/api/v1/cascade?make_publicly_accessible=true` and returns `ipfs://<cid>` URLs; this package returns hash-bound HTTPS URLs served by cascade-api.
 2. **No third-party API key.** The package talks to a cascade-api backend (yours, or the public one), which performs the on-chain Cascade transaction using `@lumera-protocol/sdk-js`. Authentication, signing, and gas are the backend's concern.
 3. **Configurable.** Endpoint, paths, and an optional `Authorization: Bearer` token can all be set on the constructor.
 
@@ -269,27 +269,25 @@ The hash binding in the `VerifiableURI` guarantees the gateway can't tamper with
 In practice, three options for production:
 
 1. **Trust the public deployment.** `api.lumera.help` is operator-funded and stable for testnet/early-mainnet usage. No operational burden on you.
-2. **Self-host a cascade-api.** Clone the [cascade-api](https://github.com/...) repo, point your dApp at your domain, control your own uptime. The HTTP surface is identical, so client code ports as-is.
+2. **Self-host a cascade-api.** Run the backend behind your own domain, point your dApp at it, control your own uptime. The HTTP surface above is identical regardless of who's running it, so client code ports as-is.
 3. **Use multiple gateways.** Resolvers like `@lukso/data-provider-urlresolver` can be configured with multiple fallback hosts. Pair this with multiple cascade-api deployments (yours + Lumera's + maybe a community-run one) for redundancy.
 
 For the LSP-3 demo and most early integrations, option 1 is the right call. For an NFT marketplace expecting decade-scale viability, plan for option 3.
 
 ## Self-hosting cascade-api
 
-The complete cascade-api source ships as a small Go service. Quick start:
+The cascade-api backend is a small Go service that holds a Lumera signing key, signs `MsgRequestAction` directly, and pays Cascade fees in `ulume` on the caller's behalf. The startup sequence:
 
 ```sh
-git clone https://github.com/.../cascade-api
-cd cascade-api
 echo "<your lumera mnemonic>" > lumera-keys/mnemonic.txt
 chmod 600 lumera-keys/mnemonic.txt
-export CASCADE_API_TOKEN=$(openssl rand -hex 32)
+export CASCADE_API_TOKEN=$(openssl rand -hex 32)   # optional but recommended
 go build && ./cascade-api -addr :7000
 ```
 
-First run derives your `lumera1...` address from the mnemonic, registers its pubkey on chain, opens a Cascade SDK client, and starts serving. Fund the address with at least 50000 ulume from the [faucet](/docs/faucet) before the first upload.
+First run derives the `lumera1...` address from the mnemonic, registers its pubkey on chain (a 1-ulume self-send if not already registered), opens a Cascade SDK client, and starts serving. Fund the address with at least 50 000 `ulume` from the [faucet](/docs/faucet) before the first upload — each Cascade write costs roughly 10–15 k ulume.
 
-To point the data-provider at it:
+To point the data-provider at your own deployment:
 
 ```ts
 const uploader = new CascadeUploader({
@@ -298,16 +296,10 @@ const uploader = new CascadeUploader({
 });
 ```
 
-## Source code
-
-- Package: `@lumera-protocol/data-provider-cascade` on npm
-- HTTP surface: cascade-api repo
-- Reference dApp using both: [github.com/kaleababayneh/permanent-up](https://github.com/kaleababayneh/permanent-up)
-
 ## Next steps
 
 <Cards>
   <Card title="Lukso × Cascade overview" href="/docs/lukso" />
   <Card title="Universal Profile tutorial" href="/docs/lukso/universal-profile" />
-  <Card title="Digital assets (LSP-4/7/8)" href="/docs/lukso/digital-assets" />
+  <Card title="Try Cascade" href="/docs/lukso/try-cascade" />
 </Cards>

@@ -4,13 +4,11 @@ description: A short tour of Universal Profiles, LSP standards, and the on-chain
 icon: BookOpen
 ---
 
-This page is a one-stop primer for developers who have not built on Lukso before. It covers only the surface area you need to integrate Cascade: how Universal Profiles store data, how LSP-2 `VerifiableURI` works, and which LSP standards reference off-chain JSON.
 
-If you already know your way around Lukso and `erc725.js`, skip to [Universal Profile tutorial](/docs/lukso/universal-profile).
 
-## What Lukso is
+## What is Lukso?
 
-Lukso is an EVM-compatible Layer-1 created by [Fabian Vogelsteller](https://twitter.com/feindura) (the original author of ERC-20 and Web3.js). The native token is `LYX`. Mainnet chain ID is `42`, testnet chain ID is `4201`. The fee model is standard EVM.
+Lukso is an EVM-compatible Layer-1. The native token is `LYX` on mainnet and `LYXt` on testnet. Mainnet chain ID is `42`, testnet chain ID is `4201`. The fee model is standard EVM.
 
 What sets Lukso apart from other EVM chains is the **LSP standards stack**, a set of contract and metadata standards designed for a creator-economy / digital-identity flavour of on-chain life. The core building block is the **Universal Profile**.
 
@@ -18,9 +16,9 @@ What sets Lukso apart from other EVM chains is the **LSP standards stack**, a se
 
 A Universal Profile (UP) is **not a normal EOA wallet**. It is a smart-contract account that conforms to:
 
-- [**LSP-0 ERC725Account**](https://docs.lukso.tech/standards/accounts/lsp0-erc725account) — the contract account standard. Implements `setData`, `getData`, `execute`, plus a generic ownership model.
-- [**LSP-1 Universal Receiver**](https://docs.lukso.tech/standards/accounts/lsp1-universal-receiver) — a notification hook that fires when the account receives anything (assets, vaults, arbitrary data). Out of scope for storage.
-- [**LSP-6 Key Manager**](https://docs.lukso.tech/standards/access-control/lsp6-key-manager) (optional but typical) — separates the controller key (e.g. your browser-extension EOA) from the UP itself, so you can sign without giving the controller "ownership" of the UP outright.
+- [**LSP-0 ERC725Account**](https://docs.lukso.tech/standards/accounts/lsp0-erc725account) the contract account standard. Implements `setData`, `getData`, `execute`, plus a generic ownership model.
+- [**LSP-1 Universal Receiver**](https://docs.lukso.tech/standards/accounts/lsp1-universal-receiver) a notification hook that fires when the account receives anything (assets, vaults, arbitrary data). Out of scope for storage.
+- [**LSP-6 Key Manager**](https://docs.lukso.tech/standards/access-control/lsp6-key-manager) separates the controller key (e.g. your browser-extension EOA) from the UP itself, so you can sign without giving the controller "ownership" of the UP outright.
 
 So when a user "connects their Universal Profile", what the dApp actually sees is the UP's contract address. Transactions originating from that address are routed by the UP browser extension through the controller key into a `setData` or `execute` call on the UP.
 
@@ -69,11 +67,11 @@ These are the standards that reference off-chain JSON, the ones where Cascade ha
 
 Other LSPs you may encounter, none of which are Cascade-relevant on their own:
 
-- **LSP-5 ReceivedAssets** / **LSP-10 ReceivedVaults** — ERC725Y arrays of contract addresses the UP holds. Auto-managed by the LSP-1 receiver delegate.
-- **LSP-7 Digital Asset** / **LSP-8 Identifiable Digital Asset** — fungible / non-fungible token contracts. The **contracts** are on-chain; their `LSP4Metadata` is what touches Cascade.
-- **LSP-12 IssuedAssets** — array of asset contracts this UP has issued.
-- **LSP-23 Linked Contracts Factory** — used to deploy a UP + Key Manager pair atomically.
-- **LSP-26 Follower System** — social graph contract.
+- **LSP-5 ReceivedAssets** / **LSP-10 ReceivedVaults** ERC725Y arrays of contract addresses the UP holds. Auto-managed by the LSP-1 receiver delegate.
+- **LSP-7 Digital Asset** / **LSP-8 Identifiable Digital Asset** fungible / non-fungible token contracts. The **contracts** are on-chain; their `LSP4Metadata` is what touches Cascade.
+- **LSP-12 IssuedAssets** array of asset contracts this UP has issued.
+- **LSP-23 Linked Contracts Factory** used to deploy a UP + Key Manager pair atomically.
+- **LSP-26 Follower System** social graph contract.
 
 ## A worked example: where a profile picture actually lives
 
@@ -85,10 +83,10 @@ Take a UP with a profile picture set. The full retrieval path:
 4. Reader recomputes `keccak256(utf8)` over the JSON, compares against the on-chain hash. If mismatch, reject.
 5. Reader parses the JSON, finds `LSP3Profile.profileImage[0].url` = `https://api.lumera.help/download/15824`.
 6. Reader does an HTTPS GET on **that** URL. Gets back the JPEG bytes.
-7. If the JSON entry includes `verification: { method: "keccak256(bytes)", data: "0x..." }`, the reader recomputes the keccak256 of the image bytes and verifies again.
+7. The JSON entry includes `verification: { method: "keccak256(bytes)", data: "0x..." }`; the reader recomputes the keccak256 of the image bytes and verifies again.
 8. Reader renders the image.
 
-That second-level verification (per-image) is opt-in but recommended: it lets the reader trust each individual asset URL independently, not just the JSON wrapper.
+That second-level verification (per-image) is what makes the asset chain trustworthy end-to-end: each individual URL is anchored to a hash inside a JSON whose own hash is anchored on-chain.
 
 ## Tools you will use
 
@@ -99,8 +97,6 @@ The integration on the Lukso side is just three packages:
 | [`@erc725/erc725.js`](https://www.npmjs.com/package/@erc725/erc725.js) | Encode / decode ERC725Y values, compute the LSP-2 `VerifiableURI` byte layout |
 | [`@lumera-protocol/data-provider-cascade`](/docs/lukso/data-provider) | Upload files to Cascade and get back a hash-bound HTTPS URL |
 | [`viem`](https://viem.sh) (or ethers/web3) | Talk to Lukso L1: connect the UP browser extension and call `setData` |
-
-You do **not** need `@lumera-protocol/sdk-js` on the Lukso side. The Cosmos SDK is hidden inside the cascade-api backend.
 
 ## Where to go next
 

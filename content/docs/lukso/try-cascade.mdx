@@ -9,7 +9,7 @@ The [Demo page](/docs/lukso/demo) lets you update your real Universal Profile on
 Nothing in the demo is a sandbox; the transactions are real, the Cascade actions are real. The dApp does the same thing the [Universal Profile tutorial](/docs/lukso/universal-profile) walks through step-by-step, just wrapped in a UI.
 
 <Callout>
-You'll need the [Universal Profile Browser Extension](https://my.universalprofile.cloud) connected to a UP that holds at least a few millilyx for gas. If you change your mind mid-flow, just close the extension popup, no transaction is sent until you approve it.
+You'll need the [Universal Profile Browser Extension](https://my.universalprofile.cloud) connected to a UP that holds enough LYX for gas. If you change your mind mid-flow, just close the extension popup — no transaction is sent until you approve it.
 </Callout>
 
 <Cards>
@@ -27,10 +27,11 @@ You'll need the [Universal Profile Browser Extension](https://my.universalprofil
 
 Every Cascade upload becomes its own action on lumera-testnet-2 with its own `tx_hash`, all listed in the ledger panel of the demo.
 
-## Source
+## Notes on this embedded demo
 
-- The embedded component lives at `components/lukso-try-cascade/` in the docs repo.
-- A standalone Next.js version (with a server-side bearer-token proxy instead of browser-direct uploads) lives at [github.com/kaleababayneh/permanent-up](https://github.com/kaleababayneh/permanent-up).
+- The demo POSTs uploads from the browser directly to cascade-api using a quota-capped public key (`docs-public`). A standalone production dApp normally proxies uploads through a server-side route handler so the bearer token stays off the client — see the [Universal Profile tutorial](/docs/lukso/universal-profile) for that pattern.
+- The wallet client is hard-coded to mainnet (`viem`'s `lukso` chain, ID 42). To target testnet, run a local copy of the dApp and swap `lukso` for `luksoTestnet`.
+- The embedded component lives at `components/lukso-try-cascade/` in the docs repo. The `permanent-up-app` reference dApp that ships alongside these docs is structurally identical, minus the docs-site theming.
 
 ## Next steps
 

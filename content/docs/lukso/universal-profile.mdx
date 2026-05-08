@@ -8,21 +8,17 @@ icon: UserRound
 
 A small web flow that, given a connected Universal Profile, uploads a profile image at multiple resolutions, an optional background image, an optional 3D avatar, plus the LSP-3 JSON itself to Cascade, encodes a hash-bound LSP-2 `VerifiableURI`, and writes it to the user's UP. Once the transaction confirms, the profile renders correctly on `universalprofile.cloud`, `universaleverything.io`, and the Universal Profile Browser Extension, with no reader-side awareness that Cascade is involved.
 
-The reference implementation in this guide mirrors [`permanent-up-app`](https://github.com/kaleababayneh/permanent-up) one-to-one. If you want to read the working code instead of recreating it from snippets, clone the repo and follow its README.
-
 ## Prerequisites
 
-- A Universal Profile on Lukso mainnet or testnet. If you don't have one, install the [Universal Profile Browser Extension](https://my.universalprofile.cloud) and create one.
-- A cascade-api bearer token. The public deployment lives at `https://api.lumera.help`; request a key from the operator. To self-host, follow the cascade-api repo.
-- Node.js 22 or newer.
+- A Universal Profile on Lukso mainnet (chain ID 42) or testnet (chain ID 4201). If you don't have one, install the [Universal Profile Browser Extension](https://my.universalprofile.cloud) and create one. The wallet wiring shown below targets mainnet by default; swap `lukso` for `luksoTestnet` if you're on testnet.
+- A cascade-api bearer token. The public deployment lives at `https://api.lumera.help`; request a key from the operator. Self-hosters can run the backend without auth.
+- Node.js 20+.
 
 ## Install
 
 ```package-install
 npm install @erc725/erc725.js @lumera-protocol/data-provider-cascade viem
 ```
-
-You do **not** need `@lumera-protocol/sdk-js` on this side: `@lumera-protocol/data-provider-cascade` posts to a cascade-api backend that holds the Lumera key for you.
 
 ## Architecture
 
@@ -44,10 +40,6 @@ browser
 
 Two halves: the Lukso half (browser ↔ Lukso L1, signed by the UP browser extension) and the Cascade half (browser → your server → cascade-api). The two halves only meet in `setData`, where you write the cascade-api URL into LSP-3.
 
-<Callout type="warn">
-The cascade-api bearer token is sensitive. Keep it server-side: a Next.js Route Handler is the simplest place. Never expose it as a `NEXT_PUBLIC_*` variable in production, unless you've intentionally allocated a quota-limited key for browser-direct upload.
-</Callout>
-
 ## Step 1: Build the LSP-3 JSON
 
 LSP-3 is a fixed shape. The schema lives in `@erc725/erc725.js/schemas/LSP3ProfileMetadata.json`.
@@ -61,10 +53,9 @@ type ImageEntry = {
 };
 
 type AvatarEntry = {
-  hashFunction: "keccak256(bytes)";
-  hash: `0x${string}`;
   url: string;
   fileType: string;
+  verification: { method: "keccak256(bytes)"; data: `0x${string}` };
 };
 
 export type LSP3ProfileJSON = {
@@ -80,12 +71,11 @@ export type LSP3ProfileJSON = {
 };
 ```
 
-Notice the **two different verification shapes**:
+Every asset entry uses the same `verification: { method, data }` shape; the only structural difference is that `profileImage[]` and `backgroundImage[]` carry `width`/`height` (so readers can pick a resolution), while `avatar[]` carries `fileType` (so renderers can pick `.vrm`, `.glb`, `.gltf` etc.).
 
-- `profileImage[]` and `backgroundImage[]` use the modern `verification: { method, data }` form.
-- `avatar[]` uses the legacy `{ hashFunction, hash, fileType }` form.
-
-Both are spec-conformant. `erc725.js` accepts either.
+<Callout>
+Some older tutorials show `avatar[]` entries as `{ hashFunction, hash, fileType, url }`. That predates the [current LSP-3 spec](https://github.com/lukso-network/LIPs/blob/main/LSPs/LSP-3-Profile-Metadata.md) and the schemas shipped with `@erc725/erc725.js` ≥ 0.21, both of which use `verification`. New code should use `verification`.
+</Callout>
 
 ## Step 2: Resize images client-side
 
@@ -158,10 +148,6 @@ export async function POST(req: Request): Promise<Response> {
 
 `uploadWithMetadata()` is a Lumera-specific extension that returns the cascade-api raw response (`tx_hash`, `block_height`, `action_id`, etc.) on top of the standard `{ url, hash }` shape. If you only need the standard shape (for instance, you're swapping out an existing `@lukso/data-provider-pinata` call), use `uploader.upload(file)` instead and get back `{ url, hash }`.
 
-<Callout type="warn">
-On Vercel's Hobby plan the request body is capped at 4.5 MB. Most images fit, but VRM avatars are typically 5-30 MB. Production deployments either use a Vercel paid tier (100 MB on Pro, 1 GB on Enterprise), self-host, or skip the proxy and let the browser POST to cascade-api directly with a quota-limited bearer token.
-</Callout>
-
 ## Step 4: Encode the LSP-2 `VerifiableURI`
 
 `erc725.js` knows the byte layout. Pass the JSON object and its URL; it computes the hash and stitches the bytes together.
@@ -201,7 +187,7 @@ The `0x6f357c6a` is the `keccak256(utf8)` method ID. The `0x0020` is the hash le
 
 ```ts title="lib/wallet.ts"
 import { createWalletClient, custom, parseAbi } from "viem";
-import { lukso } from "viem/chains";
+import { lukso, luksoTestnet } from "viem/chains";
 
 const UP_ABI = parseAbi([
   "function setData(bytes32 dataKey, bytes dataValue) external payable",
@@ -213,7 +199,7 @@ export async function setUPData(
   value: `0x${string}`,
 ): Promise<`0x${string}`> {
   const client = createWalletClient({
-    chain: lukso,
+    chain: lukso, // or luksoTestnet for chain ID 4201
     transport: custom(window.lukso!), // UP browser extension
   });
   return client.writeContract({
@@ -264,10 +250,9 @@ async function onSubmit() {
   if (avatarFile) {
     const r = await uploadToCascade(avatarFile, avatarFile.name);
     avatar.push({
-      hashFunction: "keccak256(bytes)",
-      hash: r.hash,
       url: r.url,
       fileType: detectFileType(avatarFile), // "vrm", "glb", "png", ...
+      verification: { method: "keccak256(bytes)", data: r.hash },
     });
   }
 
@@ -323,14 +308,10 @@ console.log(data.value);
 4. **Keep the bearer token server-side**. Move the upload through a Next.js Route Handler. Server-side concurrency will be the eventual bottleneck before client-side will.
 5. **The on-chain footprint per save is one `setData` call**. The total work the user signs is exactly one transaction on Lukso, regardless of how many Cascade uploads happened.
 
-## Source code
-
-The complete implementation: [github.com/kaleababayneh/permanent-up](https://github.com/kaleababayneh/permanent-up).
-
 ## Next steps
 
 <Cards>
   <Card title="Digital assets (LSP-4/7/8)" href="/docs/lukso/digital-assets" />
   <Card title="Data-provider package reference" href="/docs/lukso/data-provider" />
-  <Card title="Lukso primer" href="/docs/lukso/primer" />
+  <Card title="Try Cascade" href="/docs/lukso/try-cascade" />
 </Cards>

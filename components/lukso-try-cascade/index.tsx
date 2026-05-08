@@ -150,10 +150,9 @@ export function LuksoTryCascade() {
       }
 
       const avatar: {
-        hashFunction: "keccak256(bytes)";
-        hash: `0x${string}`;
         url: string;
         fileType: string;
+        verification: { method: "keccak256(bytes)"; data: `0x${string}` };
       }[] = [];
       if (avatarFile) {
         const fileType = detectFileType(avatarFile);
@@ -165,10 +164,9 @@ export function LuksoTryCascade() {
           ledgerFromUpload("avatar", `.${fileType}`, avatarFile.name, avatarFile.size, r),
         );
         avatar.push({
-          hashFunction: "keccak256(bytes)",
-          hash: r.hash,
           url: r.url,
           fileType,
+          verification: { method: "keccak256(bytes)", data: r.hash },
         });
       }
 

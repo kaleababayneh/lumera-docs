@@ -5,12 +5,12 @@
     "index",
     "getting-started",
     "guides",
-    "lukso",
     "concepts",
     "reference",
     "validators",
     "supernodes",
     "app",
-    "faucet"
+    "faucet",
+    "lukso"
   ]
 }
