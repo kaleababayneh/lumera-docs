@@ -36,8 +36,10 @@ const LUKSO_BASE_URL = "/docs/lukso";
 
 /**
  * Reduce the full Fumadocs page tree to one that contains only the Lukso
- * section, with the Lukso folder's children promoted to the root so the
- * sidebar reads as a Lukso-only docs site (no parent folder grouping).
+ * section. The Lukso *folder* is kept intact (with its name, icon, and
+ * collapsible header) and just becomes the single top-level child of the
+ * sidebar tree. `defaultOpen` is forced so the section is expanded on
+ * first paint instead of requiring the user to click the chevron.
  *
  * Falls back to the unfiltered tree if the Lukso folder can't be found
  * (e.g. someone removed the section). That's a safe fallback: the
@@ -48,20 +50,9 @@ export function buildLuksoTree(tree: PageTree.Root): PageTree.Root {
   const luksoFolder = findLuksoFolder(tree.children);
   if (!luksoFolder) return tree;
 
-  const seen = new Set<string>();
-  const out: PageTree.Node[] = [];
-  if (luksoFolder.index) {
-    out.push(luksoFolder.index);
-    seen.add(luksoFolder.index.url);
-  }
-  for (const child of luksoFolder.children) {
-    if (child.type === "page" && seen.has(child.url)) continue;
-    out.push(child);
-  }
-
   return {
-    name: luksoFolder.name,
-    children: out,
+    name: tree.name,
+    children: [{ ...luksoFolder, defaultOpen: true }],
   };
 }
 
