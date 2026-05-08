@@ -1,0 +1,111 @@
+---
+title: Lukso primer
+description: A short tour of Universal Profiles, LSP standards, and the on-chain data shapes that make Cascade a drop-in storage layer.
+icon: BookOpen
+---
+
+This page is a one-stop primer for developers who have not built on Lukso before. It covers only the surface area you need to integrate Cascade: how Universal Profiles store data, how LSP-2 `VerifiableURI` works, and which LSP standards reference off-chain JSON.
+
+If you already know your way around Lukso and `erc725.js`, skip to [Universal Profile tutorial](/docs/lukso/universal-profile).
+
+## What Lukso is
+
+Lukso is an EVM-compatible Layer-1 created by [Fabian Vogelsteller](https://twitter.com/feindura) (the original author of ERC-20 and Web3.js). The native token is `LYX`. Mainnet chain ID is `42`, testnet chain ID is `4201`. The fee model is standard EVM.
+
+What sets Lukso apart from other EVM chains is the **LSP standards stack**, a set of contract and metadata standards designed for a creator-economy / digital-identity flavour of on-chain life. The core building block is the **Universal Profile**.
+
+## Universal Profiles
+
+A Universal Profile (UP) is **not a normal EOA wallet**. It is a smart-contract account that conforms to:
+
+- [**LSP-0 ERC725Account**](https://docs.lukso.tech/standards/accounts/lsp0-erc725account) — the contract account standard. Implements `setData`, `getData`, `execute`, plus a generic ownership model.
+- [**LSP-1 Universal Receiver**](https://docs.lukso.tech/standards/accounts/lsp1-universal-receiver) — a notification hook that fires when the account receives anything (assets, vaults, arbitrary data). Out of scope for storage.
+- [**LSP-6 Key Manager**](https://docs.lukso.tech/standards/access-control/lsp6-key-manager) (optional but typical) — separates the controller key (e.g. your browser-extension EOA) from the UP itself, so you can sign without giving the controller "ownership" of the UP outright.
+
+So when a user "connects their Universal Profile", what the dApp actually sees is the UP's contract address. Transactions originating from that address are routed by the UP browser extension through the controller key into a `setData` or `execute` call on the UP.
+
+## ERC725Y: the key/value store
+
+LSP-0 brings a `bytes32 → bytes` mapping to the contract:
+
+```solidity
+function setData(bytes32 dataKey, bytes memory dataValue) external;
+function getData(bytes32 dataKey) external view returns (bytes memory);
+```
+
+This is the **ERC725Y** part of the standard. Every piece of structured data on a UP, an asset contract, or a vault, lives in this mapping under a deterministic key. The keys are 32-byte hashes derived from the data's name (e.g. `keccak256("LSP3Profile")[0:32]`). The values are arbitrary bytes whose interpretation depends on the standard.
+
+You don't compute these keys by hand: [`@erc725/erc725.js`](https://www.npmjs.com/package/@erc725/erc725.js) ships a JSON schema for every standard key and handles the encoding for you.
+
+## LSP-2: the schema and `VerifiableURI`
+
+[LSP-2](https://docs.lukso.tech/standards/metadata/lsp2-json-schema) defines how to interpret values stored under ERC725Y keys. Most metadata-bearing keys (including all the ones we care about) are **`VerifiableURI`** values: a fixed-layout byte string that combines a hash with a URI.
+
+```text
+0x0000 <method-id 4B> 0x0020 <keccak256 hash 32B> <URI bytes…>
+        ↑                       ↑
+        which hash function     hash of the JSON body the URI serves
+```
+
+The two `method-id`s you'll see in the wild:
+
+| Method | Method ID | Hash function | Typical URL |
+|---|---|---|---|
+| `keccak256(utf8)` | `6f357c6a` | keccak256 of the UTF-8 JSON | `ipfs://...`, `https://...` |
+| `keccak256(bytes)` | `8019f9b1` | keccak256 of raw bytes | `data:application/json;base64,...` |
+
+Readers fetch the URI's payload, recompute the hash with the indicated method, and reject any mismatch. **The URI scheme itself is opaque to the standard**, so cascade-api gateway URLs slot in identically to `ipfs://` URIs.
+
+## The metadata-bearing LSPs
+
+These are the standards that reference off-chain JSON, the ones where Cascade has a place:
+
+| LSP | Lives on | Key | Off-chain JSON contains |
+|---|---|---|---|
+| [**LSP-3** Profile Metadata](https://docs.lukso.tech/standards/metadata/lsp3-profile-metadata) | Universal Profile | `LSP3Profile` | name, description, links, tags, profileImage[], backgroundImage[], avatar[] |
+| [**LSP-4** Digital Asset Metadata](https://docs.lukso.tech/standards/tokens/LSP4-Digital-Asset-Metadata) | LSP-7 / LSP-8 contract | `LSP4Metadata` | name, description, links, attributes[], icon[], images[][], assets[], backgroundImage[] |
+| **LSP-8 per-token** | LSP-8 contract | `LSP4Metadata` via `setDataForTokenId(tokenId, ...)` | same shape as LSP-4, scoped to one tokenId |
+| [**LSP-9** Vault](https://docs.lukso.tech/standards/accounts/lsp9-vault) | Vault contract | `LSP3Profile` (vaults reuse the LSP-3 shape) | same shape as LSP-3 |
+
+Other LSPs you may encounter, none of which are Cascade-relevant on their own:
+
+- **LSP-5 ReceivedAssets** / **LSP-10 ReceivedVaults** — ERC725Y arrays of contract addresses the UP holds. Auto-managed by the LSP-1 receiver delegate.
+- **LSP-7 Digital Asset** / **LSP-8 Identifiable Digital Asset** — fungible / non-fungible token contracts. The **contracts** are on-chain; their `LSP4Metadata` is what touches Cascade.
+- **LSP-12 IssuedAssets** — array of asset contracts this UP has issued.
+- **LSP-23 Linked Contracts Factory** — used to deploy a UP + Key Manager pair atomically.
+- **LSP-26 Follower System** — social graph contract.
+
+## A worked example: where a profile picture actually lives
+
+Take a UP with a profile picture set. The full retrieval path:
+
+1. Reader queries `getData(LSP3Profile)` on the UP contract. Gets back ~50 bytes of `VerifiableURI`.
+2. Reader parses out the hash and the URL (let's say `https://api.lumera.help/download/15823`).
+3. Reader does an HTTPS GET on that URL. Gets back ~600 bytes of LSP-3 JSON.
+4. Reader recomputes `keccak256(utf8)` over the JSON, compares against the on-chain hash. If mismatch, reject.
+5. Reader parses the JSON, finds `LSP3Profile.profileImage[0].url` = `https://api.lumera.help/download/15824`.
+6. Reader does an HTTPS GET on **that** URL. Gets back the JPEG bytes.
+7. If the JSON entry includes `verification: { method: "keccak256(bytes)", data: "0x..." }`, the reader recomputes the keccak256 of the image bytes and verifies again.
+8. Reader renders the image.
+
+That second-level verification (per-image) is opt-in but recommended: it lets the reader trust each individual asset URL independently, not just the JSON wrapper.
+
+## Tools you will use
+
+The integration on the Lukso side is just three packages:
+
+| Package | What for |
+|---|---|
+| [`@erc725/erc725.js`](https://www.npmjs.com/package/@erc725/erc725.js) | Encode / decode ERC725Y values, compute the LSP-2 `VerifiableURI` byte layout |
+| [`@lumera-protocol/data-provider-cascade`](/docs/lukso/data-provider) | Upload files to Cascade and get back a hash-bound HTTPS URL |
+| [`viem`](https://viem.sh) (or ethers/web3) | Talk to Lukso L1: connect the UP browser extension and call `setData` |
+
+You do **not** need `@lumera-protocol/sdk-js` on the Lukso side. The Cosmos SDK is hidden inside the cascade-api backend.
+
+## Where to go next
+
+<Cards>
+  <Card title="Universal Profile tutorial" href="/docs/lukso/universal-profile" />
+  <Card title="Digital assets (LSP-4/7/8)" href="/docs/lukso/digital-assets" />
+  <Card title="Data-provider package" href="/docs/lukso/data-provider" />
+</Cards>

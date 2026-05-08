@@ -1,0 +1,11 @@
+{
+  "title": "Lukso",
+  "icon": "Network",
+  "pages": [
+    "index",
+    "primer",
+    "universal-profile",
+    "digital-assets",
+    "data-provider"
+  ]
+}

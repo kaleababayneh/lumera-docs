@@ -1,0 +1,77 @@
+---
+title: Lukso × Cascade
+description: Use Lumera Cascade as the permanent storage layer for Lukso Universal Profiles, digital assets, and any LSP that references off-chain JSON metadata.
+icon: Network
+---
+
+## The integration in three sentences
+
+[Lukso](https://lukso.network) is an EVM Layer-1 whose flagship feature, **Universal Profiles**, is built on a family of **LSP** standards that reference off-chain JSON metadata via on-chain hash-bound pointers (LSP-2 `VerifiableURI`). Today that metadata is almost always pinned to IPFS through Pinata or Infura, which means it lives only as long as someone keeps paying the pinning bill. Cascade is a strict upgrade for that exact slot: pay once, store forever, with on-chain proof of storage and protocol-level redundancy across the Supernode network.
+
+There is no token bridge in scope here. Lukso is not IBC-enabled. The integration is metadata and storage only, which is also exactly where Cascade's value proposition is sharpest.
+
+## Why this fits
+
+| | IPFS pinning (Pinata / Infura) | Cascade |
+|---|---|---|
+| Persistence | Pin-dependent; lapsed pin = lost data | Permanent, enforced by protocol |
+| Pricing | Recurring per-month bills | Pay once on-chain |
+| Redundancy | None by default | RaptorQ erasure coding across Supernodes |
+| Self-healing | No | Yes, automatic chunk restoration |
+| Reader compatibility | Standard IPFS gateways | Standard HTTPS gateways (cascade-api) |
+
+The reader-compatibility row is the important one for a Lukso integration: **Cascade is a drop-in upgrade**. No reader-side changes, no new wallets, no new schemas. The only thing that changes is who is keeping the bytes alive in 2030.
+
+## How a Lukso reader sees it
+
+A Universal Profile or LSP-8 NFT contract has an ERC725Y key/value store. One of those keys, e.g. `LSP3Profile`, holds an LSP-2 `VerifiableURI`:
+
+```text
+0x0000 <method-id 4B> 0x0020 <keccak256 hash 32B> <URI bytes…>
+```
+
+The hash binds the URI's payload. Readers fetch the bytes from the URI, recompute the keccak256, compare against the on-chain commitment, and reject any mismatch. **The URI scheme itself is opaque to the standard**, so anything that returns the original bytes works: `ipfs://`, `https://`, `data:`, anything.
+
+When the URI points at a [cascade-api](/docs/lukso/data-provider#the-cascade-api-http-surface) gateway URL, the reader has no idea Cascade exists. It sees a normal HTTPS URL that returns bytes whose hash matches the on-chain commitment, which is all it cares about.
+
+## What lives where
+
+| | On Lukso L1 | On Cascade |
+|---|---|---|
+| LSP-3 Universal Profile pointer (~50 bytes) | ✓ | |
+| LSP-3 JSON document | | ✓ |
+| Profile / background / avatar images | | ✓ |
+| LSP-7 / LSP-8 contract code + storage roots | ✓ | |
+| LSP-4 collection metadata pointer | ✓ | |
+| LSP-4 metadata JSON + asset images / 3D / video | | ✓ |
+| Per-token LSP-8 metadata pointers | ✓ | |
+| Per-token metadata JSON + media | | ✓ |
+
+The on-chain footprint stays tiny; the off-chain footprint, which is most of the data by weight, is where Cascade earns its keep.
+
+## Trust model
+
+Cascade itself is permanent: the bytes survive forever. The URL embedded in the on-chain `VerifiableURI` points at whichever gateway you configure, so readers depend on **that domain being reachable** to retrieve the metadata. The hash binding guarantees the gateway can't tamper with the bytes, only deny service.
+
+In production this means you should either:
+
+- Point at the public Lumera-operated cascade-api gateway, **or**
+- Run your own cascade-api behind a stable domain you control, **or**
+- Configure multiple readers with a Cascade-aware URL resolver that talks to the Supernode network directly.
+
+For a deeper look, see the [Permanence note](/docs/lukso/data-provider#permanence-and-reachability) on the data-provider page.
+
+## Where to next
+
+<Cards>
+  <Card title="Lukso primer" href="/docs/lukso/primer" />
+  <Card title="Universal Profile tutorial" href="/docs/lukso/universal-profile" />
+  <Card title="Digital assets (LSP-4/7/8)" href="/docs/lukso/digital-assets" />
+  <Card title="Data-provider package + cascade-api" href="/docs/lukso/data-provider" />
+</Cards>
+
+If you have not used Lukso before, start with the [primer](/docs/lukso/primer). If you already know Universal Profiles and just want the working code, jump straight to the [Universal Profile tutorial](/docs/lukso/universal-profile), which mirrors the open-source `permanent-up-app` reference implementation end-to-end.
+
+## Reference implementation
+
+A working Next.js dApp that implements every flow on this section, from connecting a UP through multi-resolution image upload to writing the LSP-2 `VerifiableURI` on chain, lives at [github.com/kaleababayneh/permanent-up](https://github.com/kaleababayneh/permanent-up). Every code sample on the following pages comes from that repo or from the published `@lumera-protocol/data-provider-cascade` package.

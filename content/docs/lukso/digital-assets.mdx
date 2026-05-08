@@ -1,0 +1,255 @@
+---
+title: Digital assets (LSP-4 / LSP-7 / LSP-8)
+description: Mint LSP-7 fungibles and LSP-8 NFTs with collection metadata, per-token metadata, and large media assets stored permanently on Cascade.
+icon: Coins
+---
+
+LSP-3 lives on a Universal Profile. Digital-asset metadata lives on the **token contract** itself, and on LSP-8 it can also live **per token ID**. The Cascade integration is identical to the LSP-3 flow, just pointed at different keys and contracts.
+
+This page assumes you already understand the [LSP-3 flow](/docs/lukso/universal-profile). We'll only cover the diffs.
+
+## Where the metadata lives
+
+| Standard | Contract | Key | What it describes |
+|---|---|---|---|
+| **LSP-4** Digital Asset Metadata | LSP-7 or LSP-8 contract | `LSP4Metadata` (set via `setData`) | Collection-level info: name, description, attributes, primary art |
+| **LSP-7** Digital Asset (fungibles) | LSP-7 contract | `LSP4Metadata` (whole supply shares it) | Token info, brand assets |
+| **LSP-8** Identifiable Digital Asset (NFTs) | LSP-8 contract | `LSP4Metadata` via `setDataForTokenId(tokenId, ...)` | Per-token info: art, attributes, animation_url |
+
+The `LSP4Metadata` data key is the same in all cases:
+
+```text
+0x9afb95cacc9f95858ec44aa8c3b685511002e30ae54415823f406128b85b238e
+```
+
+The shape it points at is also the same: a `VerifiableURI` referencing a JSON file.
+
+## The LSP-4 JSON shape
+
+```ts
+type LSP4Metadata = {
+  LSP4Metadata: {
+    name: string;
+    description: string;
+    links: { title: string; url: string }[];
+    attributes: { key: string; value: string; type: "string" | "number" | "boolean" }[];
+    icon: ImageEntry[];
+    images: ImageEntry[][]; // array of arrays, each inner array is multi-resolution variants of one image
+    assets: AssetEntry[];   // raw media: GLB, MP4, MP3, etc.
+    backgroundImage: ImageEntry[];
+  };
+};
+
+type ImageEntry = {
+  width: number;
+  height: number;
+  url: string;
+  verification: { method: "keccak256(bytes)"; data: `0x${string}` };
+};
+
+type AssetEntry = {
+  url: string;
+  fileType: string; // "glb", "mp4", "wav", "pdf", ...
+  verification: { method: "keccak256(bytes)"; data: `0x${string}` };
+};
+```
+
+Two things to notice that differ from LSP-3:
+
+- `images` is **an array of arrays**: each "image slot" can have multiple resolution variants. So `images[0][0..n]` are variants of the first image, `images[1][0..n]` are variants of the second image, and so on. This is how galleries are represented.
+- `attributes[]` is structured key/value/type tuples, designed to be displayed as NFT trait rows in marketplaces.
+
+## Setting collection-level metadata (LSP-7 or LSP-8)
+
+For a fungible LSP-7 or for the collection-wide metadata of an LSP-8, the flow is identical to LSP-3:
+
+```ts title="set-collection-metadata.ts"
+import { ERC725 } from "@erc725/erc725.js";
+import LSP4Schema from "@erc725/erc725.js/schemas/LSP4DigitalAsset.json" with { type: "json" };
+import { CascadeUploader, uploadJSON } from "@lumera-protocol/data-provider-cascade";
+import { createWalletClient, custom, parseAbi } from "viem";
+import { lukso } from "viem/chains";
+
+const TOKEN_CONTRACT_ABI = parseAbi([
+  "function setData(bytes32 dataKey, bytes dataValue) external",
+]);
+
+async function setCollectionMetadata(
+  contractAddress: `0x${string}`,
+  metadata: LSP4Metadata,
+  uploader: CascadeUploader,
+) {
+  // 1) Upload media first; their URLs go inside the JSON.
+  // ... (resize, upload images, build attributes, etc.)
+
+  // 2) Upload the metadata JSON itself.
+  const { url } = await uploadJSON(uploader, metadata, "lsp4.json");
+
+  // 3) Encode VerifiableURI for LSP4Metadata.
+  const erc725 = new ERC725(LSP4Schema, contractAddress, RPC_URL);
+  const encoded = erc725.encodeData([
+    { keyName: "LSP4Metadata", value: { json: metadata, url } },
+  ]);
+
+  // 4) Write to the token contract.
+  const client = createWalletClient({ chain: lukso, transport: custom(window.lukso!) });
+  return client.writeContract({
+    account: connectedAccount,
+    address: contractAddress,
+    abi: TOKEN_CONTRACT_ABI,
+    functionName: "setData",
+    args: [encoded.keys[0] as `0x${string}`, encoded.values[0] as `0x${string}`],
+  });
+}
+```
+
+The diff vs. LSP-3 is exactly two lines: import a different schema (`LSP4DigitalAsset.json`), call `setData` on the token contract instead of on the UP. Everything else is the same machinery.
+
+## Setting per-token metadata (LSP-8 only)
+
+LSP-8 collections often want different metadata per token: each NFT has its own art, attributes, and rarity. The contract method for that is `setDataForTokenId`:
+
+```solidity
+function setDataForTokenId(
+  bytes32 tokenId,
+  bytes32 dataKey,
+  bytes dataValue
+) external;
+```
+
+Same `dataKey` (`LSP4Metadata`), same value shape, but scoped to one tokenId. From the client side:
+
+```ts title="set-token-metadata.ts"
+import { encodePacked, padHex, parseAbi, toHex } from "viem";
+
+const LSP8_ABI = parseAbi([
+  "function setDataForTokenId(bytes32 tokenId, bytes32 dataKey, bytes dataValue) external",
+]);
+
+async function setTokenMetadata(
+  contractAddress: `0x${string}`,
+  tokenId: bigint,
+  metadata: LSP4Metadata,
+  uploader: CascadeUploader,
+) {
+  const { url } = await uploadJSON(uploader, metadata, `token-${tokenId}.json`);
+
+  const erc725 = new ERC725(LSP4Schema, contractAddress, RPC_URL);
+  const encoded = erc725.encodeData([
+    { keyName: "LSP4Metadata", value: { json: metadata, url } },
+  ]);
+
+  const tokenIdBytes32 = padHex(toHex(tokenId), { size: 32 });
+  return client.writeContract({
+    account: connectedAccount,
+    address: contractAddress,
+    abi: LSP8_ABI,
+    functionName: "setDataForTokenId",
+    args: [tokenIdBytes32, encoded.keys[0], encoded.values[0]],
+  });
+}
+```
+
+The `tokenId` representation depends on your collection's `LSP8TokenIdFormat`:
+
+| Format | tokenId value | Convert to bytes32 |
+|---|---|---|
+| `0` Number | a `uint256` counter | `padHex(toHex(id), { size: 32 })` |
+| `1` String | a UTF-8 string | `padHex(toHex(stringToBytes(id)), { size: 32 })` |
+| `2` Unique bytes | arbitrary 32 bytes | already a `bytes32` |
+| `3` Mixed bytes32 | hashed combination | already a `bytes32` |
+
+## Mint flow with metadata in one go
+
+Putting it together, a clean LSP-8 mint flow looks like this:
+
+```ts title="mint.ts"
+import { parseAbi } from "viem";
+import { CascadeUploader, uploadJSON } from "@lumera-protocol/data-provider-cascade";
+import { ERC725 } from "@erc725/erc725.js";
+import LSP4Schema from "@erc725/erc725.js/schemas/LSP4DigitalAsset.json" with { type: "json" };
+
+const LSP8_ABI = parseAbi([
+  "function mint(address to, bytes32 tokenId, bool force, bytes data) external",
+  "function setDataForTokenId(bytes32 tokenId, bytes32 dataKey, bytes dataValue) external",
+]);
+
+async function mintNFT({
+  contract,
+  recipient,
+  tokenId,
+  artFiles,    // { hero: File; gallery: File[]; animation?: File }
+  attributes,  // { trait_type: string; value: string }[]
+}) {
+  const uploader = new CascadeUploader({ bearerToken: TOKEN });
+
+  // 1) Cascade uploads
+  const heroVariants = await resizeAndUploadAll(artFiles.hero, [512, 1024, 2048], uploader);
+  const galleryVariants = await Promise.all(
+    artFiles.gallery.map((f) => resizeAndUploadAll(f, [512, 1024], uploader)),
+  );
+  const animation = artFiles.animation
+    ? await uploader.upload(artFiles.animation)
+    : null;
+
+  // 2) Build LSP-4 JSON
+  const metadata = {
+    LSP4Metadata: {
+      name: `My Collection #${tokenId}`,
+      description: "Minted with permanent storage on Lumera Cascade",
+      links: [],
+      attributes: attributes.map((a) => ({ key: a.trait_type, value: String(a.value), type: "string" })),
+      icon: heroVariants.slice(0, 1),
+      images: [heroVariants, ...galleryVariants],
+      assets: animation
+        ? [{ url: animation.url, fileType: detectFileType(artFiles.animation), verification: { method: "keccak256(bytes)", data: animation.hash } }]
+        : [],
+      backgroundImage: [],
+    },
+  };
+
+  // 3) Upload JSON, encode VerifiableURI
+  const { url } = await uploadJSON(uploader, metadata, `token-${tokenId}.json`);
+  const erc725 = new ERC725(LSP4Schema, contract, RPC_URL);
+  const encoded = erc725.encodeData([
+    { keyName: "LSP4Metadata", value: { json: metadata, url } },
+  ]);
+
+  // 4) Two transactions: mint + setDataForTokenId. Could be batched via UP execute().
+  const tokenIdBytes32 = padHex(toHex(tokenId), { size: 32 });
+  await client.writeContract({
+    address: contract,
+    abi: LSP8_ABI,
+    functionName: "mint",
+    args: [recipient, tokenIdBytes32, true, "0x"],
+    account: connectedAccount,
+  });
+  await client.writeContract({
+    address: contract,
+    abi: LSP8_ABI,
+    functionName: "setDataForTokenId",
+    args: [tokenIdBytes32, encoded.keys[0] as `0x${string}`, encoded.values[0] as `0x${string}`],
+    account: connectedAccount,
+  });
+}
+```
+
+For a typical NFT (1 hero @ 3 resolutions + 4 gallery items @ 2 resolutions each + 1 animation + 1 metadata JSON) that's **13 Cascade uploads per mint**. Each one is its own permanent on-chain record on Lumera. Each one is hash-bound and verifiable.
+
+## Why this is the highest-value Cascade integration on Lukso
+
+LSP-3 profile metadata is small (typically under 500 KB total per profile). LSP-4 collection metadata is larger but still bounded. **Per-token LSP-8 metadata is unbounded**: every token in a 10000-piece collection has its own art, its own attributes, its own optional animation. That's where IPFS pinning costs really stack up and where Cascade's pay-once model is most asymmetrically better.
+
+If you're building an NFT marketplace or collection-issuance dApp on Lukso, this is the integration that matters.
+
+## A note on `LSP8TokenMetadataBaseURI`
+
+LSP-8 supports an optional collection-wide `LSP8TokenMetadataBaseURI` key that lets you skip per-token `setDataForTokenId` calls if every token's metadata lives at `<baseURI><tokenId>`. You could store the entire metadata directory on Cascade and set `LSP8TokenMetadataBaseURI` to a single Cascade URL prefix... except cascade-api's `/download/<actionId>` model is per-file, not per-directory, so `LSP8TokenMetadataBaseURI` is not a clean fit. Stick with `setDataForTokenId` per-token, which gives you a verifiable hash per token anyway.
+
+## Next steps
+
+<Cards>
+  <Card title="Universal Profile tutorial" href="/docs/lukso/universal-profile" />
+  <Card title="Data-provider package reference" href="/docs/lukso/data-provider" />
+  <Card title="Lukso primer" href="/docs/lukso/primer" />
+</Cards>

@@ -1,0 +1,313 @@
+---
+title: Data-provider package & cascade-api
+description: Reference for @lumera-protocol/data-provider-cascade and the cascade-api HTTP backend it talks to.
+icon: Package
+---
+
+This page documents the two pieces of plumbing the Lukso integration uses: the **`@lumera-protocol/data-provider-cascade`** npm package (used by your dApp) and the **cascade-api** HTTP backend (which the package POSTs to).
+
+## Package overview
+
+`@lumera-protocol/data-provider-cascade` is the Lumera-owned successor to [`@lukso/data-provider-cascade`](https://github.com/lukso-network/tools-data-providers/tree/main/packages/data-provider-cascade). It follows the same design pattern: extends `BaseFormDataUploader` from `@lukso/data-provider-base`, exposes the same `.upload()` returning `{ url, hash }`, slots into any pipeline that already targets the Lukso data-provider interface.
+
+Three things differ from the original:
+
+1. **Endpoint is owned by Lumera**, not the legacy Pastel gateway.
+2. **No third-party API key.** The package talks to a cascade-api backend (yours, or the public one), which performs the on-chain Cascade transaction using `@lumera-protocol/sdk-js`. Authentication, signing, and gas are the backend's concern.
+3. **Configurable.** Endpoint, paths, and an optional `Authorization: Bearer` token can all be set on the constructor.
+
+## Install
+
+```package-install
+npm install @lumera-protocol/data-provider-cascade
+```
+
+`@lukso/data-provider-base` is pulled in transitively. You don't import it directly unless you're writing your own data provider.
+
+## Quick start
+
+```ts
+import { CascadeUploader, uploadJSON } from "@lumera-protocol/data-provider-cascade";
+
+const uploader = new CascadeUploader({
+  bearerToken: process.env.CASCADE_API_TOKEN,
+});
+
+// Upload any File or Blob
+const { url, hash } = await uploader.upload(file);
+//   url:  https://api.lumera.help/download/<action_id>
+//   hash: 0x<keccak256 of file bytes>
+
+// Or upload a JSON object directly
+const { url: jsonUrl } = await uploadJSON(uploader, lsp3Profile, "alice.json");
+```
+
+The `url` returned is suitable as the URL field of an LSP-2 `VerifiableURI`. The `hash` is the keccak256 of the file bytes, computed client-side; readers verify it matches what's served by the gateway.
+
+## API
+
+### `new CascadeUploader(options?)`
+
+```ts
+type CascadeUploaderOptions = {
+  /**
+   * Base URL of a cascade-api backend.
+   * Default: "https://api.lumera.help"
+   */
+  backendUrl?: string;
+
+  /**
+   * Bearer token for /upload, sent as `Authorization: Bearer <token>`.
+   * Required by the public deployment. Self-hosters can run without auth.
+   */
+  bearerToken?: string;
+
+  /**
+   * Path appended to backendUrl for uploads. Default: "/upload"
+   */
+  uploadPath?: string;
+
+  /**
+   * Path template for the public download URL the uploader returns. The
+   * literal `{actionId}` is substituted with the upload's action_id.
+   * Default: "/download/{actionId}"
+   */
+  downloadPath?: string;
+};
+```
+
+### `uploader.upload(file, meta?)`
+
+Inherited from `BaseFormDataUploader`. Returns:
+
+```ts
+{
+  url: string;   // ${backendUrl}/download/<action_id>
+  hash: string;  // keccak256 of the file bytes, computed client-side
+}
+```
+
+The `hash` is computed by the base class before upload using `@ethersproject/keccak256`. It's a 32-byte value whose hex form is what LSP-2 `VerifiableURI` verification checks against. When you pass `{ json, url }` to `erc725.js` `encodeData`, it recomputes the hash from the JSON itself, so this returned `hash` is informational; when you pass `{ hash, url }` directly (e.g. for individual `verification` entries on `profileImage[]`), this is the value you put in.
+
+Throws if the cascade-api response is missing `action_id`.
+
+### `uploader.uploadWithMetadata(file, meta?)`
+
+Lumera-specific extension that returns the cascade-api raw response on top of `{ url, hash }`:
+
+```ts
+{
+  url: string;
+  hash: `0x${string}`;
+  meta: {
+    action_id: string | number;
+    tx_hash?: string;
+    block_height?: number;
+    task_id?: string;
+    filename?: string;
+    size_bytes?: number;
+  };
+}
+```
+
+Use this when you want to surface the on-chain receipt to your UI (e.g. a Cascade ledger that shows `tx_hash` per upload, linkable to a block explorer).
+
+<Callout type="warn">
+`uploadWithMetadata` is **not safe under concurrent calls on the same uploader instance**. It uses a single-slot stash that the base `upload()` populates via `resolveUrl`. Sequential `await`s are fine; parallel calls should use separate uploader instances.
+</Callout>
+
+### `uploadJSON(uploader, value, fileName?)`
+
+Convenience: serializes `value` with `JSON.stringify`, wraps it as a `Blob`, and forwards to `uploader.upload`. Returns the same `{ url, hash }` shape, so the result plugs straight into LSP-2 `VerifiableURI` encoding via `erc725.js`.
+
+```ts
+import { uploadJSON } from "@lumera-protocol/data-provider-cascade";
+const { url, hash } = await uploadJSON(uploader, lsp3, "metadata.json");
+```
+
+### `uploader.buildUrl(actionId)`
+
+Resolves a previously-stored `actionId` back into the public HTTPS URL. Useful when re-encoding metadata from a cached actionId without re-uploading:
+
+```ts
+const url = uploader.buildUrl("15823");
+// → "https://api.lumera.help/download/15823"
+```
+
+### Hooks (overridable, inherited from `BaseFormDataUploader`)
+
+For full alignment with the Lukso data-provider ecosystem, the standard hooks are exposed as `override`-able methods:
+
+| Hook | What it does |
+|---|---|
+| `getEndpoint(): string` | Returns POST URL: `backendUrl + uploadPath` |
+| `getRequestOptions(form, meta): Promise<FormDataRequestOptions>` | Adds `Authorization: Bearer` header when `bearerToken` is set |
+| `resolveUrl(result): string` | Reads `result.action_id` (with `actionId` fallback) and returns the gateway URL |
+
+If you need to customise behaviour, e.g. swap the auth header for an OAuth flow, subclass `CascadeUploader` and override the relevant hook.
+
+## Comparison with `@lukso/data-provider-cascade`
+
+| | `@lukso/data-provider-cascade` (legacy) | `@lumera-protocol/data-provider-cascade` |
+|---|---|---|
+| Backend | Pastel gateway (legacy domain) | cascade-api (Lumera-owned) |
+| Auth | `Api-key` header | `Authorization: Bearer` |
+| Constructor | `(apiKey: string)` positional | `({ backendUrl?, bearerToken?, uploadPath?, downloadPath? })` options bag |
+| Returns | `{ url: ipfs://<cid>, hash }` | `{ url: https://api.lumera.help/download/<id>, hash }` (plus `uploadWithMetadata`) |
+| Maintained | Last released 2024 | Active |
+
+To switch an existing call site:
+
+```diff
+- import { CascadeUploader } from "@lukso/data-provider-cascade";
+- const uploader = new CascadeUploader(process.env.OLD_API_KEY);
++ import { CascadeUploader } from "@lumera-protocol/data-provider-cascade";
++ const uploader = new CascadeUploader({ bearerToken: process.env.CASCADE_API_TOKEN });
+
+  const { url, hash } = await uploader.upload(file);  // unchanged
+```
+
+## The cascade-api HTTP surface
+
+`@lumera-protocol/data-provider-cascade` is just a thin wrapper over an HTTP API. If you want to call it directly from another language, or you want to know what's actually happening behind the package, here's the full surface.
+
+### Base URL
+
+```text
+https://api.lumera.help
+```
+
+CORS is permissive (`Access-Control-Allow-Origin: *`), so calls from any origin work in the browser.
+
+### `POST /upload`
+
+Inscribes a file to Cascade. Returns the `action_id` you'll need to fetch it back.
+
+**Request:**
+
+```text
+Content-Type:  multipart/form-data
+Authorization: Bearer <secret>
+```
+
+Form field: `file` (the file bytes).
+
+**Response (200):**
+
+```json
+{
+  "action_id":    "15777",
+  "tx_hash":      "77B3FFBC03AEBDAC36C00E881013C9871526F22F519F2E30533C9AF1AF9E30BA",
+  "block_height": 4700269,
+  "task_id":      "d85f4352",
+  "filename":     "document.pdf",
+  "size_bytes":   248321
+}
+```
+
+**Errors:**
+
+| Status | Body | Meaning |
+|---|---|---|
+| 400 | `{"error": "parse form: ..."}` | Multipart form malformed or too large |
+| 400 | `{"error": "file required: ..."}` | No `file` form field |
+| 401 | `unauthorized: ...` (text) | Missing / wrong / expired / quota-exhausted bearer |
+| 500 | `{"error": "upload failed: ...", "hint": "..."}` | Cascade upload failed (often: out of ulume) |
+
+### `GET /download/{action_id}`
+
+Reconstructs the file from Cascade and streams it back. **No auth.** `action_id` must be a numeric string.
+
+**Response (200):**
+
+- Body: raw file bytes
+- `Content-Type` is sniffed from the file extension or magic bytes
+- `Content-Disposition: attachment; filename="<original>"`
+- `X-Cascade-Filename: <original>` (same value, easier to read in browser fetch where Content-Disposition can be cross-origin-restricted)
+- `Cache-Control: public, max-age=31536000, immutable` — Cascade artifacts are content-addressed, safe to cache forever
+
+### `GET /healthz`
+
+Service liveness + uploader balance. **No auth.** Use this to fail fast when the backend is down or the funded balance has run dry.
+
+```json
+{
+  "ok": true,
+  "chain_id": "lumera-testnet-2",
+  "uploader": "lumera17enthm7tc07q32gnzu9043dclcvg3nnps9xmmr",
+  "ulume_balance": 963594,
+  "now": "2026-05-07T17:20:18Z",
+  "auth_required": true,
+  "key_count": 3
+}
+```
+
+### `GET /log` and `/log/stream`
+
+Live SSE stream of the cascade-api process log. Used by the operator for monitoring. No auth required on the public deployment.
+
+### Limits
+
+| | Value | Notes |
+|---|---|---|
+| Max upload size | 256 MB | Per-request, multipart total |
+| Upload latency | 30-60s typical | RaptorQ encoding + Lumera tx + Supernode replication |
+| Download latency | ~10s warm, ~30s cold | Backend caches recent artifacts |
+| Per-key quota | Set per key by the operator | Default for new keys is unlimited unless requested otherwise |
+| Service-wide budget | Bounded by uploader's `ulume` balance | ~10-15k ulume per upload; check `/healthz` |
+
+## Permanence and reachability
+
+A trust-model recap, since the package and the API both depend on it:
+
+**Cascade itself is permanent.** The bytes you upload through cascade-api live on the Supernode network, erasure-coded across many nodes. They survive node churn, they survive operator turnover, they survive cascade-api itself going away.
+
+**The URL embedded in the on-chain `VerifiableURI` is a different question.** That URL points at whichever cascade-api gateway you configured. If `https://api.lumera.help` ever became unreachable, the bytes would still exist on Cascade, but Lukso readers (which only know the URL, not how to ask Cascade directly) wouldn't be able to find them.
+
+The hash binding in the `VerifiableURI` guarantees the gateway can't tamper with the bytes, only deny service. That's a strong guarantee but a meaningfully weaker one than "permanent and self-resolving."
+
+In practice, three options for production:
+
+1. **Trust the public deployment.** `api.lumera.help` is operator-funded and stable for testnet/early-mainnet usage. No operational burden on you.
+2. **Self-host a cascade-api.** Clone the [cascade-api](https://github.com/...) repo, point your dApp at your domain, control your own uptime. The HTTP surface is identical, so client code ports as-is.
+3. **Use multiple gateways.** Resolvers like `@lukso/data-provider-urlresolver` can be configured with multiple fallback hosts. Pair this with multiple cascade-api deployments (yours + Lumera's + maybe a community-run one) for redundancy.
+
+For the LSP-3 demo and most early integrations, option 1 is the right call. For an NFT marketplace expecting decade-scale viability, plan for option 3.
+
+## Self-hosting cascade-api
+
+The complete cascade-api source ships as a small Go service. Quick start:
+
+```sh
+git clone https://github.com/.../cascade-api
+cd cascade-api
+echo "<your lumera mnemonic>" > lumera-keys/mnemonic.txt
+chmod 600 lumera-keys/mnemonic.txt
+export CASCADE_API_TOKEN=$(openssl rand -hex 32)
+go build && ./cascade-api -addr :7000
+```
+
+First run derives your `lumera1...` address from the mnemonic, registers its pubkey on chain, opens a Cascade SDK client, and starts serving. Fund the address with at least 50000 ulume from the [faucet](/docs/faucet) before the first upload.
+
+To point the data-provider at it:
+
+```ts
+const uploader = new CascadeUploader({
+  backendUrl: "https://your-domain.com",
+  bearerToken: process.env.CASCADE_API_TOKEN,
+});
+```
+
+## Source code
+
+- Package: `@lumera-protocol/data-provider-cascade` on npm
+- HTTP surface: cascade-api repo
+- Reference dApp using both: [github.com/kaleababayneh/permanent-up](https://github.com/kaleababayneh/permanent-up)
+
+## Next steps
+
+<Cards>
+  <Card title="Lukso × Cascade overview" href="/docs/lukso" />
+  <Card title="Universal Profile tutorial" href="/docs/lukso/universal-profile" />
+  <Card title="Digital assets (LSP-4/7/8)" href="/docs/lukso/digital-assets" />
+</Cards>
