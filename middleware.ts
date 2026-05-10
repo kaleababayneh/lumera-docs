@@ -76,8 +76,14 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Skip Next internals, the data fetcher, and any path that looks like a
-  // static asset (anything with a file extension). Everything else flows
-  // through the middleware above.
-  matcher: ["/((?!_next/static|_next/image|.*\\.[\\w]+$).*)"],
+  // Skip Next internals, API routes, and any path that looks like a static
+  // asset (anything with a file extension). Everything else flows through
+  // the middleware above.
+  //
+  // `api` MUST be excluded: on the Lukso-only host, the catch-all rewrite
+  // at the end of `middleware()` would otherwise turn `/api/chat` into
+  // `/docs/lukso/api/chat`, which has no route handler and falls back to
+  // the docs page renderer. The chat client then receives an HTML body
+  // where it expected an SSE stream.
+  matcher: ["/((?!api|_next/static|_next/image|.*\\.[\\w]+$).*)"],
 };
