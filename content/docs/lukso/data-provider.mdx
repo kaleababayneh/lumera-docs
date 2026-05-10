@@ -158,14 +158,14 @@ If you need to customise behaviour, e.g. swap the auth header for an OAuth flow,
 
 To switch an existing call site:
 
-```diff
+{/* ```diff
 - import { CascadeUploader } from "@lukso/data-provider-cascade";
 - const uploader = new CascadeUploader(process.env.OLD_API_KEY);
 + import { CascadeUploader } from "@lumera-protocol/data-provider-cascade";
 + const uploader = new CascadeUploader({ bearerToken: process.env.CASCADE_API_TOKEN });
 
   const { url, hash } = await uploader.upload(file);  // unchanged
-```
+``` */}
 
 ## The cascade-api HTTP surface
 
