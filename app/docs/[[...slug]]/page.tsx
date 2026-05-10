@@ -1,4 +1,9 @@
-import { source } from "@/lib/source";
+import {
+  source,
+  isLuksoHost,
+  buildLuksoTree,
+  findNeighboursDeduped,
+} from "@/lib/source";
 import {
   DocsPage,
   DocsBody,
@@ -11,6 +16,7 @@ import { Diagram } from "@/components/diagram";
 import { YouTube } from "@/components/youtube";
 import { type Metadata } from "next";
 import { Edit } from "lucide-react";
+import { headers } from "next/headers";
 import { CopyMarkdownButton, OpenPopover } from "@/lib/page-actions";
 import { AskAiTocButton } from "@/components/ask-ai/toc-button";
 
@@ -31,6 +37,14 @@ export default async function Page(props: {
   const pageSlug = params.slug?.join("/") ?? "";
   const pageUrl = `/docs${pageSlug ? `/${pageSlug}` : ""}`;
 
+  // Mirror the layout's host-aware tree selection so footer neighbours match
+  // whatever sidebar the user is looking at.
+  const host = (await headers()).get("host");
+  const tree = isLuksoHost(host)
+    ? buildLuksoTree(source.pageTree)
+    : source.pageTree;
+  const footerItems = findNeighboursDeduped(tree, page.url);
+
   return (
     <DocsPage
       toc={page.data.toc}
@@ -39,6 +53,7 @@ export default async function Page(props: {
         style: "clerk",
         header: <AskAiTocButton />,
       }}
+      footer={{ items: footerItems }}
       lastUpdate={page.data.lastModified}
     >
       <DocsTitle>{page.data.title}</DocsTitle>

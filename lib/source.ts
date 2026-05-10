@@ -66,3 +66,56 @@ function findLuksoFolder(nodes: PageTree.Node[]): PageTree.Folder | undefined {
   }
   return undefined;
 }
+
+/**
+ * Compute previous/next-page neighbours for the docs Footer, deduping
+ * entries that share a URL.
+ *
+ * Why: when a folder lists `"index"` in its `meta.json` `pages[]`, the same
+ * page ends up in the page tree twice — once as `folder.index` (the section
+ * root, also the target of the folder's clickable header) and once as a
+ * child Page (the sidebar item under the folder). Fumadocs's default
+ * Footer flattens those into a sequential list and finds neighbours by
+ * index, so the section root's "next" resolves to the duplicate (same
+ * URL), making the next-page button link back to the current page.
+ *
+ * Removing `"index"` from `pages[]` would delete the sidebar child entry,
+ * which we want to keep. Instead, dedupe inside the navigation list only:
+ * the sidebar still renders both entries, but the Footer skips the
+ * duplicate and advances to the genuine next sibling.
+ */
+export type FooterItem = { name: string; url: string };
+
+export function findNeighboursDeduped(
+  tree: PageTree.Root,
+  url: string,
+): { previous?: FooterItem; next?: FooterItem } {
+  const list: FooterItem[] = [];
+  const seen = new Set<string>();
+  const push = (item: PageTree.Item): void => {
+    if (seen.has(item.url)) return;
+    seen.add(item.url);
+    list.push({ name: itemName(item), url: item.url });
+  };
+  const walk = (nodes: PageTree.Node[]): void => {
+    for (const node of nodes) {
+      if (node.type === "folder") {
+        if (node.index) push(node.index);
+        walk(node.children);
+      } else if (node.type === "page" && !node.external) {
+        push(node);
+      }
+    }
+  };
+  walk(tree.children);
+  const idx = list.findIndex((item) => item.url === url);
+  if (idx === -1) return {};
+  return { previous: list[idx - 1], next: list[idx + 1] };
+}
+
+function itemName(item: PageTree.Item): string {
+  // Frontmatter titles always come through as strings; the ReactNode type on
+  // PageTree.Item.name is the broader theoretical surface. Fall back through
+  // toString() rather than rendering, since the Footer is a Server Component.
+  return typeof item.name === "string" ? item.name : String(item.name ?? "");
+}
