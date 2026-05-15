@@ -1,0 +1,154 @@
+---
+title: Injective primer
+description: A short tour of Injective relevant to Cascade integration — CosmWasm 2.0, the native orderbook, IBC, and the eth_secp256k1 wallet model.
+icon: BookOpen
+---
+
+## What is Injective?
+
+Injective is a Cosmos-SDK Layer-1 with **CometBFT** consensus, **CosmWasm 2.0** smart contracts, and a custom set of finance-native modules (orderbook, oracle, insurance, peggy). The native token is `INJ` (`inj`, **18 decimals** — not the usual 6). Sub-second finality, ~10000 TPS theoretical, IBC-connected to the broader Cosmos network including Lumera.
+
+For Cascade integration purposes, four facts about Injective matter:
+
+1. It's CosmWasm 2.0, so contracts are Rust crates compiled to Wasm with `cosmwasm-std`.
+2. It's IBC-connected, so an ICS-27 [Interchain Account](/docs/concepts/interchain-accounts) can live on Lumera and be controlled from Injective.
+3. It uses **eth_secp256k1** key derivation (Ethereum's curve) rather than the standard `secp256k1` used by Lumera and most Cosmos chains. This affects how Keplr is configured and how signing works.
+4. The bech32 prefix is `inj`. Addresses look like `inj1...`.
+
+## Networks
+
+| | Testnet (used by Inscribe today) | Mainnet |
+|---|---|---|
+| **Chain ID** | `injective-888` | `injective-1` |
+| **RPC** | `https://testnet.sentry.tm.injective.network:443` | `https://sentry.tm.injective.network:443` |
+| **LCD/REST** | `https://testnet.sentry.lcd.injective.network:443` | `https://sentry.lcd.injective.network:443` |
+| **gRPC** | `testnet.sentry.chain.grpc.injective.network:443` | `sentry.chain.grpc.injective.network:443` |
+| **Explorer** | [testnet.explorer.injective.network](https://testnet.explorer.injective.network) | [explorer.injective.network](https://explorer.injective.network) |
+| **Coin denom** | `inj` (18 decimals → INJ) | same |
+| **Gas price** | `500000000inj` (≈0.5 Gwei equivalent) | similar |
+| **Faucet** | [testnet.faucet.injective.network](https://testnet.faucet.injective.network) | — |
+
+`injective-888` is the public testnet Inscribe is deployed on. All addresses and code IDs in this section refer to it unless stated otherwise.
+
+## CosmWasm on Injective
+
+Injective ships CosmWasm 2.0. Anything you can write in `cosmwasm-std ≥ 2.0` and compile with the `cosmwasm/optimizer` Docker image will run on Injective once stored. Bonds and bets are paid in the native `inj` denom, which is the **base unit** (`inj` = 1 wei-equivalent), so a 1-INJ bond is `1000000000000000000` (1 × 10¹⁸).
+
+Two Injective-specific things to know:
+
+- The **gas price is denominated in `inj`** (base units), not in `peggy0x...`. A typical `--gas-prices 500000000inj` works for testnet.
+- **`cosmwasm-2.0` only.** Older CW 1.x bytecode will not store. Pin `cosmwasm-std = "2.x"` in your `Cargo.toml`.
+
+A minimal deploy from a remote box with `injectived` installed:
+
+```sh
+injectived tx wasm store ./artifacts/my_contract.wasm \
+  --from uploader \
+  --gas auto --gas-adjustment 1.4 --gas-prices 500000000inj \
+  --chain-id injective-888 \
+  --node https://testnet.sentry.tm.injective.network:443 \
+  --broadcast-mode sync --yes -o json
+```
+
+You get back a `code_id` (e.g. `39449` for the latest `inscribe-market-v2`); instantiate with `injectived tx wasm instantiate <code_id> <init-json>`.
+
+## The native orderbook
+
+Injective has a chain-level orderbook for spot and derivatives markets. Inscribe today uses **simple pari-mutuel bet pools** (YES/NO collateral pools redeemed pro-rata at settlement) rather than the orderbook, because the prediction-market lifecycle and the orderbook lifecycle don't mesh cleanly inside a single Wasm contract.
+
+If you're building a different Injective × Cascade product where price discovery matters (a derivatives market with permanent settlement evidence, a perpetual with permanent funding-rate justifications), the orderbook is the natural fit. Cascade's role there is identical to its role in Inscribe: permanent storage for the receipts, the oracle inputs, and the dispute justifications, with `action_id` pointers held in the matching contract.
+
+## IBC and Interchain Accounts
+
+Injective has a Hermes-relayed IBC channel to `lumera-testnet-2`. On top of that channel an [ICS-27 Interchain Account](https://ibc.cosmos.network/v8/apps/interchain-accounts/overview/) lets contracts on Injective hold and operate an account on Lumera without holding a Lumera private key.
+
+The Inscribe deployment uses the [`cw-ica-controller`](https://github.com/srdtrk/cw-ica-controller) contract on Injective as the IBC entrypoint. That contract:
+
+- Is already deployed at `inj179aq34m0ch55x4zftlqpj65d0a3qktkxm3chdy`
+- Owns a registered ICA on Lumera
+- Can pack arbitrary Cosmos messages and dispatch them over IBC to be executed by that ICA
+
+The Cascade-bridge page covers this in detail: see [Cascade from Injective](/docs/injective/cascade-from-injective).
+
+## Wallets
+
+The Injective wallet model is essentially Ethereum's: the curve is **eth_secp256k1**, derivation is BIP-44 with `coinType: 60`, and addresses are bech32-encoded `keccak256(pubkey)` (the Ethereum hash, not the SHA256+RIPEMD160 of Cosmos). The same private key your Keplr account would use for Ethereum is the one that signs Injective transactions.
+
+For Keplr support, the chain info Inscribe ships looks like this:
+
+```ts title="lib/chain.ts"
+import type { ChainInfo } from '@keplr-wallet/types';
+
+export const injectiveTestnet: ChainInfo = {
+  chainId: 'injective-888',
+  chainName: 'Injective Testnet',
+  rpc: 'https://testnet.sentry.tm.injective.network:443',
+  rest: 'https://testnet.sentry.lcd.injective.network:443',
+  bip44: { coinType: 60 },                        // ← Ethereum, not 118
+  bech32Config: {
+    bech32PrefixAccAddr: 'inj',
+    bech32PrefixAccPub: 'injpub',
+    bech32PrefixValAddr: 'injvaloper',
+    bech32PrefixValPub: 'injvaloperpub',
+    bech32PrefixConsAddr: 'injvalcons',
+    bech32PrefixConsPub: 'injvalconspub',
+  },
+  currencies: [{ coinDenom: 'INJ', coinMinimalDenom: 'inj', coinDecimals: 18 }],
+  feeCurrencies: [{
+    coinDenom: 'INJ',
+    coinMinimalDenom: 'inj',
+    coinDecimals: 18,
+    gasPriceStep: { low: 500_000_000, average: 700_000_000, high: 1_000_000_000 },
+  }],
+  stakeCurrency: { coinDenom: 'INJ', coinMinimalDenom: 'inj', coinDecimals: 18 },
+  features: ['eth-address-gen', 'eth-key-sign'],  // ← required for Injective
+};
+```
+
+The two things that differ from a standard Cosmos chain registration are `bip44.coinType: 60` and the `features: ['eth-address-gen', 'eth-key-sign']` array. Without `eth-key-sign`, Keplr signs over the wrong digest and Injective rejects every transaction.
+
+<Callout type="warn">
+**Amino only.** Injective's `eth_secp256k1` keys are not direct-mode-friendly under the current cosmjs build. Inscribe's signing client calls `keplr.getOfflineSignerOnlyAmino(chainId)` rather than `getOfflineSigner`. If you use `SigningCosmWasmClient` with the standard direct-mode signer, you'll get opaque signature-mismatch errors.
+</Callout>
+
+The signing client wires up as:
+
+```ts title="lib/inj.ts"
+import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
+import { GasPrice } from '@cosmjs/stargate';
+
+const GAS_PRICE = GasPrice.fromString('500000000inj');
+
+export async function getSigningClient() {
+  await window.keplr!.experimentalSuggestChain(injectiveTestnet);
+  await window.keplr!.enable('injective-888');
+  const signer = await window.keplr!.getOfflineSignerOnlyAmino('injective-888');
+  return SigningCosmWasmClient.connectWithSigner(INJECTIVE_RPC, signer, { gasPrice: GAS_PRICE });
+}
+```
+
+Once you have a `SigningCosmWasmClient`, contract calls look like any other Cosmos chain: `client.execute(sender, contractAddr, msg, 'auto', memo, funds)`.
+
+## Cross-chain signing
+
+For end users your dApp will typically need **two wallets in one** session: an `inj1...` address for Injective contract calls, and a `lumera1...` address for Cascade artifact uploads. Both can come from the same Keplr extension; the user enables the Injective chain (eth_secp256k1) for Injective and the Lumera chain (standard secp256k1) for Cascade. They're derived from different paths so the user does not see the same address on both chains.
+
+Inscribe's MVP simplifies this by routing user uploads through a server-side `inscribe-api` endpoint that calls a shared signing key. See [Cascade from Injective](/docs/injective/cascade-from-injective) for both patterns side-by-side.
+
+## Tools you will use
+
+| Package | What for |
+|---|---|
+| [`@cosmjs/cosmwasm-stargate`](https://www.npmjs.com/package/@cosmjs/cosmwasm-stargate) | Build and sign Injective `MsgExecuteContract` |
+| [`@keplr-wallet/types`](https://www.npmjs.com/package/@keplr-wallet/types) | Type-safe Keplr chain info and signer |
+| [`@injectivelabs/sdk-ts`](https://www.npmjs.com/package/@injectivelabs/sdk-ts) | Injective-specific helpers (optional; cosmjs is enough for CW calls) |
+| [`@lumera-protocol/sdk-js`](/docs/getting-started/javascript-sdk) | Sign Lumera transactions and write to Cascade directly |
+| [`injectived`](https://docs.injective.network/develop/tools/injectived) | The CLI used in the deploy + smoke-test scripts |
+
+## Where to go next
+
+<Cards>
+  <Card title="Cascade from Injective (the bridge)" href="/docs/injective/cascade-from-injective" />
+  <Card title="Inscribe protocol overview" href="/docs/injective/inscribe" />
+  <Card title="Contracts reference" href="/docs/injective/contracts" />
+</Cards>

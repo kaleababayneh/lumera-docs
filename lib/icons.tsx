@@ -27,6 +27,9 @@ import {
   Package,
   PlayCircle,
   Play,
+  Cable,
+  ScrollText,
+  Construction,
   type LucideIcon,
 } from "lucide-react";
 import { type ReactElement, createElement } from "react";
@@ -60,6 +63,9 @@ const icons: Record<string, LucideIcon> = {
   Package,
   PlayCircle,
   Play,
+  Cable,
+  ScrollText,
+  Construction,
 };
 
 export function createIcon(icon: string | undefined): ReactElement | undefined {

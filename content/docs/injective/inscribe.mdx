@@ -1,0 +1,243 @@
+---
+title: Inscribe protocol
+description: Permanent, re-litigatable prediction markets on Injective with every claim, every piece of evidence, and every voter's justification stored forever on Cascade.
+icon: ScrollText
+---
+
+**Inscribe** is the flagship Injective × Cascade reference implementation. It runs on `injective-888` today, with `inscribe-market-v2`, `bond-vault`, and `voter-registry` deployed as a versioned set of CosmWasm contracts (code IDs `39449`, `39446`, `39447` respectively). A Next.js frontend with Keplr-only wallet integration is live on testnet. This page is the protocol-level orientation; the [Contracts page](/docs/injective/contracts) is the message-by-message reference, and the [Lifecycle page](/docs/injective/lifecycle) walks the full happy path end-to-end.
+
+## The thesis
+
+Existing prediction markets settle on ephemeral evidence and undocumented reasoning. Polymarket's UMA oracle has voters cite news articles that get edited, paywalled, or deleted; voters never publish *why* they voted the way they did. Six months after a market closes, you cannot reconstruct what was known, who decided what, or on what basis.
+
+Inscribe fixes this with three permanent artifacts on Cascade per market:
+
+| Artifact | Permanent because... | What it carries |
+|---|---|---|
+| **Market spec** | Cascade CID is the market's identity | Claim, settlement criteria, source allowlists, parameters |
+| **Evidence pool** | Each submission becomes its own Cascade `action_id` | Citations, source metadata, claim role |
+| **Justifications** | Proposer / challenger / voter each upload their reasoning before acting | Verdict + cited evidence CIDs + written explanation |
+
+Settlement is an **optimistic, bonded human oracle** — there is no AI, no ML, no automated truth-detection. The protocol's contribution is making every input and every reasoning step permanent and citable forever. A market resolved today can be re-litigated by anyone in 2040 with the entire decision trail intact.
+
+## What lives where
+
+A reminder of the cross-chain split from the [overview](/docs/injective):
+
+| | On Injective | On Cascade |
+|---|---|---|
+| Per-market state machine | `inscribe-market-v2` | |
+| Bet escrow + redemption pool | `inscribe-market-v2` | |
+| Bond custody (proposer, challenger, voter) | `bond-vault` | |
+| Bonded voter set + committee sampling | `voter-registry` | |
+| Market spec (claim, criteria) | spec CID only | full JSON |
+| Evidence items | CID + submitter + role | full payload |
+| Proposer / challenger / voter justifications | CID only | full written reasoning |
+| Canonical settlement record | settlement CID | full JSON of voters + verdicts + cited evidence |
+| State transitions, events, slashing | ✓ | |
+| Citations referencing other markets | ✓ (via CID) | ✓ (in justification body) |
+
+## System diagram
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                      USER / FRONTEND (Next.js)                       │
+│           Keplr wallet · Injective testnet · Cascade reads           │
+└──────────┬──────────────────────────────────┬───────────────────────┘
+           │ execute / query                  │ upload artifacts
+           ▼                                  ▼
+ ┌───────────────────────┐         ┌────────────────────────────────┐
+ │  INJECTIVE  (Wasm)    │         │  LUMERA  — Cascade             │
+ │                       │         │                                │
+ │  inscribe-market-v2   │         │   spec / evidence / justi-     │
+ │  bond-vault           │◄── ICA ►│   fications / settlement       │
+ │  voter-registry       │  (ops)  │   (one action_id per artifact) │
+ └─────────┬─────────────┘         └─────────────┬──────────────────┘
+           │  events                             │
+           ▼                                     ▼
+ ┌───────────────────────┐         ┌────────────────────────────────┐
+ │  inscribe-indexer (Go)│────────►│  Postgres (markets, evidence,  │
+ │  polls LCD, mirrors   │         │  bets, votes, settlements,     │
+ │  state to Postgres    │         │  cascade_cache)                │
+ └───────────────────────┘         └─────────────┬──────────────────┘
+                                                 │
+ ┌───────────────────────┐                       │
+ │  inscribe-api (Go)    │◄──────────────────────┘
+ │  /markets, /audit,    │  Joined market + Cascade content
+ │  /cascade/{cid}       │  served to the frontend
+ └───────────────────────┘
+```
+
+The ICA arrow between Injective and Lumera is reserved for ops actions (canonical settlement record writes, allowlist pinning). User uploads to Cascade go through `inscribe-api`'s `POST /cascade/upload` endpoint today; see [Cascade from Injective](/docs/injective/cascade-from-injective) for the user-driven alternative.
+
+## Market lifecycle
+
+Every market is a finite state machine: `Open → Proposed → Challenged → Voting → Final`. The transitions are gated by funds and by the chain-height-based windows configured at instantiation.
+
+```text
+                 ┌──────────────────────────────────────┐
+                 │                Open                   │
+                 │  bets accepted, evidence accepted     │
+                 └────────────┬─────────────────────────┘
+              propose_verdict │ (after settlement_block,
+              (bond locked)   │  ≥ proposer_bond in inj)
+                              ▼
+                 ┌──────────────────────────────────────┐
+                 │              Proposed                 │
+                 │  challenge window open                │
+                 └─────┬─────────────────┬──────────────┘
+       finalize_       │                 │ challenge
+       uncontested     │                 │ (bond locked,
+       (window         │                 │  counter_verdict
+       expired)        │                 │  ≠ proposal verdict)
+                       │                 ▼
+                       │   ┌──────────────────────────────────┐
+                       │   │           Challenged              │
+                       │   │  evidence still accepted,         │
+                       │   │  awaiting request_committee       │
+                       │   └────────────┬─────────────────────┘
+                       │  request_committee │
+                       │  (samples N voters │
+                       │   from registry)   │
+                       │                    ▼
+                       │   ┌──────────────────────────────────┐
+                       │   │             Voting                │
+                       │   │  committee casts votes with       │
+                       │   │  justification_cid                │
+                       │   └────────────┬─────────────────────┘
+                       │       tally    │ (all voted or
+                       │                │  window expired)
+                       ▼                ▼
+                 ┌──────────────────────────────────────┐
+                 │                Final                  │
+                 │  redeem winning bets pro-rata         │
+                 │  record_settlement attaches canonical │
+                 │  settlement.json CID                  │
+                 └──────────────────────────────────────┘
+```
+
+Quorum: a verdict wins if its share of committee votes ≥ `committee_quorum_bps` of `committee_size` (default 60% of 3 = 2). If no side reaches quorum the market resolves `Invalid` and **all bettors are refunded 1:1**.
+
+## Roles and bonds
+
+Five roles touch a market. All bonds and bets are denominated in **base-unit `inj` (18 decimals)**.
+
+| Role | Stakes... | Earns / loses on win | Loses on loss |
+|---|---|---|---|
+| **Better** | `inj` into a YES or NO pool | pro-rata share of losing pool | their stake |
+| **Proposer** | `proposer_bond` (default 1 INJ) | bond returned + proposal fee | bond slashed to challenger |
+| **Challenger** | `challenger_bond` (default 1 INJ) | bond returned + slashed proposer bond | bond slashed to proposer |
+| **Voter (committee)** | their registered `voter` bond | bond untouched + share of slashed losing bond | proportional slash on minority votes |
+| **Voter (registered, not on committee)** | `min_bond` to register | accuracy weight grows over correct rounds | bond docked on non-participation |
+
+In MVP the bond floors are configurable per-market at instantiation. The Inscribe test deployment uses `proposer_bond = challenger_bond = 1 INJ` and `voter_registry.min_bond = 1 INJ`.
+
+## Optimistic settlement, step by step
+
+Detailed walkthrough — for the actual CLI commands and contract calls see [Lifecycle](/docs/injective/lifecycle).
+
+### Proposal phase (Open → Proposed)
+
+After the market's `settlement_block` has passed, anyone may submit a verdict:
+
+1. Read the full evidence pool from Cascade (via the indexer or a direct gateway fetch).
+2. Author a **justification artifact** — Markdown or JSON containing the proposed verdict, a list of cited evidence CIDs, and written reasoning that ties the cited evidence to the settlement criteria.
+3. Upload the justification to Cascade and receive a CID.
+4. Call `propose_verdict { verdict, justification_cid }` on the market with `info.funds = [{ denom: "inj", amount: proposer_bond }]`.
+
+The market locks the bond via `bond-vault` and transitions to `Proposed`. If `challenge_window` blocks elapse without a challenge, anyone can call `finalize_uncontested` and the proposer's bond is released; the verdict stands.
+
+### Challenge phase (Proposed → Challenged)
+
+Within the challenge window, anyone with a counter-verdict may:
+
+1. Optionally submit additional evidence to Cascade (joins the permanent pool, attached via `submit_evidence`).
+2. Author and upload a challenger justification to Cascade with their counter-verdict and reasoning.
+3. Call `challenge { counter_verdict, justification_cid }` with `info.funds = [{ denom: "inj", amount: challenger_bond }]`.
+
+The market locks the challenger's bond. The transition to `Challenged` is irreversible — there is no "withdraw challenge."
+
+### Committee draw (Challenged → Voting)
+
+Anyone can call `request_committee {}`, which:
+
+1. Builds a seed from `block_hash || env.block.height || market.address || challenge_block`, then SHA-256s it. This binds the sample to a block hash **drawn after** the challenge filed.
+2. Calls `voter_registry.Sample { count: committee_size, seed }` over a Wasm cross-contract query. The sampling algorithm is deterministic, weighted-without-replacement by `bond × (100 + accuracy_pct)`. See `contracts/voter-registry/src/sampling.rs` for the rejection-loop implementation; the property tests prove that higher-bond and higher-accuracy voters are picked more often.
+3. Calls `voter_registry.LockCommitments { voters: [...] }` to mark each sampled voter's `active_commitments`. They can no longer unregister mid-vote.
+4. Saves the committee on the market and sets `Market.voting_start_block`.
+
+### Voting phase (Voting → Final)
+
+Each committee member, within `voting_window` blocks:
+
+1. Reads spec, evidence pool, proposer's justification, and challenger's justification from Cascade.
+2. Authors a **vote justification** — verdict + cited evidence + written reasoning. Mandatory even when agreeing with the proposer or challenger; silent votes are not allowed by protocol.
+3. Uploads to Cascade for a CID.
+4. Calls `cast_vote { verdict, justification_cid }`. No bond is locked at vote time — the lock happened at committee draw.
+
+When every committee voter has voted **or** the `voting_window` expires, anyone can call `tally {}`:
+
+- Counts votes per side; if either side has `≥ committee_size × committee_quorum_bps / 10000` votes, that side wins.
+- Otherwise `Invalid` (refund path).
+- Calls `voter_registry.RecordResult` for each committee voter with `was_majority: bool`, updating accuracy stats and releasing the commitment lock.
+- Calls `bond-vault.Slash` for the loser of (proposer, challenger), transferring their bond to the winner.
+- Saves `Settlement { final_verdict, finalized_block, winning_justification_cid, … }`.
+- Transitions to `Final`.
+
+### Redemption (Final state)
+
+After `tally`, the canonical state is on chain. Bettors call `redeem { side }` on their winning side. Payout formula:
+
+| Resolution | Payout for side = final_verdict | Payout for side ≠ final_verdict |
+|---|---|---|
+| `Yes` | `stake × (yes_pool + no_pool) / yes_pool` | 0 (losing side) |
+| `No` | `stake × (yes_pool + no_pool) / no_pool` | 0 (losing side) |
+| `Invalid` | `stake` (1:1 refund) | `stake` (1:1 refund) |
+
+Redemption deletes the per-better entry, so each side per bettor is claimable exactly once.
+
+A separate `record_settlement { settlement_cid }` call attaches the **canonical settlement record** CID to the market. In the MVP this is uploaded by a helper service that aggregates the final state into a JSON document and pushes it through `inscribe-api`'s upload path; a contract-driven ICA write is on the roadmap (see [Cascade from Injective, Pattern C](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced)).
+
+## Why this resists manipulation
+
+The protocol is bonded humans citing permanent evidence. Three properties make that trust-minimised:
+
+- **Forced citation.** Every actor who touches settlement must upload a justification CID with cited evidence before the contract accepts their call. The contract does not verify the citation makes sense — but the citation is **permanent** and **public**, so a bad-faith proposer cannot un-cite later. Every justification is dataset for the next dispute.
+- **Random, post-hoc committee sampling.** The committee for a challenged market is drawn from a block hash *after* the challenge is filed. To bribe a committee you'd have to bribe the entire bonded voter set, which scales the attack budget with the registry size and the bond floor.
+- **Asymmetric bond economics.** Proposer and challenger both stake; the loser pays the winner. Voters earn a share of the losing bond on majority votes and forfeit a slice on minority votes. There is no honest-actor cost: doing the work, citing evidence, and voting the truth pays out. Lying costs the bond.
+
+## Re-litigation: the killer property
+
+Once a market resolves, the bets are paid and the verdict is on chain. The truth question, however, is permanently open. Anyone — including parties who weren't around when the market existed — can:
+
+1. Fetch the full record by `spec_cid`: market spec, evidence pool, proposer + challenger + every voter's justification, canonical settlement record.
+2. Form an independent assessment.
+3. Author and upload a **counter-argument artifact** to the same market's Cascade namespace.
+
+The counter-argument does not change the on-chain verdict and does not pay out. It becomes a permanent companion record. Future markets can cite it. Future scholarship can cite it. Future markets can be created that explicitly settle "the original Market X verdict was wrong" with their own evidence pool and committee — and *that* market can resolve, and so can *its* re-litigation.
+
+This is the property no other prediction-market protocol has: **the markets close, but the truth conversation does not**. Cascade is the substrate that makes it possible; Injective is the venue where bets pay out.
+
+## What's deployed today
+
+| Component | Where | Status |
+|---|---|---|
+| `bond-vault` (CW) | code_id `39446`, instance `inj1hk6us04mhztdyrx7znraf5422qe9gakktnkaya` | Live, tested |
+| `voter-registry` (CW) | code_id `39447`, instance `inj15u6gvmgxf32zvwgpqjrc9davyhxp04qa33lxlv` | Live, tested |
+| `inscribe-market-v2` (CW) | code_id `39449` (Phase 3 with bet escrow) | Live; first instance at `inj1swye2chl5733hen3ee3uh5nfesrx9xzjunj74e` |
+| `cw-ica-controller` (CW) | `inj179aq34m0ch55x4zftlqpj65d0a3qktkxm3chdy` | Live (reused from cascadego) |
+| Inscribe API + indexer (Go) | local + Vercel preview | Phase 4 complete |
+| Inscribe web (Next.js + Keplr) | Vercel | Phase 5 complete |
+| Operations (rolling deploys, runbooks, status page) | — | Phase 6, pending |
+| Mainnet | — | Phase 7, pending (audits + bounty) |
+
+Source of truth for code IDs, tx hashes, and wasm checksums: [`scripts/deployments.json`](https://github.com/kaleababayneh/inscribe/blob/main/scripts/deployments.json) in the repo.
+
+## Next steps
+
+<Cards>
+  <Card title="Contracts reference" href="/docs/injective/contracts" />
+  <Card title="End-to-end lifecycle walkthrough" href="/docs/injective/lifecycle" />
+  <Card title="Services (API + indexer)" href="/docs/injective/services" />
+  <Card title="Build your own integration" href="/docs/injective/build-your-own" />
+</Cards>

@@ -47,7 +47,7 @@ const LUKSO_BASE_URL = "/docs/lukso";
  * and the sidebar would just show everything as before.
  */
 export function buildLuksoTree(tree: PageTree.Root): PageTree.Root {
-  const luksoFolder = findLuksoFolder(tree.children);
+  const luksoFolder = findFolderByBaseUrl(tree.children, LUKSO_BASE_URL);
   if (!luksoFolder) return tree;
 
   return {
@@ -56,12 +56,45 @@ export function buildLuksoTree(tree: PageTree.Root): PageTree.Root {
   };
 }
 
-function findLuksoFolder(nodes: PageTree.Node[]): PageTree.Folder | undefined {
+/**
+ * Same shape as Lukso, but scoped to the Injective section. The host
+ * defaults to `injective.lumera.help` and is overridable via the
+ * `INJECTIVE_HOSTS` env var (comma-separated).
+ */
+export const INJECTIVE_HOSTS = new Set(
+  (process.env.INJECTIVE_HOSTS ?? "injective.lumera.help")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+export function isInjectiveHost(host: string | null | undefined): boolean {
+  if (!host) return false;
+  const bare = host.toLowerCase().split(":")[0] ?? "";
+  return INJECTIVE_HOSTS.has(host.toLowerCase()) || INJECTIVE_HOSTS.has(bare);
+}
+
+const INJECTIVE_BASE_URL = "/docs/injective";
+
+export function buildInjectiveTree(tree: PageTree.Root): PageTree.Root {
+  const folder = findFolderByBaseUrl(tree.children, INJECTIVE_BASE_URL);
+  if (!folder) return tree;
+
+  return {
+    name: tree.name,
+    children: [{ ...folder, defaultOpen: true }],
+  };
+}
+
+function findFolderByBaseUrl(
+  nodes: PageTree.Node[],
+  baseUrl: string,
+): PageTree.Folder | undefined {
   for (const node of nodes) {
     if (node.type !== "folder") continue;
-    if (node.index?.url === LUKSO_BASE_URL) return node;
-    if (node.index?.url?.startsWith(`${LUKSO_BASE_URL}/`)) return node;
-    const nested = findLuksoFolder(node.children);
+    if (node.index?.url === baseUrl) return node;
+    if (node.index?.url?.startsWith(`${baseUrl}/`)) return node;
+    const nested = findFolderByBaseUrl(node.children, baseUrl);
     if (nested) return nested;
   }
   return undefined;

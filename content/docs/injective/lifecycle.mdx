@@ -1,0 +1,444 @@
+---
+title: Market lifecycle walkthrough
+description: Drive a full Inscribe market from creation to redemption — instantiate, bet, submit evidence, propose, challenge, vote, tally, redeem — with concrete CLI and contract calls.
+icon: Workflow
+---
+
+This page walks the **entire** happy-and-challenged path of an Inscribe market against the live `injective-888` deployment. Every command is real; every CID is a Cascade `action_id`. The walkthrough assumes you have `injectived` installed, two funded Injective accounts (one creator/proposer, one challenger/voter), a funded `lumera1...` address for Cascade uploads, and access to the deployed `bond-vault` and `voter-registry` instances listed in [Contracts](/docs/injective/contracts).
+
+If you want the protocol-level reasoning behind each step, see [Inscribe protocol](/docs/injective/inscribe). If you just want to wire up your dApp, [Cascade from Injective](/docs/injective/cascade-from-injective) is the place.
+
+## Prerequisites
+
+```sh
+# Injective
+export INJ_CHAIN_ID=injective-888
+export INJ_NODE=https://testnet.sentry.tm.injective.network:443
+export INJ_KEYRING_BACKEND=test
+export INJ_GAS_PRICES=500000000inj
+export INJ_GAS_ADJUSTMENT=1.4
+
+# Wired contracts (from scripts/deployments.json)
+export BOND_VAULT=inj1hk6us04mhztdyrx7znraf5422qe9gakktnkaya
+export VOTER_REGISTRY=inj15u6gvmgxf32zvwgpqjrc9davyhxp04qa33lxlv
+export MARKET_CODE_ID=39449
+```
+
+Two roles in this walkthrough: `CREATOR` (who will be proposer and one voter) and `CHALLENGER` (who will be challenger and another voter). Use two distinct `injectived` keys.
+
+## Step 1 — Upload the market spec to Cascade
+
+The spec is a JSON document describing the claim, the criteria, and the parameters. Its CID will become the market's permanent identity.
+
+```jsonc title="spec.json"
+{
+  "version": 1,
+  "claim": "Apple announces a foldable iPhone before 2027-01-01 UTC",
+  "claim_category": "corporate_announcement",
+  "evidence_types_accepted": ["press_release", "keynote_video", "tier_1_news"],
+  "settlement_criteria": "Resolves YES if any of: (a) a press release signed by an apple.com PGP key announcing the product, (b) a keynote video on apple.com showing the device with specifications, (c) ≥3 Tier-1 outlets confirm with a named Apple PR source.",
+  "settlement_block": 125380091,
+  "challenge_window_blocks": 20,
+  "voting_window_blocks": 20,
+  "committee_size": 3,
+  "committee_quorum_bps": 6000,
+  "proposer_bond_inj": "1",
+  "challenger_bond_inj": "1"
+}
+```
+
+Upload through whichever Cascade path you use. The easiest in development is the `inscribe-api` server-signed endpoint (see [Services](/docs/injective/services)):
+
+```sh
+SPEC_CID=$(
+  curl -s -F "file=@spec.json" http://127.0.0.1:8080/cascade/upload \
+    | jq -r '.action_id'
+)
+echo "SPEC_CID=$SPEC_CID"        # e.g. "15823"
+```
+
+Pattern A users (user-signed Lumera tx) can equivalently use the [Lumera SDK Quick Start](/docs/getting-started/quick-start) and call `client.Cascade.uploader.uploadFile(file, ...)` directly from their wallet. Either way you end up with a numeric `action_id` string.
+
+## Step 2 — Instantiate the market
+
+Pick a `settlement_block` comfortably ahead of the current height. Default bonds for testnet are 1 INJ each (`1000000000000000000` in base units).
+
+```sh
+CURRENT=$(injectived q block --node $INJ_NODE -o json | jq -r '.header.height // .block.header.height')
+SETTLEMENT=$((CURRENT + 100))
+
+INIT=$(cat <<EOF
+{
+  "spec_cid": "$SPEC_CID",
+  "settlement_block": $SETTLEMENT,
+  "challenge_window": 20,
+  "voting_window": 20,
+  "committee_size": 3,
+  "committee_quorum_bps": 6000,
+  "bond_denom": "inj",
+  "bet_denom": "inj",
+  "proposer_bond":  "1000000000000000000",
+  "challenger_bond":"1000000000000000000",
+  "bond_vault":     "$BOND_VAULT",
+  "voter_registry": "$VOTER_REGISTRY"
+}
+EOF
+)
+
+ADMIN=$(injectived keys show creator --keyring-backend $INJ_KEYRING_BACKEND -a)
+
+TXHASH=$(injectived tx wasm instantiate $MARKET_CODE_ID "$INIT" \
+  --label "apple-foldable-2027" --admin $ADMIN \
+  --from creator --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes -o json | jq -r '.txhash')
+sleep 8
+
+MARKET=$(injectived q tx $TXHASH --node $INJ_NODE -o json | jq -r '
+  .events[] | select(.type=="instantiate")
+  | .attributes[] | select(.key=="_contract_address") | .value' | head -1)
+echo "MARKET=$MARKET"
+```
+
+## Step 3 — Wire the market into the ancillary contracts
+
+The market cannot lock bonds or sample voters until the admin has `register_market`-ed it on `bond-vault` and `voter-registry`.
+
+```sh
+injectived tx wasm execute $BOND_VAULT \
+  '{"register_market":{"market":"'"$MARKET"'"}}' \
+  --from admin --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+sleep 6
+
+injectived tx wasm execute $VOTER_REGISTRY \
+  '{"register_market":{"market":"'"$MARKET"'"}}' \
+  --from admin --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+sleep 6
+```
+
+Verify:
+
+```sh
+injectived q wasm contract-state smart $BOND_VAULT \
+  '{"is_market_registered":{"market":"'"$MARKET"'"}}' --node $INJ_NODE -o json
+# { "data": { "registered": true } }
+```
+
+The market is now live and `Open`.
+
+## Step 4 — Place bets (state: Open)
+
+YES and NO bets accumulate in two separate pools. The same address can hold both YES and NO stakes; each is tracked independently.
+
+```sh
+# Better A bets 0.1 INJ YES.
+injectived tx wasm execute $MARKET \
+  '{"bet":{"side":"yes"}}' --amount 100000000000000000inj \
+  --from better-a --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+sleep 6
+
+# Better B bets 0.5 INJ NO.
+injectived tx wasm execute $MARKET \
+  '{"bet":{"side":"no"}}' --amount 500000000000000000inj \
+  --from better-b --keyring-backend $INJ_KEYRING_BACKEND \
+  ...
+
+# Query the pool.
+injectived q wasm contract-state smart $MARKET '{"get_pool":{}}' --node $INJ_NODE -o json
+# { "data": { "yes": "100000000000000000", "no": "500000000000000000" } }
+```
+
+## Step 5 — Submit evidence (any pre-Final state)
+
+Evidence is a Cascade artifact (any size, any content type) annotated with a `role`. The market stores `(cid, submitter, role, block_height)`.
+
+```sh
+# 1) Upload the evidence body to Cascade.
+cat > evidence-1.txt <<'EOF'
+Reuters, 2026-08-12: Apple supplier Samsung Display files foldable-OLED
+panel certification with FCC; document references "foldable consumer
+device, model A2917, late-2026 production." Document number FCC-A2917.
+EOF
+EV1=$(curl -s -F "file=@evidence-1.txt" http://127.0.0.1:8080/cascade/upload | jq -r '.action_id')
+
+# 2) Attach to the market.
+injectived tx wasm execute $MARKET \
+  '{"submit_evidence":{"cid":"'"$EV1"'","role":"tier_1_news"}}' \
+  --from creator --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+```
+
+Repeat with as many submitters and as many CIDs as you want; evidence remains accepted in `Open`, `Proposed`, `Challenged`, and `Voting` states. `role` must be one of `press_release`, `tier_1_news`, `primary_source`, `other` — anything else is rejected on chain.
+
+## Step 6 — Wait for `settlement_block`, then propose
+
+Block height must satisfy `env.block.height ≥ settlement_block` for `propose_verdict` to succeed. In testnet that's about 100 × 0.6s ≈ a minute from instantiate, depending on testnet block time.
+
+Author a justification (Markdown is fine), upload it, then post on-chain with exactly the proposer bond as `info.funds`:
+
+```sh
+cat > justification.md <<'EOF'
+## Proposed verdict: NO
+
+The claim is "Apple announces a foldable iPhone before 2027-01-01 UTC."
+
+Cited evidence:
+- CID 15824 (FCC filing): only references an unnamed "foldable consumer
+  device"; no Apple branding, no public announcement.
+- CID 15825 (Apple PR statement, 2026-09-04): explicitly declines to
+  comment on foldable-device rumours.
+
+No press release, no keynote, no Tier-1 confirmation of Apple branding.
+The settlement criteria are not met as of the settlement block.
+EOF
+
+JUST=$(curl -s -F "file=@justification.md" http://127.0.0.1:8080/cascade/upload | jq -r '.action_id')
+
+injectived tx wasm execute $MARKET \
+  '{"propose_verdict":{"verdict":"no","justification_cid":"'"$JUST"'"}}' \
+  --amount 1000000000000000000inj \
+  --from creator --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+```
+
+The market transitions to `Proposed`. The bond is now locked in `bond-vault` under `(market, Proposer, creator)`.
+
+You now have two paths: **uncontested finalization** (Step 7a) or **challenge → vote → tally** (Step 7b).
+
+## Step 7a — Uncontested finalization
+
+Wait for `proposed_block + challenge_window` to pass without a challenge. Then anyone can call:
+
+```sh
+injectived tx wasm execute $MARKET '{"finalize_uncontested":{}}' \
+  --from anyone --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+```
+
+Effects: proposer bond released back to proposer; market transitions to `Final`; `winning_justification_cid` set to the proposer's; final verdict = proposer's verdict. Skip ahead to Step 10 (redemption).
+
+## Step 7b — Challenge (within window)
+
+The challenger must post a counter-verdict (≠ proposer's) and a justification.
+
+```sh
+cat > challenge.md <<'EOF'
+## Counter-verdict: YES
+
+The proposer dismisses the FCC filing on branding grounds, but the
+spec explicitly accepts a Tier-1 confirmation. Evidence CID 15826
+(Bloomberg, 2026-11-02) names Apple PR contact Sarah Chen confirming
+the foldable launch; ≥3 outlets corroborate (CIDs 15827, 15828).
+
+Threshold met for criterion (c).
+EOF
+
+CHAL=$(curl -s -F "file=@challenge.md" http://127.0.0.1:8080/cascade/upload | jq -r '.action_id')
+
+injectived tx wasm execute $MARKET \
+  '{"challenge":{"counter_verdict":"yes","justification_cid":"'"$CHAL"'"}}' \
+  --amount 1000000000000000000inj \
+  --from challenger --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+```
+
+Market transitions to `Challenged`. Both proposer and challenger bonds are now locked.
+
+## Step 8 — Voters register, committee draws
+
+For a committee to be sampled, the voter set must be non-empty. Each voter registers once, paying `min_bond`:
+
+```sh
+# Repeat for each voter you want in the pool.
+injectived tx wasm execute $VOTER_REGISTRY '{"register":{}}' \
+  --amount 1000000000000000000inj \
+  --from voter-1 --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+```
+
+Then anyone calls `request_committee` to sample `committee_size` voters and transition to `Voting`:
+
+```sh
+injectived tx wasm execute $MARKET '{"request_committee":{}}' \
+  --from anyone --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+
+# Inspect the drawn committee.
+injectived q wasm contract-state smart $MARKET '{"get_committee":{}}' --node $INJ_NODE -o json
+# { "data": { "voters": ["inj1...", "inj1...", "inj1..."], "sampled_block": 125380274 } }
+```
+
+The committee is sampled deterministically from the current block hash combined with the market address and challenge block. Once drawn, each committee voter is "commitment-locked" in `voter-registry` and cannot unregister until the vote is tallied.
+
+<Callout>
+If `voter_count` < `committee_size` the sample is truncated and `tally` will likely resolve `Invalid` (no quorum reachable). Bootstrap a small voter set on testnet before running through the disputed path end-to-end; the smoke-test script in the repo (`scripts/smoke-test-testnet.sh`) covers the boilerplate.
+</Callout>
+
+## Step 9 — Each committee voter casts a vote
+
+Each voter writes a justification, uploads to Cascade, and calls `cast_vote`:
+
+```sh
+cat > vote.md <<'EOF'
+## My vote: YES
+
+I reviewed:
+- spec (CID 15823)
+- proposer's justification (CID 15850) — dismisses Bloomberg without
+  addressing it
+- challenger's justification (CID 15860) — cites three Tier-1 outlets
+- evidence CID 15826 (Bloomberg) — names Apple PR contact
+
+Criterion (c) is satisfied. Voting YES.
+EOF
+
+VOTE=$(curl -s -F "file=@vote.md" http://127.0.0.1:8080/cascade/upload | jq -r '.action_id')
+
+injectived tx wasm execute $MARKET \
+  '{"cast_vote":{"verdict":"yes","justification_cid":"'"$VOTE"'"}}' \
+  --from voter-1 --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+```
+
+Repeat for each committee voter. Voters who are not on the committee will see the on-chain call rejected with `NotInCommittee` — the frontend at `web/components/market-actions.tsx` is intentionally permissive about letting users attempt the call and surfacing the error.
+
+When all committee voters have voted (or the `voting_window` has expired since `voting_start_block`), anyone calls `tally`:
+
+```sh
+injectived tx wasm execute $MARKET '{"tally":{}}' \
+  --from anyone --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+```
+
+`tally` does five things atomically:
+
+1. Counts votes per side.
+2. Picks the winning verdict (or `Invalid` if neither side reaches quorum).
+3. Calls `voter-registry.RecordResult` for each committee voter (updates accuracy, releases commitment).
+4. Calls `bond-vault.Slash` to transfer the loser's bond to the winner.
+5. Saves `Settlement` and transitions market to `Final`.
+
+Inspect:
+
+```sh
+injectived q wasm contract-state smart $MARKET '{"get_settlement":{}}' --node $INJ_NODE -o json
+# { "data": {
+#     "final_verdict": "yes",
+#     "finalized_block": 125380330,
+#     "settlement_cid": null,
+#     "winning_justification_cid": "15860"
+#   }
+# }
+```
+
+## Step 10 — Record the canonical settlement
+
+The on-chain `Settlement` knows the verdict and the winning justification CID. The **canonical settlement record** is a separate JSON artifact aggregating the entire trail (spec, evidence, proposer + challenger + every voter justification, final verdict, block height). Build it client-side, upload to Cascade, and attach:
+
+```sh
+# Build settlement.json from the on-chain state and previously uploaded CIDs.
+cat > settlement.json <<EOF
+{
+  "spec_cid": "$SPEC_CID",
+  "final_evidence_cid_set": ["$EV1"],
+  "winning_verdict": "yes",
+  "winning_justification_cid": "$CHAL",
+  "voter_records": [
+    {"voter": "inj1...voter1", "vote": "yes", "justification_cid": "$VOTE"},
+    {"voter": "inj1...voter2", "vote": "yes", "justification_cid": "..."},
+    {"voter": "inj1...voter3", "vote": "no",  "justification_cid": "..."}
+  ],
+  "block_height": 125380330
+}
+EOF
+
+SETTLE_CID=$(curl -s -F "file=@settlement.json" http://127.0.0.1:8080/cascade/upload | jq -r '.action_id')
+
+injectived tx wasm execute $MARKET \
+  '{"record_settlement":{"settlement_cid":"'"$SETTLE_CID"'"}}' \
+  --from anyone --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+```
+
+<Callout type="warn">
+**MVP note.** `record_settlement` accepts a CID from any caller in the current MVP; a contract-driven write via ICA (so the canonical record is impossible to forget) is on the roadmap. See [Cascade from Injective — Pattern C](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced). For now this is one of those rare cases where you should trust the helper service or wire your own.
+</Callout>
+
+## Step 11 — Bettors redeem
+
+The market is `Final`. Each better calls `redeem` on their winning side and collects:
+
+```sh
+injectived tx wasm execute $MARKET '{"redeem":{"side":"yes"}}' \
+  --from better-a --keyring-backend $INJ_KEYRING_BACKEND \
+  --chain-id $INJ_CHAIN_ID --node $INJ_NODE \
+  --gas auto --gas-adjustment $INJ_GAS_ADJUSTMENT --gas-prices $INJ_GAS_PRICES \
+  --broadcast-mode sync --yes
+```
+
+Payout follows the formula in [Contracts](/docs/injective/contracts#payout-formula): pro-rata share of total pool for winners, 1:1 refund for everyone on `Invalid`, zero for losers. Losing-side calls are rejected with `LosingSide` rather than silently sending zero.
+
+For the previous example (0.1 YES pool, 0.5 NO pool, final = YES):
+- Better A's payout = `0.1 INJ × (0.1 + 0.5) / 0.1 = 0.6 INJ`.
+- Better B's call to `redeem {"no"}` is rejected.
+
+## What you just produced on Cascade
+
+Permanently inscribed for the lifetime of this market:
+
+| Artifact | CID | Citable as |
+|---|---|---|
+| Market spec | `$SPEC_CID` | The market's permanent identity |
+| Evidence | `$EV1` (and any others submitted) | Persistent citation, even if the original outlet goes dark |
+| Proposer justification | `$JUST` | The first articulated verdict, with reasoning |
+| Challenger justification | `$CHAL` | The counter-verdict, with reasoning |
+| Voter justifications | one per committee member | Per-voter accountability |
+| Canonical settlement record | `$SETTLE_CID` | The single document re-litigators will read first |
+
+Everything above is fetchable forever by anyone, by `GET /cascade/{cid}` against `inscribe-api` or by `GET /download/{action_id}` against any cascade-aware gateway.
+
+## Frontend equivalent
+
+Every step above has a Keplr-driven equivalent in the Inscribe web app (`web/app/markets/[addr]/page.tsx` and `web/components/market-actions.tsx`). The UI:
+
+- Wraps `injectived tx wasm execute` in `client.execute(sender, contract, msg, 'auto', memo, funds)` via `SigningCosmWasmClient`
+- Uploads to Cascade via `POST /cascade/upload` against the same backend used above
+- Refreshes after each action with a 12-second delay to give the indexer one poll-tick to catch up
+
+The full source is small (≈ 450 lines for the actions component) and is the most concise tour of the end-to-end UX if you'd rather read code than CLI examples.
+
+## Next steps
+
+<Cards>
+  <Card title="Services (API + indexer)" href="/docs/injective/services" />
+  <Card title="Contracts reference" href="/docs/injective/contracts" />
+  <Card title="Build your own integration" href="/docs/injective/build-your-own" />
+</Cards>

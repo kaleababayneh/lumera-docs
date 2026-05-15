@@ -4,23 +4,27 @@ import { NextResponse, type NextRequest } from "next/server";
  * Routing strategy
  * ----------------
  *
- * The same Vercel deployment answers two domains:
+ * The same Vercel deployment answers multiple domains:
  *
- *   1. The main docs at lumera-docs.vercel.app (or any host not in
- *      LUKSO_HOSTS). Behaviour: `/` redirects to `/docs`. Everything else
- *      passes through.
+ *   1. The main docs at lumera-docs.vercel.app (or any host not listed in
+ *      LUKSO_HOSTS / INJECTIVE_HOSTS). Behaviour: `/` redirects to `/docs`.
+ *      Everything else passes through.
  *
- *   2. The Lukso-only docs at lukso.lumera.help (and any other host listed
- *      in LUKSO_HOSTS). Behaviour:
+ *   2. The Lukso-only docs at lukso.lumera.help (and any other host in
+ *      LUKSO_HOSTS). Behaviour:
  *        `/`             rewrites to /docs/lukso
  *        `/<sub>`        rewrites to /docs/lukso/<sub>
  *        `/docs/lukso/*` passes through unchanged
  *        `/docs/<other>` redirects to MAIN_DOCS_URL (escape hatch when an
- *                        in-page link goes outside the Lukso section)
+ *                        in-page link goes outside the section)
  *
- * One git history, one Vercel project, two domains. To add another
- * Lukso-scoped host (e.g. a staging URL or a second custom domain), set
- * LUKSO_HOSTS to a comma-separated list.
+ *   3. The Injective-only docs at injective.lumera.help (and any other
+ *      host in INJECTIVE_HOSTS). Same shape as Lukso, scoped to
+ *      /docs/injective.
+ *
+ * One git history, one Vercel project, many domains. To add another
+ * scoped host, set LUKSO_HOSTS or INJECTIVE_HOSTS to a comma-separated
+ * list.
  */
 
 const LUKSO_HOSTS = new Set(
@@ -30,33 +34,39 @@ const LUKSO_HOSTS = new Set(
     .filter(Boolean),
 );
 
+const INJECTIVE_HOSTS = new Set(
+  (process.env.INJECTIVE_HOSTS ?? "injective.lumera.help")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+);
+
 const MAIN_DOCS_URL =
   process.env.MAIN_DOCS_URL ?? "https://lumera-docs.vercel.app";
 
-function isLuksoHost(host: string | null): boolean {
+function hostMatches(host: string | null, set: Set<string>): boolean {
   if (!host) return false;
   // Strip a port if present (localhost:3000 etc.) before comparing.
   const bare = host.toLowerCase().split(":")[0];
-  return LUKSO_HOSTS.has(host.toLowerCase()) || LUKSO_HOSTS.has(bare);
+  return set.has(host.toLowerCase()) || set.has(bare);
 }
 
-export function middleware(req: NextRequest) {
+function isLuksoHost(host: string | null): boolean {
+  return hostMatches(host, LUKSO_HOSTS);
+}
+
+function isInjectiveHost(host: string | null): boolean {
+  return hostMatches(host, INJECTIVE_HOSTS);
+}
+
+function scopedHostMiddleware(
+  req: NextRequest,
+  basePath: string,
+): NextResponse {
   const { pathname } = req.nextUrl;
-  const host = req.headers.get("host");
 
-  if (!isLuksoHost(host)) {
-    if (pathname === "/") {
-      const url = req.nextUrl.clone();
-      url.pathname = "/docs";
-      return NextResponse.redirect(url);
-    }
-    return NextResponse.next();
-  }
-
-  // Lukso-scoped host from here on.
-
-  // Already in the Lukso namespace — pass through.
-  if (pathname === "/docs/lukso" || pathname.startsWith("/docs/lukso/")) {
+  // Already in the scoped namespace — pass through.
+  if (pathname === basePath || pathname.startsWith(`${basePath}/`)) {
     return NextResponse.next();
   }
 
@@ -69,10 +79,30 @@ export function middleware(req: NextRequest) {
     );
   }
 
-  // Root → /docs/lukso, /<anything> → /docs/lukso/<anything>.
+  // Root → basePath, /<anything> → basePath/<anything>.
   const url = req.nextUrl.clone();
-  url.pathname = pathname === "/" ? "/docs/lukso" : `/docs/lukso${pathname}`;
+  url.pathname = pathname === "/" ? basePath : `${basePath}${pathname}`;
   return NextResponse.rewrite(url);
+}
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const host = req.headers.get("host");
+
+  if (isLuksoHost(host)) {
+    return scopedHostMiddleware(req, "/docs/lukso");
+  }
+
+  if (isInjectiveHost(host)) {
+    return scopedHostMiddleware(req, "/docs/injective");
+  }
+
+  if (pathname === "/") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/docs";
+    return NextResponse.redirect(url);
+  }
+  return NextResponse.next();
 }
 
 export const config = {

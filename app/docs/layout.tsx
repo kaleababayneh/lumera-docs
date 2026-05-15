@@ -1,4 +1,10 @@
-import { source, isLuksoHost, buildLuksoTree } from "@/lib/source";
+import {
+  source,
+  isLuksoHost,
+  buildLuksoTree,
+  isInjectiveHost,
+  buildInjectiveTree,
+} from "@/lib/source";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { SidebarCollapseTrigger } from "fumadocs-ui/layouts/docs/sidebar";
 import { SearchToggle } from "fumadocs-ui/components/layout/search-toggle";
@@ -12,7 +18,9 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const host = (await headers()).get("host");
   const tree = isLuksoHost(host)
     ? buildLuksoTree(source.pageTree)
-    : source.pageTree;
+    : isInjectiveHost(host)
+      ? buildInjectiveTree(source.pageTree)
+      : source.pageTree;
 
   return (
     <AskAi>

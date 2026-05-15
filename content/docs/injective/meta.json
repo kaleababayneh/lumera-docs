@@ -1,0 +1,14 @@
+{
+  "title": "Injective",
+  "icon": "Network",
+  "pages": [
+    "index",
+    "primer",
+    "cascade-from-injective",
+    "inscribe",
+    "contracts",
+    "lifecycle",
+    "services",
+    "build-your-own"
+  ]
+}

@@ -1,0 +1,324 @@
+---
+title: Contracts reference
+description: The three Inscribe CosmWasm contracts on injective-888 — messages, state, deployed code IDs, and the cross-contract wiring between them.
+icon: FileCode
+---
+
+Inscribe ships as a versioned set of three CosmWasm 2.0 contracts. Each is independently deployable; the wiring is per-instance, established at instantiation time. Source lives under `contracts/` in the [repo](https://github.com/kaleababayneh/inscribe).
+
+## Deployment summary (injective-888)
+
+| Contract | Code ID | Wasm checksum | Sample instance |
+|---|---|---|---|
+| `bond-vault` | `39446` | `a9c47a276bf4d57bf422254b69557b976dad3135245e5daaead76d9fd6620f7b` | `inj1hk6us04mhztdyrx7znraf5422qe9gakktnkaya` |
+| `voter-registry` | `39447` | `b18663b6ed76dee842dc75056eb871a5408017a00dbc4acf53267e67483bbc0f` | `inj15u6gvmgxf32zvwgpqjrc9davyhxp04qa33lxlv` |
+| `inscribe-market-v2` | `39449` | `45e8ddb50c7699d81ec41a1ca6ece9ee40dc69c0192137b91f5f0d955e311957` | `inj1swye2chl5733hen3ee3uh5nfesrx9xzjunj74e` |
+
+Wasm checksums are byte-deterministic via `cosmwasm/optimizer` and verifiable with `sha256sum artifacts/<crate>.wasm`. Anyone can reproduce a build from source and compare.
+
+## How the three contracts wire together
+
+```text
+                     ┌────────────────────────┐
+                     │   inscribe-market-v2   │
+                     │   (per-market state)   │
+                     └──┬─────────────────┬───┘
+       Wasm execute     │                 │      Wasm query (Sample)
+       (Lock / Slash /  │                 │      Wasm execute
+        Release bonds)  │                 │      (LockCommitments,
+                        │                 │       RecordResult)
+                        ▼                 ▼
+           ┌────────────────────┐   ┌─────────────────────┐
+           │     bond-vault     │   │   voter-registry    │
+           │  custody by market │   │  bonded voter set   │
+           └────────────────────┘   └─────────────────────┘
+                        ▲                 ▲
+                        │ admin           │ admin
+                        │ (RegisterMarket)│
+                  ┌─────┴─────────────────┴─────┐
+                  │   admin key (multisig in    │
+                  │   production)               │
+                  └─────────────────────────────┘
+```
+
+Both `bond-vault` and `voter-registry` maintain a whitelist of authorized market addresses. The admin calls `register_market { market }` on each ancillary contract before a market is functional. Once registered, the market can call `Lock` / `Slash` / `Release` (bond-vault) and `LockCommitments` / `RecordResult` (voter-registry) atomically as part of its execute handlers.
+
+## `inscribe-market-v2`
+
+Per-market state machine. One instance per market. Holds bet pool, evidence list, proposal, challenge, committee, votes, and settlement record.
+
+### Instantiate
+
+```json
+{
+  "spec_cid": "<cascade action_id of market_spec.json>",
+  "settlement_block": 125377382,
+  "challenge_window": 20,
+  "voting_window": 20,
+  "committee_size": 3,
+  "committee_quorum_bps": 6000,
+  "bond_denom": "inj",
+  "bet_denom": "inj",
+  "proposer_bond":  "1000000000000000000",
+  "challenger_bond":"1000000000000000000",
+  "bond_vault":     "inj1hk6us04mhztdyrx7znraf5422qe9gakktnkaya",
+  "voter_registry": "inj15u6gvmgxf32zvwgpqjrc9davyhxp04qa33lxlv"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `spec_cid` | Cascade `action_id` of the market's spec JSON. Becomes the market's permanent identity. |
+| `settlement_block` | Block height at or after which `propose_verdict` can be called. |
+| `challenge_window` | Blocks during which a `Proposed` market can be challenged. |
+| `voting_window` | Blocks during which a `Voting` market accepts `cast_vote`. |
+| `committee_size` | Number of voters sampled at `request_committee`. |
+| `committee_quorum_bps` | Required share of `committee_size` for either side to win. `6000` = 60%. |
+| `bond_denom` / `bet_denom` | Both `"inj"` today. Separable for future USDC bet support. |
+| `proposer_bond`, `challenger_bond` | Exact `info.funds` required for the corresponding execute. |
+| `bond_vault`, `voter_registry` | Wired ancillary contracts. |
+
+### Execute messages
+
+```rust title="contracts/inscribe-market-v2/src/msg.rs (abridged)"
+pub enum ExecuteMsg {
+    Bet { side: Side },
+    Redeem { side: Side },
+    SubmitEvidence { cid: String, role: String },
+    ProposeVerdict { verdict: Side, justification_cid: String },
+    Challenge { counter_verdict: Side, justification_cid: String },
+    FinalizeUncontested {},
+    RequestCommittee {},
+    CastVote { verdict: Side, justification_cid: String },
+    Tally {},
+    RecordSettlement { settlement_cid: String },
+}
+
+pub enum Side { Yes, No, Invalid }
+```
+
+| Message | Allowed in state | Funds required | Effect |
+|---|---|---|---|
+| `bet` | `Open` | exactly 1 coin of `bet_denom`, > 0 | Append to `(sender, side)` pool entry; update pool totals. |
+| `redeem` | `Final` | none | Pay out winning stake or refund (`Invalid`); delete entry. |
+| `submit_evidence` | `Open, Proposed, Challenged, Voting` | none | Append `(cid, submitter, role, block_height)` to evidence pool. `role` must be one of `press_release, tier_1_news, primary_source, other`. |
+| `propose_verdict` | `Open`, block ≥ `settlement_block` | exactly `proposer_bond` of `bond_denom` | Lock bond via `bond-vault`; save proposal; transition to `Proposed`. |
+| `challenge` | `Proposed`, within window | exactly `challenger_bond` of `bond_denom` | Lock bond; save challenge; transition to `Challenged`. `counter_verdict` must differ from the proposal verdict. |
+| `finalize_uncontested` | `Proposed`, after window | none | Release proposer bond; save settlement with proposer verdict; transition to `Final`. |
+| `request_committee` | `Challenged` | none | Sample committee, lock voter commitments; transition to `Voting`. |
+| `cast_vote` | `Voting`, sender in committee | none | Record vote and justification. |
+| `tally` | `Voting`, all voted or window expired | none | Count votes, slash loser's bond to winner, update voter accuracies, save settlement, transition to `Final`. |
+| `record_settlement` | `Final` | none | Attach canonical settlement record CID. |
+
+### Query messages
+
+```rust
+pub enum QueryMsg {
+    GetConfig {},
+    GetMarket {},
+    ListEvidence {},
+    GetBet { addr: String },
+    GetPool {},
+    QuotePayout { addr: String, side: Side },
+    GetProposal {},
+    GetChallenge {},
+    GetCommittee {},
+    GetVote { addr: String },
+    ListVotes {},
+    GetSettlement {},
+}
+```
+
+`QuotePayout` is the most useful read for UIs — it returns `{ amount, redeemable }` and accounts for the resolution path correctly (1:1 refund on `Invalid`, pro-rata share of total pool for winners, zero for losers).
+
+### Key state
+
+```rust
+pub const CONFIG: Item<Config> = Item::new("config");
+pub const MARKET: Item<Market> = Item::new("market");      // { state, voting_start_block }
+pub const EVIDENCE: Item<Vec<EvidenceItem>> = Item::new("evidence");
+pub const BETS: Map<(&Addr, &str), Uint128> = Map::new("bets_v2");  // (addr, "yes"|"no") → stake
+pub const POOL: Map<&str, Uint128> = Map::new("pool");              // "yes"|"no" → total
+pub const PROPOSAL: Item<Option<Proposal>> = Item::new("proposal");
+pub const CHALLENGE: Item<Option<Challenge>> = Item::new("challenge");
+pub const COMMITTEE: Item<Option<Committee>> = Item::new("committee");
+pub const VOTES: Map<&Addr, Vote> = Map::new("votes");
+pub const VOTE_COUNT: Item<u32> = Item::new("vote_count");
+pub const SETTLEMENT: Item<Option<Settlement>> = Item::new("settlement");
+```
+
+Bets are stored as `(addr, side_string) → amount` so that a single address can hold both YES and NO stakes simultaneously. Pool totals are maintained incrementally to make `QuotePayout` O(1).
+
+### Payout formula
+
+From `contract.rs::compute_payout`:
+
+```rust
+if final == Invalid { return stake; }              // 1:1 refund
+if side != final     { return 0; }                  // losing side
+let total   = yes_pool + no_pool;
+let winning = match final { Yes => yes_pool, No => no_pool, _ => unreachable!() };
+stake.multiply_ratio(total, winning)                // pro-rata
+```
+
+`multiply_ratio` uses `u256` internally, so overflow is impossible at any realistic pool size.
+
+### Events
+
+Every execute emits a `wasm` event with attributes the indexer relies on. Notable attributes:
+
+| Message | Attributes emitted |
+|---|---|
+| `bet` | `action=bet, side, amount, better` |
+| `submit_evidence` | `action=submit_evidence, cid, role, submitter` |
+| `propose_verdict` | `action=propose_verdict, verdict, justification_cid, proposer` |
+| `challenge` | `action=challenge, counter_verdict, justification_cid, challenger` |
+| `cast_vote` | `action=cast_vote, verdict, justification_cid, voter` |
+| `tally` | `action=tally, final_verdict, winning_justification_cid` |
+
+The indexer reconstructs full market state from these events alone — see [Services](/docs/injective/services).
+
+## `bond-vault`
+
+Single instance per deployment. Holds bonds in custody, keyed by `(market_addr, role, addr)`. Markets must be `register_market`-ed by the admin before they can call `Lock` / `Release` / `Slash`.
+
+### Instantiate
+
+```json
+{ "admin": "inj1...", "bond_denom": "inj" }
+```
+
+### Execute messages
+
+```rust
+pub enum ExecuteMsg {
+    RegisterMarket { market: String },         // admin
+    DeregisterMarket { market: String },       // admin
+    Lock { role: Role, addr: String },         // whitelisted market only
+    Release { role: Role, addr: String, recipient: String },  // whitelisted market only
+    Slash   { role: Role, addr: String, recipient: String },  // whitelisted market only
+    UpdateAdmin { new_admin: String },         // admin
+}
+
+pub enum Role { Proposer, Challenger, Voter, CommitteeVote }
+```
+
+`Lock` accepts the bonded coins in `info.funds`; the market contract forwards user funds in the same tx. `Release` returns the entire bonded amount to the named recipient (typically the original staker); `Slash` does the same but emits a `slash` event for indexers and is typically called with `recipient` set to the winning counterparty.
+
+There is no partial-release operation. Each `(market, role, addr)` slot holds one bond, locked or released atomically.
+
+### Query messages
+
+```rust
+pub enum QueryMsg {
+    GetConfig {},
+    GetBond { market: String, role: Role, addr: String },
+    IsMarketRegistered { market: String },
+}
+```
+
+`GetBond` is useful when reconstructing a market's outstanding bonds (e.g., for a "current bond exposure" indexer view). `IsMarketRegistered` is what new market deploys check before going live.
+
+## `voter-registry`
+
+Single instance per deployment. Holds the bonded voter set; each voter has a bond, accuracy stats, and a commitment count.
+
+### Instantiate
+
+```json
+{
+  "admin": "inj1...",
+  "bond_denom": "inj",
+  "min_bond": "1000000000000000000"    // 1 INJ
+}
+```
+
+### Execute messages
+
+```rust
+pub enum ExecuteMsg {
+    Register {},                                                 // anyone, funds = bond_denom ≥ min_bond
+    TopUp {},                                                    // anyone, funds = bond_denom
+    Unregister {},                                               // anyone, only if active_commitments == 0
+    LockCommitments { voters: Vec<String> },                     // whitelisted market only
+    RecordResult { voter: String, was_majority: bool },          // whitelisted market only
+    RegisterMarket { market: String },                           // admin
+    DeregisterMarket { market: String },                         // admin
+    UpdateAdmin { new_admin: String },                           // admin
+}
+```
+
+`Register` requires `info.funds = [{ denom: bond_denom, amount ≥ min_bond }]`. Voters track three fields beyond their bond: `correct_votes`, `total_votes`, `active_commitments`. They can `TopUp` to increase committee weight; they can `Unregister` only when no live market has them locked in.
+
+`LockCommitments` is called by a market at `request_committee` and increments `active_commitments` for every sampled voter, preventing them from `Unregister`-ing mid-vote. `RecordResult` is called for each voter at `tally`, decrementing `active_commitments`, incrementing `total_votes`, and conditionally `correct_votes`.
+
+### Query messages
+
+```rust
+pub enum QueryMsg {
+    GetConfig {},
+    GetVoter { addr: String },
+    ListVoters { start_after: Option<String>, limit: Option<u32> },
+    VoterCount {},
+    Sample { count: u32, seed: Binary },
+    IsMarketRegistered { market: String },
+}
+```
+
+`Sample` is the cross-contract entrypoint used by `inscribe-market-v2.request_committee`. It is **deterministic**: same `(count, seed)` always returns the same ordered committee. The seed must be opaque bytes that the caller has committed to; markets build it by hashing `block_hash || height || market_addr || challenge_block`.
+
+### Sampling algorithm
+
+Weighted-without-replacement via rejection. For each draw, hash `(seed || nonce)`, take the first 16 bytes as a `u128`, mod by total weight, walk the cumulative distribution. Duplicates trigger a re-draw with `nonce + 1`, bounded by `count × 40` attempts.
+
+Voter weight: `bond × (100 + accuracy_pct)`, with a neutral prior of 50% accuracy for voters with zero votes. So a fresh 1-INJ voter weighs `1e18 × 150` and a perfect 1-INJ voter (10/10 correct) weighs `1e18 × 200` — a 33% bump for verified accuracy.
+
+The full implementation is `contracts/voter-registry/src/sampling.rs`. The unit tests prove determinism, distinctness, the neutral prior, and that higher-bond voters sample disproportionately more often (≥180/200 hits at 10000:1 bond ratio).
+
+## Cross-contract execute pattern
+
+For a market to call `bond-vault.Lock` atomically with `propose_verdict`, the market contract emits a `CosmosMsg::Wasm(WasmMsg::Execute { contract_addr: bond_vault, msg, funds })` in its `Response`. The same transaction is processed; if either step fails the whole tx reverts.
+
+```rust title="abridged from contract.rs"
+fn lock_bond_msg(
+    bond_vault: &Addr,
+    role: BondRole,
+    addr: &Addr,
+    funds: Vec<Coin>,
+) -> StdResult<CosmosMsg> {
+    let msg = to_json_binary(&BondVaultExecute::Lock {
+        role,
+        addr: addr.to_string(),
+    })?;
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: bond_vault.to_string(),
+        msg,
+        funds,
+    }))
+}
+```
+
+The market does not need to hold any `inj` itself; `info.funds` from the user passes through to `bond-vault` in the same execute call. This is the standard CosmWasm pattern for atomic multi-contract flows.
+
+## Source
+
+| File | What it contains |
+|---|---|
+| `contracts/inscribe-market-v2/src/contract.rs` | All execute and query handlers |
+| `contracts/inscribe-market-v2/src/state.rs` | `Side`, `MarketState`, all storage items |
+| `contracts/inscribe-market-v2/src/msg.rs` | `InstantiateMsg`, `ExecuteMsg`, `QueryMsg` |
+| `contracts/inscribe-market-v2/src/error.rs` | Typed errors with stable wire codes |
+| `contracts/bond-vault/src/{contract,state,msg,error}.rs` | Same shape |
+| `contracts/voter-registry/src/{contract,state,msg,error,sampling}.rs` | Same shape plus standalone sampling module |
+| `scripts/deploy-testnet.sh` | Stores all three crates, captures code IDs + checksums |
+| `scripts/smoke-test-testnet.sh` | Instantiates the trio, wires registrations, queries initial state |
+| `scripts/deploy-market-only.sh` | Stores just `inscribe-market-v2` for iterating on the market crate |
+| `scripts/deployments.json` | Source of truth for code IDs and deployed addresses |
+
+## Next steps
+
+<Cards>
+  <Card title="End-to-end lifecycle walkthrough" href="/docs/injective/lifecycle" />
+  <Card title="Inscribe protocol overview" href="/docs/injective/inscribe" />
+  <Card title="Services (API + indexer)" href="/docs/injective/services" />
+</Cards>
