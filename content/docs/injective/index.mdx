@@ -1,10 +1,10 @@
 ---
 title: Injective × Cascade
-description: Use Lumera Cascade as the permanent storage layer for Injective dApps — claims, evidence, justifications, settlement records — over IBC + Interchain Accounts.
+description: Use Lumera Cascade as the permanent storage layer for Injective dApps over IBC + Interchain Accounts.
 icon: Network
 ---
 
-[Injective](https://injective.com) is a CosmWasm-2.0 Layer-1 with a native orderbook module, sub-second finality, and full IBC connectivity. Most Injective apps store state on-chain and pin large auxiliary data — trade receipts, NFT metadata, governance attachments, oracle evidence — to IPFS or a centralised bucket. That auxiliary data lives only as long as someone keeps paying to host it.
+[Injective](https://injective.com) is a Cosmos Layer-1 with a native orderbook module, sub-second finality, and full IBC connectivity. Most Injective apps store state on-chain and pin large supporting data such as trade receipts, NFT metadata, governance attachments, and oracle evidence to third-party storage. That supporting data lives only as long as someone keeps paying to host it.
 
 Cascade is a permanent home for those bytes. Injective stays the venue for trading, state machines, and bonds; Cascade becomes the venue for everything those state machines reference but cannot afford to lose. The two chains coexist over IBC: contracts on Injective can drive Cascade through an [Interchain Account](/docs/concepts/interchain-accounts), and end users can sign Lumera transactions directly from their Cosmos wallets.
 
@@ -36,7 +36,7 @@ Cascade does not replace anything on Injective. It augments contract state with 
 | Pointers (`action_id`) tying the two together | ✓ | |
 
 The Injective contract holds only the `action_id` (an integer) for each artifact. The bytes live on Cascade. The pairing is what makes the system both cheap to operate and permanent to read.
-
+{/* 
 ## The flagship integration: Inscribe
 
 [**Inscribe**](/docs/injective/inscribe) is a permanent, re-litigatable prediction-markets protocol that exercises this pattern at full depth. It runs on `injective-888` today and stores every claim, every piece of evidence, and every voter's written justification on Cascade. Markets settle through a bonded human optimistic oracle whose entire reasoning trail survives the market.
@@ -50,7 +50,7 @@ Inscribe is the reference implementation we point developers at in this section:
 | `voter-registry` (CosmWasm) | Bonded voter set + deterministic committee sampling |
 | `cw-ica-controller` (live) | The ICS-27 ICA controller that lets contracts/services act on Lumera |
 | `inscribe-api` + `inscribe-indexer` (Go) | Joined views over Injective + Cascade |
-| Web app (Next.js, Keplr) | Wallet-driven UX |
+| Web app (Next.js, Keplr) | Wallet-driven UX | */}
 
 ## Trust model
 

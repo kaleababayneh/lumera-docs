@@ -85,7 +85,7 @@ In short, today: use A or B for user flows, use C for ops-tooling that needs a c
 
 ## The full upload sequence (Pattern B, in detail)
 
-The Inscribe API's `POST /cascade/upload` is the most complete reference for Pattern B. The Go implementation is roughly:
+The Inscribe API's `POST /cascade/upload` is the most complete reference for Pattern B. The Go implementation forwards directly to the Lumera-operated cascade-api at `api.lumera.help`:
 
 ```text
 ┌──────────────┐  multipart file
@@ -95,30 +95,32 @@ The Inscribe API's `POST /cascade/upload` is the most complete reference for Pat
 ┌─────────────────────────────────────────────────────────────────┐
 │  inscribe-api  (services/cmd/api)                                │
 │                                                                  │
-│   1. parse multipart, write file to /tmp                         │
+│   1. parse multipart                                             │
 │                                                                  │
-│   2. shell out to inj-cw-upload (cascadego repo)                 │
-│       ├─ build MsgRequestAction with file's BLAKE3 hash          │
-│       ├─ pack it for ICA dispatch via cw-ica-controller          │
-│       ├─ broadcast on injective-888                              │
-│       └─ wait for IBC ack from Lumera with action_id             │
+│   2. POST to $CASCADE_API_URL/upload                             │
+│       Authorization: Bearer $CASCADE_API_TOKEN                   │
+│       form field: file=<bytes>                                   │
 │                                                                  │
-│   3. POST the file body to sn-control on the Supernode           │
-│       Authorization: Bearer $SN_CONTROL_TOKEN                    │
-│       fields: action_id=<id>, file=<bytes>                       │
+│   3. cascade-api signs MsgRequestAction with its Lumera key,     │
+│      broadcasts on Lumera, streams the file bytes to Supernodes  │
 │                                                                  │
-│   4. return { action_id, filename, size }                        │
+│   4. return the cascade-api response (action_id, tx_hash,        │
+│      block_height, task_id, filename, size_bytes)                │
 └──────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌──────────────┐
-│   Browser    │  action_id returned; submit on Injective.
+│   Browser    │  action_id returned (typical 6-15s); submit on Injective.
 └──────────────┘
 ```
 
-Step 2 today is *literally a shell-out* to a Go binary in the cascadego repo (`inj-cw-upload`) that wraps the cw-ica-controller calls. A second-generation API would pack the same messages with `@injectivelabs/sdk-ts` or `cosmjs` directly; the shell-out is a deliberate "use what works, ship the MVP" choice.
+There is no IBC round-trip on this path — the cascade-api signs on Lumera directly. The bearer token is the Inscribe operator's key, scoped via cascade-api quota.
 
-If you're building Pattern B yourself, the equivalent in `@lumera-protocol/sdk-js` is much simpler because you don't need the IBC round-trip — your backend signs the Lumera tx with its own Lumera key:
+<Callout>
+An earlier MVP build of `inscribe-api` shelled out to a `inj-cw-upload` binary that packed a `MsgRequestAction` for the [`cw-ica-controller`](https://github.com/srdtrk/cw-ica-controller), broadcast on Injective, and waited for Hermes to relay. That works when the relayer is healthy but degrades to multi-minute waits (and process kills) when Hermes is backed up. The current default is the simpler cascade-api forward; the ICA path is preserved for [Pattern C](#pattern-c-contract-driven-via-ica-advanced) workflows where the *contract itself* must be the signer.
+</Callout>
+
+If you're building Pattern B yourself, the equivalent in `@lumera-protocol/sdk-js` is essentially the same — you talk directly to your backend's Lumera key:
 
 ```ts title="Pattern B without the IBC detour"
 import { createLumeraClient } from "@lumera-protocol/sdk-js";

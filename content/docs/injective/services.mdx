@@ -141,10 +141,7 @@ The `immutable` cache header is correct: Cascade content is content-addressed, s
 
 ### `POST /cascade/upload`
 
-Multipart upload that drives the full server-signed Cascade write (see [Cascade from Injective — Pattern B](/docs/injective/cascade-from-injective#pattern-b-server-signed-a-backend-holds-a-lumera-key)). Two-step pipeline:
-
-1. Shell out to `inj-cw-upload` (cascadego repo binary). This builds a `MsgRequestAction`, packs it for ICA dispatch via the `cw-ica-controller`, broadcasts on injective-888, and returns the Lumera `action_id`.
-2. POST the file body to `sn-control /sn/upload` with the `action_id` so the Supernode stores the actual content.
+Multipart upload that forwards the file to a cascade-api backend (default `https://api.lumera.help`). The backend holds a Lumera signing key and pays `ulume` fees on the caller's behalf — see [Cascade from Injective — Pattern B](/docs/injective/cascade-from-injective#pattern-b-server-signed-a-backend-holds-a-lumera-key).
 
 ```sh
 curl -s -F "file=@evidence.txt" http://127.0.0.1:8080/cascade/upload | jq
@@ -152,13 +149,20 @@ curl -s -F "file=@evidence.txt" http://127.0.0.1:8080/cascade/upload | jq
 
 ```json
 {
-  "action_id": "15823",
-  "filename":  "evidence.txt",
-  "size":      248
+  "action_id":    "15823",
+  "block_height": 4818727,
+  "task_id":      "b7c60a02",
+  "tx_hash":      "096FE846DE0B0063D34105B8735224B21AF1DB80CBBE0FCF23E77B722FFDD961",
+  "filename":     "evidence.txt",
+  "size_bytes":   248
 }
 ```
 
-Timeout is 5 minutes (overrides the surrounding `chi.Timeout(60s)`) because the IBC packet round-trip can take 30–60s. The endpoint has no authentication today; production deployments should put a quota-capped bearer token in front of it. See [Cascade from Injective](/docs/injective/cascade-from-injective#funding-the-bridge) for funding requirements.
+The response is the canonical cascade-api shape (a superset of the legacy `{action_id, filename, size}` so clients that only consume `action_id` continue to work). Typical round-trip is 6–15 seconds; the route allows 5 minutes for cold paths.
+
+<Callout>
+The Inscribe MVP previously used an alternative pipeline: shell out to `inj-cw-upload` (cascadego repo binary), pack a `MsgRequestAction` for ICA dispatch via `cw-ica-controller`, broadcast on injective-888, and wait for Hermes to relay before posting the file body to sn-control. That path works when the relayer is healthy but degrades to multi-minute waits (and process kills) when Hermes is backed up. The current default is the Lukso-style cascade-api forward; the ICA path remains documented in [Cascade from Injective — Pattern C](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced) for canonical, contract-only writes.
+</Callout>
 
 ### Environment
 
@@ -167,11 +171,13 @@ Timeout is 5 minutes (overrides the surrounding `chi.Timeout(60s)`) because the 
 | `DATABASE_URL` | required | pgx connection string |
 | `INJECTIVE_LCD` | required | LCD endpoint for the indexer's smart queries |
 | `INSCRIBE_MARKET_V2_CODE_ID` | required | Code ID the indexer scans for instances |
-| `SN_CONTROL_URL` | `http://4.239.243.216:8444` | Cascade gateway for downloads |
-| `SN_CONTROL_TOKEN` | required for downloads + uploads | Bearer auth for sn-control |
-| `CASCADEGO_DIR` | `/Users/kaleab/Documents/cascadego` | Where `inj-cw-upload` lives |
-| `INJ_CW_UPLOAD_BIN` | `$CASCADEGO_DIR/inj-cw-upload` | Override for the binary path |
+| `CASCADE_API_URL` | `https://api.lumera.help` | cascade-api backend; used for both upload and download |
+| `CASCADE_API_TOKEN` | required for `/cascade/upload` | Bearer token issued by the cascade-api operator |
+| `SN_CONTROL_URL` | unset | Legacy alternative for downloads (cascadego sn-control) |
+| `SN_CONTROL_TOKEN` | unset | Bearer for sn-control, only if `CASCADE_API_URL` is unset |
 | `API_PORT` / `API_BIND` | `8080` / `127.0.0.1` | HTTP listener |
+
+The cascade client auto-detects whether to use `/download/<id>` (cascade-api shape) or `/sn/download/<id>` (sn-control shape) from the configured URL.
 
 ## Database schema (high-level)
 
