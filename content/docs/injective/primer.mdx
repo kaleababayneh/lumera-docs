@@ -54,7 +54,7 @@ You get back a `code_id` (e.g. `39449` for the latest `inscribe-market-v2`); ins
 
 ## The native orderbook
 
-Injective has a chain-level orderbook for spot and derivatives markets. Inscribe today uses **simple pari-mutuel bet pools** (YES/NO collateral pools redeemed pro-rata at settlement) rather than the orderbook, because the prediction-market lifecycle and the orderbook lifecycle don't mesh cleanly inside a single Wasm contract.
+Injective has a chain-level orderbook for spot and derivatives markets.
 
 If you're building a different Injective × Cascade product where price discovery matters (a derivatives market with permanent settlement evidence, a perpetual with permanent funding-rate justifications), the orderbook is the natural fit. Cascade's role there is identical to its role in Inscribe: permanent storage for the receipts, the oracle inputs, and the dispute justifications, with `action_id` pointers held in the matching contract.
 
@@ -72,7 +72,7 @@ The Cascade-bridge page covers this in detail: see [Cascade from Injective](/doc
 
 ## Wallets
 
-The Injective wallet model is essentially Ethereum's: the curve is **eth_secp256k1**, derivation is BIP-44 with `coinType: 60`, and addresses are bech32-encoded `keccak256(pubkey)` (the Ethereum hash, not the SHA256+RIPEMD160 of Cosmos). The same private key your Keplr account would use for Ethereum is the one that signs Injective transactions.
+The Injective wallet model is essentially Ethereum's: the curve is **eth_secp256k1**, derivation is BIP-44 with `coinType: 60`, and addresses are bech32-encoded `keccak256`. 
 
 For Keplr support, the chain info Inscribe ships looks like this:
 
@@ -133,7 +133,6 @@ Once you have a `SigningCosmWasmClient`, contract calls look like any other Cosm
 
 For end users your dApp will typically need **two wallets in one** session: an `inj1...` address for Injective contract calls, and a `lumera1...` address for Cascade artifact uploads. Both can come from the same Keplr extension; the user enables the Injective chain (eth_secp256k1) for Injective and the Lumera chain (standard secp256k1) for Cascade. They're derived from different paths so the user does not see the same address on both chains.
 
-Inscribe's MVP simplifies this by routing user uploads through a server-side `inscribe-api` endpoint that calls a shared signing key. See [Cascade from Injective](/docs/injective/cascade-from-injective) for both patterns side-by-side.
 
 ## Tools you will use
 

@@ -6,7 +6,8 @@ icon: Network
 
 [Injective](https://injective.com) is a Cosmos Layer-1 with a native orderbook module, sub-second finality, and full IBC connectivity. Most Injective apps store state on-chain and pin large supporting data such as trade receipts, NFT metadata, governance attachments, and oracle evidence to third-party storage. That supporting data lives only as long as someone keeps paying to host it.
 
-Cascade is a permanent decentralised storage layer. Injective stays the venue for trading, state machines, and bonds; Cascade becomes the venue for everything those state machines reference but cannot afford to lose. The two chains coexist over IBC: contracts on Injective can drive Cascade through an [Interchain Account](/docs/concepts/interchain-accounts), and end users can sign Lumera transactions directly from their Cosmos wallets.
+Cascade is a permanent decentralised storage layer. Injective stays the layer for trading, state machines, and bonds while Cascade becomes the layer for everything those state machines reference without bloating the chain.
+ {/* The two chains coexist over IBC: contracts on Injective can drive Cascade through an [Interchain Account](/docs/concepts/interchain-accounts), and end users can sign Lumera transactions directly from their Cosmos wallets. */}
 
 ## Why this fits
 
@@ -16,8 +17,8 @@ Cascade is a permanent decentralised storage layer. Injective stays the venue fo
 | Pricing | Recurring per-month bill | Pay once on-chain in `ulume` |
 | Redundancy | None by default | RaptorQ erasure coding across Supernodes |
 | Self-healing | No | Yes, automatic chunk restoration |
-| Cosmos native | No | Yes — IBC-addressable from any IBC chain |
-| Verifiability | Hash-only at best | Hash + on-chain `action_id` + chain receipt |
+| Cosmos native | No | Yes, IBC-addressable from any IBC chain |
+| Verifiability | Hash-only at best | Hash and on-chain `action_id` |
 
 Cascade does not replace anything on Injective. It augments contract state with permanent, content-addressed payloads that contracts can reference by `action_id`.
 
@@ -35,7 +36,7 @@ Cascade does not replace anything on Injective. It augments contract state with 
 | Canonical settlement records | | ✓ |
 | Pointers (`action_id`) tying the two together | ✓ | |
 
-The Injective contract holds only the `action_id` (an integer) for each artifact. The bytes live on Cascade. The pairing is what makes the system both cheap to operate and permanent to read.
+The Injective contract holds only the `action_id` for each artifact. The bytes live on Cascade. The pairing is what makes the system both cheap to operate and permanent to read.
 {/* 
 ## The flagship integration: Inscribe
 
@@ -51,14 +52,6 @@ Inscribe is the reference implementation we point developers at in this section:
 | `cw-ica-controller` (live) | The ICS-27 ICA controller that lets contracts/services act on Lumera |
 | `inscribe-api` + `inscribe-indexer` (Go) | Joined views over Injective + Cascade |
 | Web app (Next.js, Keplr) | Wallet-driven UX | */}
-
-## Trust model
-
-The Injective side is standard: CosmWasm contracts, native orderbook, BFT finality. No new assumptions.
-
-The Cascade side adds one assumption: **the Supernode network is honest in aggregate**. RaptorQ erasure coding means a market's bytes survive significant node churn; sn-control + multiple gateways mean reads are not bottlenecked on a single domain. The hash binding on every artifact (`action_id` → content hash on chain) prevents tampering even by a hostile gateway — the worst it can do is deny service.
-
-For the cross-chain bridge specifically, the trust assumption is the standard IBC one: a live relayer between `injective-888` and `lumera-testnet-2`. The Inscribe deployment uses Hermes; the channel and the [`cw-ica-controller`](https://github.com/srdtrk/cw-ica-controller) bridge have been live since before the contracts shipped.
 
 ## Next steps
 
