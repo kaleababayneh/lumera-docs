@@ -1,10 +1,10 @@
 ---
 title: Build your own integration
-description: Reusable patterns for any Injective × Cascade product — the action_id pointer pattern, contract-side conventions, indexer responsibilities, and what to copy from Inscribe.
+description: Reusable patterns for any Injective × Cascade product — the action_id pointer, contract-side conventions, indexer responsibilities, frontend patterns, and the failure modes to design around.
 icon: Construction
 ---
 
-Inscribe is one shape of Injective × Cascade product (prediction markets with permanent justifications). It is not the only one. This page is a recipe book for building a different one: where to copy from Inscribe, where to diverge, and the failure modes to design around.
+[Inscribe](/docs/injective/inscribe) is one shape of Injective × Cascade product. It is not the only one. This page is the recipe book for building a different one: the architecture every integration shares, the conventions that make it clean, and the pitfalls worth a deliberate decision up front.
 
 ## The shape every integration takes
 
@@ -33,193 +33,142 @@ Regardless of what your dApp does, the architecture is the same three-layer spli
 └──────────────────────────────────────────────────────────────┘
 ```
 
-The thing you customise per product is **what the bytes are**: trade receipts, NFT media + metadata, governance proposals, oracle inputs, audit logs, archival timeline data, off-chain order signatures, encrypted messages, attestations, votes, you name it. Everything else is plumbing.
+What you customise per product is **what the bytes are**: trade receipts, NFT media + metadata, governance proposals, oracle inputs, audit logs, archival data, off-chain order signatures, encrypted messages, attestations. Everything else is plumbing.
 
 ## Decision: who signs the Cascade write?
 
-The most important decision in the design phase. The options are spelled out in [Cascade from Injective](/docs/injective/cascade-from-injective#two-ways-to-write-to-cascade); the short version:
+The most important call you make. The options are detailed in [Cascade from Injective](/docs/injective/cascade-from-injective#two-ways-to-write-to-cascade); the short version:
 
-| Choose Pattern A (user-signed) if... | Choose Pattern B (server-signed) if... | Choose Pattern C (contract-driven) if... |
+| Choose Pattern A (user-signed) if… | Choose Pattern B (server-signed) if… | Choose Pattern C (contract-driven) if… |
 |---|---|---|
-| Provenance matters — the user *must* be the on-chain author | UX matters — one signature, faster path | The artifact must exist whenever the state transition happens, with no user in the loop |
-| Users already need a Lumera address for other reasons (faucet, staking) | Users may not have a funded Lumera address | Indexers and trustless readers need the artifact guaranteed-present |
-| You want zero server-side custody | You're OK funding `ulume` at the operator level | You're prepared for the IBC packet round-trip latency and operational complexity |
+| Provenance matters — the user *must* be the on-chain author | UX matters — one signature, faster path, no Lumera address for users | The artifact must exist whenever the state transition happens, with no user in the loop |
+| Users already need a Lumera address for other reasons | You're OK funding `ulume` at the operator level | Indexers and trustless readers need the artifact guaranteed-present |
+| You want zero server-side custody | You want a single key you can monitor and rotate | You accept the IBC round-trip latency and operational complexity |
 
-Most production integrations end up using **A for user-authored content** and **B or C for derived/canonical content**. Inscribe uses B for everything in the MVP because that ships faster; it migrates user-content paths to A as wallet onboarding matures.
+**Start with Pattern B** — it's the fastest path to a working product and the one the reference implementation uses for everything. Reach for A when on-chain provenance to the user's key is a requirement, and reserve C for contract-deterministic canonical writes.
 
 ## Contract-side conventions
 
-These three patterns are what make an Injective contract Cascade-friendly. Adopt them and your indexer and frontend become trivial.
+Five conventions make an Injective contract Cascade-friendly. Adopt them and your indexer and frontend become trivial.
 
-### Convention 1: Every Cascade-bound field is a `String`
+### 1. Every Cascade-bound field is a `String`
 
-Not a `Vec<u8>`, not a custom type — a plain UTF-8 `String` that the contract treats as opaque. The contract checks `!cid.trim().is_empty()` and that's the entire validation. Resolution and integrity are off-chain concerns.
+Not a `Vec<u8>`, not a custom type — a plain UTF-8 `String` the contract treats as opaque. Validation is `!cid.trim().is_empty()` and nothing more. Cascade `action_id`s are numeric strings; store them as-is to keep indexer queries simple.
 
 ```rust
-pub struct EvidenceItem {
+pub struct StoredArtifact {
     pub cid: String,            // ← Cascade action_id
     pub submitter: Addr,
-    pub role: String,
     pub block_height: u64,
-}
-
-if cid.trim().is_empty() {
-    return Err(ContractError::InvalidCid("empty cid".into()));
 }
 ```
 
-Don't store base32 / base58 prefixes ("bafy…"). Cascade action_ids are numeric strings; storing them as-is keeps your indexer's queries simple.
+### 2. Emit the CID as a `wasm` event attribute
 
-### Convention 2: Emit the CID as a `wasm` event attribute
-
-Indexers reconstruct state from `wasm` events. Every state transition that introduces a new CID should emit it as a discoverable attribute alongside `action`, `submitter`, and the rest.
+Indexers reconstruct state from `wasm` events. Every transition that introduces a new CID should emit it as a discoverable attribute alongside `action` and `submitter`.
 
 ```rust
 Ok(Response::new()
-    .add_attribute("action", "submit_evidence")
+    .add_attribute("action", "submit")
     .add_attribute("cid", cid)
-    .add_attribute("role", role)
     .add_attribute("submitter", info.sender))
 ```
 
-Indexers can then either (a) decode events live and avoid smart queries entirely, or (b) use events as triggers and smart-query for full state. The Inscribe indexer uses (b) for simplicity.
+### 3. Expose CIDs in queries
 
-### Convention 3: Expose CIDs in queries
-
-A read-only client that doesn't run an indexer should be able to drive a viewer from contract queries alone. That means at minimum:
+A read-only client with no indexer should be able to drive a viewer from contract queries alone. Expose every CID-bearing record:
 
 ```rust
-#[returns(Vec<EvidenceItem>)]
-ListEvidence {},
-
-#[returns(Option<Proposal>)]    // proposal includes justification_cid
-GetProposal {},
-
-#[returns(Option<Settlement>)]  // settlement includes winning_justification_cid + settlement_cid
-GetSettlement {},
+#[returns(Vec<StoredArtifact>)]
+ListArtifacts {},
 ```
 
-This makes the contract self-describing: a developer with no indexer can query the chain, get every CID, fetch each from a Cascade gateway, and render the full state.
+A developer can then query the chain, get every CID, fetch each from a Cascade gateway, and render the full state — no indexer required.
 
-### Convention 4: State machines, not free-form
+### 4. State machines, not free-form
 
-The Inscribe market is a strict state machine: `Open → Proposed → Challenged → Voting → Final`. Every execute message checks the current state and either advances it or rejects. This is the cleanest way to model Cascade-bound workflows because each state defines exactly which CIDs may be added:
+Model Cascade-bound workflows as a strict state machine where each state defines exactly which CIDs may be added. The reference implementation uses `Open → Proposed → Challenged → Voting → Final`, and an actor cannot, say, add a "vote justification" in the `Open` state — the contract rejects it, so the indexer never sees a confusing half-state.
 
-| State | What CIDs are added |
-|---|---|
-| `Open` | evidence |
-| `Proposed` | evidence, **proposal justification** |
-| `Challenged` | evidence, **challenge justification** |
-| `Voting` | evidence, **vote justifications** |
-| `Final` | **settlement record** |
+### 5. Atomic cross-contract calls for funds + CIDs
 
-An attacker cannot add a "vote justification" in the `Open` state and confuse the indexer; the contract rejects it.
-
-### Convention 5: Atomic cross-contract calls for funds + CIDs
-
-If your CID submission also moves funds (a bond, a fee, a deposit), use the standard CosmWasm pattern: emit a `CosmosMsg::Wasm(WasmMsg::Execute)` in the same response. The Inscribe market does this for proposer / challenger bond locking against `bond-vault`. The whole tx either succeeds or reverts — the indexer never sees a half-state where the CID was registered but the bond was not.
+If a CID submission also moves funds (a bond, a fee, a deposit), emit a `CosmosMsg::Wasm(WasmMsg::Execute)` in the same response. The whole tx succeeds or reverts together — the indexer never sees a state where the CID was registered but the bond was not.
 
 ## Indexer responsibilities
 
-Three jobs, in order of priority:
+Three jobs, in priority order:
 
-1. **Mirror on-chain state into a queryable store.** Smart-query each contract instance every N seconds. Postgres is more than enough; the data volume is bounded by the number of markets/objects, not by user traffic.
-2. **Eagerly resolve every new CID.** When you see a new event with a CID attribute, kick off a background fetch from a Cascade gateway and cache the body locally. Frontend reads should hit your cache, not Lumera.
-3. **Serve joined views for the frontend.** `GET /things/{id}` should return on-chain state and inlined Cascade content in one response.
+1. **Mirror on-chain state into a queryable store.** Smart-query each contract instance every N seconds into Postgres. The data volume is bounded by the number of objects, not by user traffic.
+2. **Eagerly resolve every new CID.** When you see a new CID attribute, fetch the artifact from a Cascade gateway in the background and cache the body locally. Frontend reads hit your cache, not Lumera.
+3. **Serve joined views.** `GET /things/{id}` should return on-chain state and inlined Cascade content in one response.
 
-The third one is what makes the UX feel fast. A naive frontend doing 20 round trips per page (one for state, 19 for CIDs) is painful; the same data served as one JSON blob is instant.
+The third is what makes the UX feel fast. A naive frontend doing 20 round trips per page (one for state, 19 for CIDs) is painful; the same data served as one JSON blob is instant. Because Cascade content is immutable, the cache is permanent — no invalidation strategy.
 
 ## Frontend conventions
 
-The Inscribe web app is ~1500 lines of Next.js + Keplr. Patterns worth copying:
-
-- **`getOfflineSignerOnlyAmino` for Injective signing.** Direct-mode signing does not work with `eth_secp256k1`. Always `Amino`. See [Injective primer](/docs/injective/primer#wallets).
-- **Server Components for read paths.** The Inscribe market detail page is a Server Component that fetches `/markets/{addr}` and renders. No client-side data fetching on initial load.
-- **Client Components for write actions.** A single `<MarketActions>` Client Component renders only the buttons appropriate to the current state (`Open` → bet + evidence + propose; `Proposed` → evidence + challenge + finalize; etc.). Drives the user through the state machine without showing actions that would be rejected on chain.
+- **`getOfflineSignerOnlyAmino` for Injective signing.** Direct-mode signing does not work with `eth_secp256k1`. Always Amino. See the [primer](/docs/injective/primer#wallets-and-signing).
+- **Server Components for read paths.** Fetch your joined `/things/{id}` view and render server-side; no client-side fetching on initial load.
+- **Client Components for write actions.** Render only the actions valid in the current state, so the UI drives the user through the state machine without offering calls the contract would reject.
 - **Refresh after a delay.** After a successful execute, schedule a `router.refresh()` 10–12 seconds out so the indexer has one full poll-tick to catch up before the UI re-reads.
-- **Surface contract errors verbatim.** Don't try to translate `wasm execute failed: WrongState(...)` into something prettier — the verbatim error is usually the most actionable thing the user can see.
+- **Surface contract errors verbatim.** `wasm execute failed: WrongState(...)` is usually more actionable than anything you'd rewrite it into.
 
 ## When to skip Cascade entirely
 
 Cascade is the right home for content that needs to be **permanent, verifiable, and large**. It is not the right home for everything an Injective dApp produces.
 
-| Use Cascade if... | Use plain on-chain state if... |
+| Use Cascade if… | Use plain on-chain state if… |
 |---|---|
 | The artifact is > a few hundred bytes | The artifact is a small enum or numeric value |
-| The artifact needs to outlive the dApp's lifecycle | The artifact is intermediate / cache state |
+| The artifact must outlive the dApp's lifecycle | The artifact is intermediate / cache state |
 | The artifact will be cited or audited in the future | The artifact is purely operational |
 | You want pay-once economics | You don't need permanence at all |
-| The artifact is user-content (proof, evidence, justification) | The artifact is metadata about contract state |
 
 A 32-byte hash, an enum, a counter — these belong in CosmWasm state. A 500-byte JSON blob with a claim and citations, a 5-MB PDF, a 3D NFT model — these belong on Cascade with a `String` pointer in CosmWasm state.
 
 ## Things to design around
 
-Pitfalls the Inscribe build surfaced. None are blockers, but each deserves a deliberate decision.
+None are blockers, but each deserves a deliberate decision.
 
-### IBC packet latency
+### Gateway as a single point of failure
 
-If you use Pattern C (contract-driven Cascade writes), the round-trip is **30–60 seconds in the happy path** and can stall on relayer hiccups. Don't put it on the user's hot path. Defer it to canonical artifacts that don't gate user actions, or use Pattern B with a fast server.
+In Pattern B, your `POST /cascade/upload` depends on one cascade-api endpoint holding a signing key. If it's down, uploads are down. Either rely on the HA Lumera-operated cascade-api at `api.lumera.help`, or run your own behind a domain you control. The **download** path is more forgiving — it can fan out across multiple gateways via a URL resolver — but the upload path is single-homed by nature.
 
-### sn-control as a SPOF
+### `ulume` balance
 
-`sn-control` is a single HTTP service holding a bearer token. If it's down, your `POST /cascade/upload` is down. Either run your own sn-control (Inscribe inherits one from the cascadego deployment) or use a Cascade gateway with HA. The download path can use multiple gateways via a URL resolver; the upload path is currently single-homed.
-
-### Quota and `ulume` balance
-
-Every Cascade write spends ~10–15k `ulume`. A funded address with 1M `ulume` covers ~70 uploads. Monitor your service balance via [`/healthz`](/docs/lukso/data-provider#get-healthz) (cascade-api) or whatever your gateway exposes; alert before exhaustion. The Inscribe API does not yet enforce per-user quotas; production deployments should.
+Every Cascade write spends ~10–15k `ulume`; a 1M-`ulume` balance covers ~70 uploads. Monitor your service key's balance and alert before exhaustion. If you expose uploads to users, add per-user quotas — an open upload endpoint is a way to drain your key.
 
 ### eth_secp256k1 vs secp256k1
 
-Injective uses `eth_secp256k1`; Lumera uses standard `secp256k1`. If you derive both from the same Keplr mnemonic, the user has **two different addresses** (different `coinType` paths). UI flows must surface both addresses and not confuse them.
+Injective uses `eth_secp256k1`; Lumera uses standard `secp256k1`. Derived from the same Keplr mnemonic, the user has **two different addresses** (different `coinType` paths). Any UI that surfaces both must not confuse them.
 
 ### Indexer lag
 
-A 10-second poll interval means UI sees a stale state for up to 10 seconds after a tx confirms. Two mitigations:
+A 10-second poll interval means the UI can see stale state for up to 10 seconds after a tx confirms. Mitigate with optimistic local updates, a shorter interval (at the cost of more LCD load), or the simple `refresh-after-12s` pattern. The simple pattern is fine for testnet UX and fragile under heavy load.
 
-1. After a successful tx, optimistically update the local UI state.
-2. Use shorter intervals (3–5s) at the cost of more LCD load.
+### IBC latency (only if you use Pattern C)
 
-Inscribe chose the simpler `refreshSoon()` pattern: wait 12 seconds, then `router.refresh()` and let the Server Component re-fetch. Good enough for the testnet UX, fragile under heavy load.
+A contract-driven Cascade write over ICA is a **30–60s round-trip in the happy path** and can stall on relayer hiccups. Never put it on a user's hot path. Defer it to canonical artifacts that don't gate user actions — or use Pattern B with a fast server, which is what the reference implementation does.
 
 ### Re-litigation needs gateway redundancy
 
-The "anyone can fetch the full record forever" property depends on at least one Cascade gateway being reachable. The bytes are permanent on the Supernode network, but a reader who only knows an HTTPS URL needs that URL to resolve. Plan for at least two gateways in production (your own + Lumera-operated) and consider exposing a "Cascade-native" reader that talks to Supernodes directly for very long-horizon use cases.
-
-## What to copy from Inscribe
-
-Concrete artifacts worth lifting if you're building in a similar shape:
-
-| Inscribe file | What to copy / adapt |
-|---|---|
-| `contracts/bond-vault/` | The custody-by-market pattern with a whitelist of caller contracts |
-| `contracts/voter-registry/src/sampling.rs` | Deterministic weighted-without-replacement committee sampling |
-| `contracts/inscribe-market-v2/src/contract.rs::compute_payout` | Pari-mutuel payout formula with `Invalid` refund path |
-| `services/internal/indexer/indexer.go` | Poll-and-mirror loop with eager Cascade resolution |
-| `services/internal/api/server.go::auditMarket` | The fat audit endpoint pattern |
-| `services/internal/api/upload.go` | Pattern B server-signed upload pipeline |
-| `web/lib/inj.ts` + `web/lib/keplr.ts` | Injective + Keplr signing with `Amino`-only |
-| `web/components/market-actions.tsx` | State-machine-aware action UI |
-| `scripts/deploy-testnet.sh` + `smoke-test-testnet.sh` | Reproducible deploy + bring-up |
+The "anyone can fetch the full record forever" property depends on at least one Cascade gateway being reachable. The bytes are permanent on the Supernode network, but a reader who only knows an HTTPS URL needs that URL to resolve. Plan for at least two gateways in production (your own + Lumera-operated), and for very long-horizon use cases consider a Cascade-native reader that talks to Supernodes directly.
 
 ## Other product shapes that fit
 
-Beyond Inscribe-style prediction markets, the same Injective × Cascade pattern is a natural fit for:
+Beyond prediction markets, the same Injective × Cascade pattern is a natural fit for:
 
-- **NFT marketplaces** where metadata permanence matters (parallel to the Lukso [LSP-4 / LSP-8 integration](/docs/lukso/digital-assets)): contract holds the token + a Cascade `action_id`; metadata + media live on Cascade.
-- **DAOs** where proposals, debate threads, and voting rationale need to be archival: Snapshot's "proposals on IPFS" pattern, but with permanence.
-- **DeFi protocols** publishing oracle inputs with a permanent receipts trail (think Chainlink data feeds where the input set is part of the audit).
+- **NFT marketplaces** where metadata permanence matters (parallel to the Lukso [LSP-4 / LSP-8 integration](/docs/lukso/digital-assets)): the contract holds the token + an `action_id`; metadata and media live on Cascade.
+- **DAOs** where proposals, debate threads, and voting rationale need to be archival — Snapshot's "proposals on IPFS" pattern, but permanent.
+- **DeFi protocols** publishing oracle inputs with a permanent receipts trail (Chainlink-style feeds where the input set is part of the audit).
 - **Audit / compliance logs** that need decade-scale verifiability, signed by the on-chain contract.
 - **Encrypted messaging** layered on Cascade's [encrypted storage](/docs/guides/encrypted-storage) with Injective contracts handling access control.
-- **Long-horizon prediction markets** with settlement dates years out — Cascade's permanence guarantee outlives the underlying market.
+- **Long-horizon markets** with settlement dates years out — Cascade's permanence outlives the underlying market.
 
-In each case the integration shape is what's in the diagram at the top of this page; only the schema of "what the bytes are" changes.
+In each case the integration shape is the diagram at the top of this page; only the schema of "what the bytes are" changes.
 
 ## Next steps
 
 <Cards>
-  <Card title="Cascade from Injective (the bridge)" href="/docs/injective/cascade-from-injective" />
-  <Card title="Inscribe protocol overview" href="/docs/injective/inscribe" />
-  <Card title="Contracts reference" href="/docs/injective/contracts" />
-  <Card title="Services (API + indexer)" href="/docs/injective/services" />
+  <Card title="Cascade from Injective (the integration patterns)" href="/docs/injective/cascade-from-injective" />
+  <Card title="Inscribe — a reference implementation" href="/docs/injective/inscribe" />
+  <Card title="Injective primer" href="/docs/injective/primer" />
 </Cards>

@@ -1,63 +1,58 @@
 ---
 title: Injective × Cascade
-description: Use Lumera Cascade as the permanent storage layer for Injective dApps over IBC + Interchain Accounts.
+description: Use Lumera Cascade as the permanent storage layer for any Injective dApp — keep state, trading, and bonds on Injective and store the heavy, citable data on Cascade behind a single on-chain pointer.
 icon: Network
 ---
 
-[Injective](https://injective.com) is a Cosmos Layer-1 with a native orderbook module, sub-second finality, and full IBC connectivity. Most Injective apps store state on-chain and pin large supporting data such as trade receipts, NFT metadata, governance attachments, and oracle evidence to third-party storage. That supporting data lives only as long as someone keeps paying to host it.
+[Injective](https://injective.com) is a Cosmos Layer-1 with a native orderbook module, sub-second finality, CosmWasm 2.0 smart contracts, and full IBC connectivity. Most Injective apps keep their state on-chain and pin large supporting data — trade receipts, NFT media and metadata, governance attachments, oracle evidence — to IPFS or a cloud bucket. That supporting data lives only as long as someone keeps paying to host it.
 
-Cascade is a permanent decentralised storage layer. Injective stays the layer for trading, state machines, and bonds while Cascade becomes the layer for everything those state machines reference without bloating the chain.
- {/* The two chains coexist over IBC: contracts on Injective can drive Cascade through an [Interchain Account](/docs/concepts/interchain-accounts), and end users can sign Lumera transactions directly from their Cosmos wallets. */}
+Cascade is a permanent, decentralised storage layer. Injective stays the layer for trading, state machines, escrow, and bonds; Cascade becomes the layer for everything those state machines *reference* — without bloating the chain and without a recurring hosting bill.
 
 ## Why this fits
 
-| | IPFS pinning / centralised bucket | Cascade |
+| | IPFS pinning / cloud bucket | Cascade |
 |---|---|---|
-| Persistence | Pin-dependent; lapsed pin = lost data | Permanent, enforced by protocol |
-| Pricing | Recurring per-month bill | Pay once on-chain in `ulume` |
+| Persistence | Pin-dependent; a lapsed pin loses the data | Permanent, enforced by protocol |
+| Pricing | Recurring per-month bill | Pay once, on-chain, in `ulume` |
 | Redundancy | None by default | RaptorQ erasure coding across Supernodes |
-| Self-healing | No | Yes, automatic chunk restoration |
-| Cosmos native | No | Yes, IBC-addressable from any IBC chain |
-| Verifiability | Hash-only at best | Hash and on-chain `action_id` |
+| Self-healing | No | Yes — automatic chunk restoration |
+| Verifiability | Hash-only at best | Hash **and** on-chain `action_id` |
 
-Cascade does not replace anything on Injective. It augments contract state with permanent, content-addressed payloads that contracts can reference by `action_id`.
+Cascade does not replace anything on Injective. It augments contract state with permanent, content-addressed payloads that your contracts reference by `action_id`.
 
 ## What lives where
+
+The split is the same for every integration: Injective holds the small, consensus-critical state; Cascade holds the large, citable bytes.
 
 | | On Injective | On Cascade |
 |---|---|---|
 | Order book + matching | ✓ | |
 | Contract state, escrow, bonds | ✓ | |
-| State machine transitions (Open → Final, etc.) | ✓ | |
-| Trade receipts, attestations, large payloads | | ✓ |
-| Claims, criteria, source allowlists | | ✓ |
-| Evidence pools (per-market or per-app) | | ✓ |
-| Oracle / settlement justifications | | ✓ |
-| Canonical settlement records | | ✓ |
+| State-machine transitions | ✓ | |
+| Trade receipts and fills | | ✓ |
+| NFT media + metadata | | ✓ |
+| Governance proposals + attachments | | ✓ |
+| Oracle inputs / settlement evidence | | ✓ |
+| Audit and compliance logs | | ✓ |
 | Pointers (`action_id`) tying the two together | ✓ | |
 
-The Injective contract holds only the `action_id` for each artifact. The bytes live on Cascade. The pairing is what makes the system both cheap to operate and permanent to read.
-{/* 
-## The flagship integration: Inscribe
+The Injective contract holds only the `action_id` for each artifact. The bytes live on Cascade. That pairing is what makes the system both cheap to operate and permanent to read.
 
-[**Inscribe**](/docs/injective/inscribe) is a permanent, re-litigatable prediction-markets protocol that exercises this pattern at full depth. It runs on `injective-888` today and stores every claim, every piece of evidence, and every voter's written justification on Cascade. Markets settle through a bonded human optimistic oracle whose entire reasoning trail survives the market.
+## How the integration works
 
-Inscribe is the reference implementation we point developers at in this section: it shows the cross-chain wiring, the contract patterns, the off-chain services, and the wallet flows you need to build your own Injective × Cascade product.
+Cascade's unit of storage is an **action**: a `MsgRequestAction` on Lumera registers an artifact and returns a numeric `action_id`; the bytes are streamed to the Supernode network against that ID and become retrievable forever. Inside your Injective contract, every Cascade artifact is referenced by that single `action_id`, stored as an opaque `String`.
 
-| Component | What it does |
-|---|---|
-| `inscribe-market-v2` (CosmWasm) | Per-market state machine, bet escrow, evidence registry |
-| `bond-vault` (CosmWasm) | Bond custody for proposers, challengers, voters |
-| `voter-registry` (CosmWasm) | Bonded voter set + deterministic committee sampling |
-| `cw-ica-controller` (live) | The ICS-27 ICA controller that lets contracts/services act on Lumera |
-| `inscribe-api` + `inscribe-indexer` (Go) | Joined views over Injective + Cascade |
-| Web app (Next.js, Keplr) | Wallet-driven UX | */}
+The only design decision that varies between integrations is **who signs the Cascade write** — your backend (via the Lumera-operated cascade-api), or the end user from their own wallet. Both paths are covered in [Cascade from Injective](/docs/injective/cascade-from-injective).
+
+<Callout>
+**Reference implementation.** [Inscribe](/docs/injective/inscribe) is a live `injective-888` dApp — permanent, re-litigatable prediction markets — that exercises this pattern end-to-end. If you learn best from a complete worked example, read it after the primer and the integration patterns.
+</Callout>
 
 ## Next steps
 
 <Cards>
   <Card title="Injective primer" href="/docs/injective/primer" />
-  <Card title="Cascade from Injective (the bridge)" href="/docs/injective/cascade-from-injective" />
-  <Card title="Inscribe protocol overview" href="/docs/injective/inscribe" />
+  <Card title="Cascade from Injective (the integration patterns)" href="/docs/injective/cascade-from-injective" />
+  <Card title="Inscribe — a reference implementation" href="/docs/injective/inscribe" />
   <Card title="Build your own integration" href="/docs/injective/build-your-own" />
 </Cards>
