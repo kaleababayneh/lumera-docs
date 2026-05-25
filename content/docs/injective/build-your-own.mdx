@@ -10,28 +10,7 @@ icon: Construction
 
 Regardless of what your dApp does, the architecture is the same three-layer split:
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│  Frontend  ── signs Injective txs, optionally Lumera txs ──  │
-└────────┬────────────────────────────────────┬────────────────┘
-         │                                    │
-         │ user wants                         │ user-driven OR
-         │ to "do thing X"                    │ server-signed
-         ▼                                    ▼
-┌─────────────────────┐               ┌──────────────────────┐
-│  Injective contract │               │  Cascade (Lumera)    │
-│  - holds STATE      │  cid pointer  │  - holds the BYTES   │
-│  - holds FUNDS      │◄─────────────►│  - one action_id     │
-│  - emits EVENTS     │               │    per artifact      │
-│  - holds POINTERS   │               │                      │
-└──────────┬──────────┘               └─────────┬────────────┘
-           │                                    │
-           ▼                                    ▼
-┌──────────────────────────────────────────────────────────────┐
-│  Indexer  — joins on-chain state with Cascade content        │
-│             so the frontend gets one fast read               │
-└──────────────────────────────────────────────────────────────┘
-```
+<Diagram name="injective-integration" />
 
 What you customise per product is **what the bytes are**: trade receipts, NFT media + metadata, governance proposals, oracle inputs, audit logs, archival data, off-chain order signatures, encrypted messages, attestations. Everything else is plumbing.
 

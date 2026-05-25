@@ -933,6 +933,553 @@ const supernodeArchitecture: DiagramDef = {
   ],
 };
 
+// ── Injective × Cascade diagrams ─────────────────────────────────────────────
+
+const injectivePatternA: DiagramDef = {
+  viewBox: "0 0 820 400",
+  title: "Pattern A — User-Signed Cascade Write",
+  elements: [
+    // Wallet (left, tall — covers all three arrow connections)
+    {
+      type: "box",
+      id: "wallet",
+      x: 40,
+      y: 80,
+      w: 200,
+      h: 240,
+      label: "Wallet\n(Keplr)",
+    },
+    // Lumera / Cascade (top right) — accent = storage target
+    {
+      type: "box",
+      id: "lumera",
+      x: 560,
+      y: 80,
+      w: 220,
+      h: 80,
+      label: "Lumera\n(Cascade)",
+      variant: "accent",
+    },
+    // Injective contract (bottom right)
+    {
+      type: "box",
+      id: "injective",
+      x: 560,
+      y: 240,
+      w: 220,
+      h: 80,
+      label: "Injective\n(your CW)",
+    },
+    // ① wallet → Lumera (sign Lumera tx)
+    {
+      type: "arrow",
+      id: "a1",
+      points: [[250, 105], [550, 105]],
+      label: "① sign Lumera tx",
+      labelPos: [400, 82],
+    },
+    // ② Lumera → wallet (action_id)
+    {
+      type: "arrow",
+      id: "a2",
+      points: [[550, 135], [250, 135]],
+      label: "② action_id",
+      labelPos: [400, 158],
+    },
+    // ③ wallet → Injective (submit pointer)
+    {
+      type: "arrow",
+      id: "a3",
+      points: [[250, 280], [550, 280]],
+      label: "③ submit(cid: action_id)",
+      labelPos: [400, 258],
+    },
+  ],
+};
+
+const injectivePatternB: DiagramDef = {
+  viewBox: "0 0 1080 420",
+  title: "Pattern B — Server-Signed via cascade-api",
+  elements: [
+    // User (left, tall)
+    {
+      type: "box",
+      id: "user",
+      x: 40,
+      y: 80,
+      w: 200,
+      h: 280,
+      label: "User\n(web)",
+    },
+    // Backend (middle) — proxies the upload
+    {
+      type: "box",
+      id: "backend",
+      x: 360,
+      y: 80,
+      w: 280,
+      h: 160,
+      label: "Your backend",
+      items: ["forwards to cascade-api"],
+    },
+    // Lumera (top right) — accent
+    {
+      type: "box",
+      id: "lumera",
+      x: 760,
+      y: 80,
+      w: 240,
+      h: 160,
+      label: "Lumera\n(Cascade)",
+      variant: "accent",
+    },
+    // Injective (bottom right)
+    {
+      type: "box",
+      id: "injective",
+      x: 760,
+      y: 300,
+      w: 240,
+      h: 80,
+      label: "Injective\n(your CW)",
+    },
+    // ① user → backend (POST /upload)
+    {
+      type: "arrow",
+      id: "a1",
+      points: [[250, 130], [350, 130]],
+      label: "① POST /upload",
+      labelPos: [300, 108],
+    },
+    // backend → user (action_id back)
+    {
+      type: "arrow",
+      id: "a2",
+      points: [[350, 190], [250, 190]],
+      label: "action_id",
+      labelPos: [300, 212],
+    },
+    // backend ↔ Lumera (signs + action_id)
+    {
+      type: "arrow",
+      id: "a3",
+      points: [[650, 160], [750, 160]],
+      bidirectional: true,
+      label: "signs · action_id",
+      labelPos: [700, 138],
+    },
+    // ② user → Injective (single signature on Injective)
+    {
+      type: "arrow",
+      id: "a4",
+      points: [[250, 340], [750, 340]],
+      label: "② sign Injective tx · submit(cid: action_id)",
+      labelPos: [500, 318],
+    },
+  ],
+};
+
+const injectiveServerForward: DiagramDef = {
+  viewBox: "0 0 920 240",
+  title: "Server-Side Cascade Forward",
+  elements: [
+    {
+      type: "box",
+      id: "browser",
+      x: 40,
+      y: 60,
+      w: 180,
+      h: 120,
+      label: "Browser",
+    },
+    {
+      type: "box",
+      id: "backend",
+      x: 340,
+      y: 60,
+      w: 220,
+      h: 120,
+      label: "Your backend",
+    },
+    {
+      type: "box",
+      id: "cascade-api",
+      x: 680,
+      y: 60,
+      w: 200,
+      h: 120,
+      label: "cascade-api",
+      variant: "accent",
+    },
+    // ① browser → backend (multipart file)
+    {
+      type: "arrow",
+      id: "a1",
+      points: [[230, 105], [330, 105]],
+      label: "① file",
+      labelPos: [280, 86],
+    },
+    // ② backend → cascade-api (POST /upload + Bearer)
+    {
+      type: "arrow",
+      id: "a2",
+      points: [[570, 105], [670, 105]],
+      label: "② POST /upload",
+      labelPos: [620, 86],
+    },
+    // ③ cascade-api → backend (action_id, tx_hash, ...)
+    {
+      type: "arrow",
+      id: "a3",
+      points: [[670, 140], [570, 140]],
+      label: "③ action_id",
+      labelPos: [620, 162],
+    },
+    // backend → browser (action_id back to client)
+    {
+      type: "arrow",
+      id: "a4",
+      points: [[330, 140], [230, 140]],
+      label: "to client",
+      labelPos: [280, 162],
+    },
+  ],
+};
+
+const injectiveIntegration: DiagramDef = {
+  viewBox: "0 0 920 640",
+  title: "Injective × Cascade Integration Shape",
+  elements: [
+    // Frontend (top, full width)
+    {
+      type: "box",
+      id: "frontend",
+      x: 40,
+      y: 20,
+      w: 840,
+      h: 90,
+      label: "Frontend",
+      items: ["signs Injective txs · optionally Lumera txs"],
+    },
+    // Injective contract (middle left) — holds state, funds, pointers
+    {
+      type: "box",
+      id: "injective",
+      x: 40,
+      y: 220,
+      w: 380,
+      h: 200,
+      label: "Injective contract",
+      items: [
+        "holds STATE",
+        "holds FUNDS, emits EVENTS",
+        "holds POINTERS (action_id)",
+      ],
+    },
+    // Cascade (middle right) — accent = storage target
+    {
+      type: "box",
+      id: "cascade",
+      x: 500,
+      y: 220,
+      w: 380,
+      h: 200,
+      label: "Cascade (Lumera)",
+      items: [
+        "holds the BYTES",
+        "one action_id per artifact",
+      ],
+      variant: "accent",
+    },
+    // Indexer (bottom, full width)
+    {
+      type: "box",
+      id: "indexer",
+      x: 40,
+      y: 520,
+      w: 840,
+      h: 90,
+      label: "Indexer",
+      items: ["joins on-chain state with Cascade content"],
+    },
+    // Frontend → Injective contract (no label — prose covers it)
+    {
+      type: "arrow",
+      id: "a1",
+      points: [[180, 120], [180, 210]],
+    },
+    // Frontend → Cascade
+    {
+      type: "arrow",
+      id: "a2",
+      points: [[740, 120], [740, 210]],
+    },
+    // Injective ↔ Cascade (cid pointer)
+    {
+      type: "arrow",
+      id: "a3",
+      points: [[430, 320], [490, 320]],
+      bidirectional: true,
+      label: "cid pointer",
+      labelPos: [460, 300],
+    },
+    // Injective → Indexer
+    {
+      type: "arrow",
+      id: "a4",
+      points: [[180, 430], [180, 510]],
+    },
+    // Cascade → Indexer
+    {
+      type: "arrow",
+      id: "a5",
+      points: [[740, 430], [740, 510]],
+    },
+  ],
+};
+
+const inscribeArchitecture: DiagramDef = {
+  viewBox: "0 0 1100 760",
+  title: "Inscribe Architecture",
+  elements: [
+    // Web (top)
+    {
+      type: "box",
+      id: "web",
+      x: 80,
+      y: 20,
+      w: 940,
+      h: 80,
+      label: "Web (Next.js, Keplr)",
+      items: ["Server Components · Injective signing · Cascade reads"],
+    },
+    // inscribe-api (middle left)
+    {
+      type: "box",
+      id: "inscribe-api",
+      x: 80,
+      y: 180,
+      w: 300,
+      h: 140,
+      label: "inscribe-api (Go)",
+      items: ["/markets · /audit", "/cascade/upload (proxy)"],
+    },
+    // inscribe-indexer (middle middle)
+    {
+      type: "box",
+      id: "indexer",
+      x: 440,
+      y: 180,
+      w: 320,
+      h: 140,
+      label: "inscribe-indexer (Go)",
+      items: ["polls Injective LCD ~10s", "mirrors state → Postgres"],
+    },
+    // Injective testnet (middle right)
+    {
+      type: "box",
+      id: "injective",
+      x: 820,
+      y: 180,
+      w: 240,
+      h: 160,
+      label: "Injective testnet",
+      items: [
+        "inscribe-market-v2  (39449)",
+        "bond-vault  (39446)",
+        "voter-registry  (39447)",
+      ],
+    },
+    // Postgres (between api/indexer, inner variant)
+    {
+      type: "box",
+      id: "postgres",
+      x: 220,
+      y: 390,
+      w: 380,
+      h: 70,
+      label: "Postgres",
+      items: ["markets · evidence · cascade_cache"],
+      variant: "inner",
+    },
+    // Cascade-api (bottom, full width, accent)
+    {
+      type: "box",
+      id: "cascade-api",
+      x: 80,
+      y: 580,
+      w: 940,
+      h: 90,
+      label: "Lumera cascade-api  (api.lumera.help)",
+      items: ["signs MsgRequestAction · pays ulume · streams to Supernodes"],
+      variant: "accent",
+    },
+    // Web → inscribe-api (HTTP)
+    {
+      type: "arrow",
+      id: "a1",
+      points: [[200, 110], [200, 170]],
+      label: "HTTP",
+      labelPos: [232, 140],
+    },
+    // Web → Injective (execute / query)
+    {
+      type: "arrow",
+      id: "a2",
+      points: [[940, 110], [940, 170]],
+      label: "execute / query",
+      labelPos: [850, 140],
+    },
+    // inscribe-api → Postgres (reads)
+    {
+      type: "arrow",
+      id: "a3",
+      points: [[280, 330], [280, 380]],
+      label: "reads",
+      labelPos: [314, 355],
+    },
+    // indexer → Postgres (writes)
+    {
+      type: "arrow",
+      id: "a4",
+      points: [[520, 330], [520, 380]],
+      label: "writes",
+      labelPos: [556, 355],
+    },
+    // indexer → Injective (polls LCD)
+    {
+      type: "arrow",
+      id: "a5",
+      points: [[770, 230], [810, 230]],
+      label: "polls LCD",
+      labelPos: [790, 210],
+    },
+    // inscribe-api → cascade-api (uploads) — routed left of Postgres
+    {
+      type: "arrow",
+      id: "a6",
+      points: [[150, 330], [150, 570]],
+      label: "uploads",
+      labelPos: [118, 450],
+    },
+    // indexer → cascade-api (downloads/cache fill) — routed right of Postgres
+    {
+      type: "arrow",
+      id: "a7",
+      points: [[720, 330], [720, 570]],
+      label: "downloads",
+      labelPos: [762, 450],
+    },
+  ],
+};
+
+const inscribeStateMachine: DiagramDef = {
+  viewBox: "0 0 1320 480",
+  title: "Inscribe Market State Machine",
+  elements: [
+    // Top row: Open → Proposed → Final (uncontested)
+    {
+      type: "box",
+      id: "open",
+      x: 40,
+      y: 80,
+      w: 180,
+      h: 120,
+      label: "Open",
+      items: ["bets +", "evidence"],
+    },
+    {
+      type: "box",
+      id: "proposed",
+      x: 400,
+      y: 80,
+      w: 200,
+      h: 120,
+      label: "Proposed",
+      items: ["challenge", "window"],
+    },
+    {
+      type: "box",
+      id: "final-top",
+      x: 1060,
+      y: 80,
+      w: 240,
+      h: 120,
+      label: "Final",
+      items: ["window expired,", "verdict stands"],
+      variant: "accent",
+    },
+    // Bottom row: Challenged → Voting → Final (after committee tally)
+    {
+      type: "box",
+      id: "challenged",
+      x: 400,
+      y: 300,
+      w: 200,
+      h: 120,
+      label: "Challenged",
+      items: ["counter-verdict", "+ evidence"],
+    },
+    {
+      type: "box",
+      id: "voting",
+      x: 760,
+      y: 300,
+      w: 220,
+      h: 120,
+      label: "Voting",
+      items: ["committee samples N,", "votes w/ justification"],
+    },
+    {
+      type: "box",
+      id: "final-bot",
+      x: 1060,
+      y: 300,
+      w: 240,
+      h: 120,
+      label: "Final",
+      items: ["slash loser,", "pay winners"],
+      variant: "accent",
+    },
+    // Transitions
+    {
+      type: "arrow",
+      id: "a1",
+      points: [[230, 140], [390, 140]],
+      label: "propose_verdict",
+      labelPos: [310, 50],
+    },
+    {
+      type: "arrow",
+      id: "a2",
+      points: [[610, 140], [1050, 140]],
+      label: "finalize_uncontested",
+      labelPos: [830, 50],
+    },
+    {
+      type: "arrow",
+      id: "a3",
+      points: [[500, 210], [500, 290]],
+      label: "challenge",
+      labelPos: [552, 250],
+    },
+    {
+      type: "arrow",
+      id: "a4",
+      points: [[610, 360], [750, 360]],
+      label: "request_committee",
+      labelPos: [680, 270],
+    },
+    {
+      type: "arrow",
+      id: "a5",
+      points: [[990, 360], [1050, 360]],
+      label: "tally",
+      labelPos: [1020, 270],
+    },
+  ],
+};
+
 // ── Export ────────────────────────────────────────────────────────────────────
 
 export const diagrams: Record<string, DiagramDef> = {
@@ -945,4 +1492,10 @@ export const diagrams: Record<string, DiagramDef> = {
   "node-architecture": nodeArchitecture,
   "collaboration-flow": collaborationFlow,
   "supernode-architecture": supernodeArchitecture,
+  "injective-pattern-a": injectivePatternA,
+  "injective-pattern-b": injectivePatternB,
+  "injective-server-forward": injectiveServerForward,
+  "injective-integration": injectiveIntegration,
+  "inscribe-architecture": inscribeArchitecture,
+  "inscribe-state-machine": inscribeStateMachine,
 };

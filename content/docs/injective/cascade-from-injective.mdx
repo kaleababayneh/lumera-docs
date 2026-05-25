@@ -30,19 +30,7 @@ There are two production patterns for getting bytes onto Cascade from an Injecti
 
 The user holds both an `inj1…` and a `lumera1…` address in their wallet. The dApp signs **two transactions** for a single action: first a Lumera tx that uploads to Cascade and returns an `action_id`, then an Injective tx that submits that `action_id` to your contract.
 
-```text
-┌────────┐    1. sign Lumera tx                    ┌─────────────┐
-│ Wallet ├────────────────────────────────────────►│   Lumera    │
-│ (Keplr)│                                         │  (Cascade)  │
-│        │◄────────────────── 2. action_id ────────┤             │
-│        │                                         └─────────────┘
-│        │
-│        │    3. sign Injective tx                 ┌─────────────┐
-│        ├────────────────────────────────────────►│  Injective  │
-│        │    contract.execute({ submit:           │  (your CW)  │
-│        │      { cid: action_id }})               └─────────────┘
-└────────┘
-```
+<Diagram name="injective-pattern-a" />
 
 Choose this when **provenance matters** — every artifact carries a direct, on-chain link back to the user's own Lumera key. The cost is one extra signature and a small `ulume` fee the user pays (see [Network Configuration](/docs/reference/network-config) for faucets). The [Quick Start](/docs/getting-started/quick-start) covers the upload half with `@lumera-protocol/sdk-js`.
 
@@ -50,19 +38,7 @@ Choose this when **provenance matters** — every artifact carries a direct, on-
 
 A backend holds one funded Lumera signing key and uploads on behalf of users. The user signs **only** the Injective transaction; the upload is a server-side HTTP call. The simplest way to run this is to forward to the **Lumera-operated cascade-api at `api.lumera.help`**, which holds the Lumera key, signs `MsgRequestAction`, and pays the `ulume` fee for you.
 
-```text
-┌────────┐                ┌──────────────┐    ┌─────────────┐
-│  User  │  1. POST /up   │ Your backend │ ──►│   Lumera    │
-│ (web)  ├───────────────►│ → cascade-api│    │  (Cascade)  │
-│        │◄── action_id ──┤              │◄───┤             │
-│        │                └──────────────┘    └─────────────┘
-│        │
-│        │    2. sign Injective tx              ┌─────────────┐
-│        ├────────────────────────────────────► │  Injective  │
-│        │    contract.execute({ submit:        │  (your CW)  │
-│        │      cid: action_id }})              └─────────────┘
-└────────┘
-```
+<Diagram name="injective-pattern-b" />
 
 Choose this when **UX matters**: one signature instead of two, no Lumera address required for the user, and a single rate-limited signing key you can monitor and rotate. This is the path the [Inscribe reference implementation](/docs/injective/inscribe) uses end-to-end, and it's the fastest way to ship.
 
@@ -70,31 +46,9 @@ The trade-off is provenance: every artifact is signed by the operator's key, not
 
 #### The server-side forward, in detail
 
-A minimal backend just streams the multipart body to the cascade-api and returns its response:
+A minimal backend just streams the multipart body to the cascade-api and returns its response — the browser sends the file, the backend forwards it under its bearer token, and the cascade-api signs `MsgRequestAction`, broadcasts on Lumera, and replies with `action_id` + `tx_hash` + `block_height` + `task_id` (typically 6–15s). The backend relays that response back to the browser, which then submits the `action_id` on Injective.
 
-```text
-┌──────────────┐  multipart file
-│   Browser    ├──────────────┐
-└──────────────┘              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Your backend                                                    │
-│                                                                  │
-│   1. parse multipart                                            │
-│   2. POST $CASCADE_API_URL/upload                               │
-│        Authorization: Bearer $CASCADE_API_TOKEN                 │
-│        form field: file=<bytes>                                 │
-│   3. cascade-api signs MsgRequestAction with its Lumera key,    │
-│      broadcasts on Lumera, streams bytes to Supernodes          │
-│   4. return the response: action_id, tx_hash, block_height,     │
-│      task_id, filename, size_bytes                              │
-└──────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────┐
-│   Browser    │  action_id returned (typically 6–15s); submit on Injective.
-└──────────────┘
-```
+<Diagram name="injective-server-forward" />
 
 There is **no IBC round-trip** on this path — the cascade-api signs on Lumera directly. The bearer token is your operator key, scoped by the cascade-api's quota.
 

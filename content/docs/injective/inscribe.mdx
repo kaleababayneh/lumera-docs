@@ -26,36 +26,7 @@ Settlement is an **optimistic, bonded human oracle** — no AI, no automated tru
 
 Injective holds the state machine, the escrow, and the bonds. Cascade holds every artifact a verdict depends on. Two small Go services join the two halves so the frontend gets one fast read, and all Cascade writes go through the [server-signed cascade-api path (Pattern B)](/docs/injective/cascade-from-injective#pattern-b-server-signed-via-cascade-api-recommended).
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│                     Web (Next.js, Keplr)                     │
-│      Server Components · Injective signing · Cascade reads   │
-└───────────┬─────────────────────────────┬────────────────────┘
-            │ HTTP                         │ contract execute / query
-            ▼                              ▼
-┌───────────────────────────┐   ┌──────────────────────────────┐
-│   inscribe-api (Go)       │   │   Injective testnet          │
-│   /markets · /audit ·     │   │   inscribe-market-v2 (39449) │
-│   /cascade proxy + upload │   │   bond-vault         (39446) │
-│   ◄── reads Postgres      │   │   voter-registry     (39447) │
-└───────────┬───────────────┘   └──────────────────────────────┘
-            │
-            ├── Postgres (markets, evidence, bets, votes,
-            │             settlements, cascade_cache)
-            ▼
-┌───────────────────────────┐
-│   inscribe-indexer (Go)   │
-│   polls Injective LCD,    │
-│   mirrors state → Postgres│
-└───────────┬───────────────┘
-            │ uploads + downloads
-            ▼
-┌──────────────────────────────────────────────────────────────┐
-│   Lumera cascade-api (https://api.lumera.help)               │
-│   POST /upload (Bearer) · GET /download/<action_id> (no auth)│
-│   signs MsgRequestAction on Lumera, pays ulume               │
-└──────────────────────────────────────────────────────────────┘
-```
+<Diagram name="inscribe-architecture" />
 
 <Callout>
 **No Interchain Account, no IBC relayer on the hot path.** Every Cascade write is a direct HTTPS call to the cascade-api, which signs on Lumera. An earlier prototype dispatched writes from a contract via `cw-ica-controller` and a Hermes relayer; that added a 30–60s IBC round-trip and was removed. See [Pattern C](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced) for why the contract-driven path is reserved for canonical, contract-only writes.
@@ -84,17 +55,7 @@ Both Go binaries live in one module and run independently:
 
 Every market is a finite state machine. Funds and chain-height windows gate the transitions.
 
-```text
-   Open ──propose_verdict──► Proposed ──finalize_uncontested──► Final
-   (bets +                   (challenge        (window expired)
-    evidence)                 window)
-                                  │ challenge
-                                  ▼
-                             Challenged ──request_committee──► Voting ──tally──► Final
-                             (evidence)   (samples N voters)   (committee     (slash loser,
-                                                                votes with     pay winners)
-                                                                justification)
-```
+<Diagram name="inscribe-state-machine" />
 
 - **Open** — bettors stake `inj` into a YES or NO pool (pari-mutuel; the same address may hold both sides), and anyone may submit evidence CIDs.
 - **Proposed** — after the settlement block, anyone posts a verdict with a justification CID and a bond. If the challenge window passes uncontested, `finalize_uncontested` releases the bond and the verdict stands.
