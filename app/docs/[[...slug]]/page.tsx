@@ -4,6 +4,7 @@ import {
   buildLuksoTree,
   isInjectiveHost,
   buildInjectiveTree,
+  buildMainTree,
   findNeighboursDeduped,
 } from "@/lib/source";
 import {
@@ -46,7 +47,7 @@ export default async function Page(props: {
     ? buildLuksoTree(source.pageTree)
     : isInjectiveHost(host)
       ? buildInjectiveTree(source.pageTree)
-      : source.pageTree;
+      : buildMainTree(source.pageTree);
   const footerItems = findNeighboursDeduped(tree, page.url);
 
   return (

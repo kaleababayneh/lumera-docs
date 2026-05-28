@@ -4,6 +4,7 @@ import {
   buildLuksoTree,
   isInjectiveHost,
   buildInjectiveTree,
+  buildMainTree,
 } from "@/lib/source";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { SidebarCollapseTrigger } from "fumadocs-ui/layouts/docs/sidebar";
@@ -20,7 +21,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
     ? buildLuksoTree(source.pageTree)
     : isInjectiveHost(host)
       ? buildInjectiveTree(source.pageTree)
-      : source.pageTree;
+      : buildMainTree(source.pageTree);
 
   return (
     <AskAi>

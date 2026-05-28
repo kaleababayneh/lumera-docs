@@ -86,6 +86,36 @@ export function buildInjectiveTree(tree: PageTree.Root): PageTree.Root {
   };
 }
 
+/**
+ * Sections that live on their own scoped subdomains and should not appear
+ * in the main docs sidebar. They stay in the underlying `source.pageTree`
+ * (and therefore in `content/docs/meta.json` `pages[]`) so that the scoped
+ * trees above can still find them — `findFolderByBaseUrl` walks the same
+ * tree, and removing them at the source would make Lukso/Injective hosts
+ * fall back to the unfiltered tree.
+ */
+const SCOPED_SECTION_BASE_URLS = [LUKSO_BASE_URL, INJECTIVE_BASE_URL];
+
+/**
+ * Reduce the full page tree to the one used by the main docs host
+ * (everything except sections that live on their own subdomain). Used as
+ * the default branch in `app/docs/layout.tsx` and the footer-neighbour
+ * computation in `app/docs/[[...slug]]/page.tsx`, so the main-host sidebar
+ * and the "next/previous" links stay scoped to the main content.
+ */
+export function buildMainTree(tree: PageTree.Root): PageTree.Root {
+  return {
+    name: tree.name,
+    children: tree.children.filter((node) => {
+      if (node.type !== "folder") return true;
+      const url = node.index?.url;
+      return !SCOPED_SECTION_BASE_URLS.some(
+        (base) => url === base || url?.startsWith(`${base}/`),
+      );
+    }),
+  };
+}
+
 function findFolderByBaseUrl(
   nodes: PageTree.Node[],
   baseUrl: string,
