@@ -40,12 +40,12 @@ The Injective contract holds only the `action_id` for each artifact. The bytes l
 
 ## How the integration works
 
-Cascade's unit of storage is an **action**: a `MsgRequestAction` on Lumera registers an artifact and returns a numeric `action_id`; the bytes are streamed to the Supernode network against that ID and become retrievable forever. Inside your Injective contract, every Cascade artifact is referenced by that single `action_id`, stored as an opaque `String`.
+Cascade stores data as **actions**. A `MsgRequestAction` on Lumera registers the data and returns a numeric `action_id`. The bytes are then streamed to the Supernode network against that ID and become retrievable forever. In an Injective contract, each piece of Cascade-stored data is referenced by that single `action_id`, stored as an opaque `String`.
 
-The only design decision that varies between integrations is **who signs the Cascade write** — your backend (via the Lumera-operated cascade-api), or the end user from their own wallet. Both paths are covered in [Cascade from Injective](/docs/injective/cascade-from-injective).
+The only design decision that varies between integrations is **who signs the Cascade write**. Either the backend signs through the Lumera-operated cascade-api, or the end user signs directly from a wallet. Both paths are covered in [Cascade from Injective](/docs/injective/cascade-from-injective).
 
 <Callout>
-**Reference implementation.** [Inscribe](/docs/injective/inscribe) is a live `injective-888` dApp — permanent, re-litigatable prediction markets — that exercises this pattern end-to-end. If you learn best from a complete worked example, read it after the primer and the integration patterns.
+**Reference implementation.** [Inscribe](/docs/injective/inscribe) is a permanent, re-litigatable  prediction markets live on the Injective testnet. If you prefer to learn from a complete worked example, read it after the primer and the integration patterns.
 </Callout>
 
 ## Next steps
