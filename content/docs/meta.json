@@ -10,8 +10,6 @@
     "validators",
     "supernodes",
     "app",
-    "faucet",
-    "lukso",
-    "injective"
+    "faucet"
   ]
 }
