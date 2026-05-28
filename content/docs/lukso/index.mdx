@@ -20,7 +20,7 @@ Lukso ships an official storage-backend interface in [`tools-data-providers`](ht
 | Pricing | Recurring per-month bills | Pay once on-chain |
 | Redundancy | None by default | RaptorQ erasure coding across Supernodes |
 | Self-healing | No | Yes, automatic chunk restoration |
-| Reader compatibility | Standard IPFS gateways | Standard HTTPS gateways (cascade-api) |
+| Reader compatibility | Standard IPFS gateways | Standard HTTPS gateways (cascade api) |
 
 **Cascade is a drop-in upgrade**. No reader-side changes, no new wallets, no new schemas. 
 
@@ -34,7 +34,7 @@ A Universal Profile or LSP-8 NFT contract has an ERC725Y key/value store. One of
 
 The hash binds the URI's payload. Readers fetch the bytes from the URI, recompute the keccak256, compare against the on-chain commitment, and reject any mismatch. **The URI scheme itself is opaque to the standard**, so anything that returns the original bytes works: `ipfs://`, `https://`, `data:`, anything.
 
-When the URI points at a [cascade-api](/docs/lukso/data-provider#the-cascade-api-http-surface) gateway URL, the reader has no idea Cascade exists. It sees a normal HTTPS URL that returns bytes whose hash matches the on-chain commitment, which is all it cares about.
+When the URI points at a [cascade api](/docs/lukso/data-provider#the-cascade-api-http-surface) gateway URL, the reader has no idea Cascade exists. It sees a normal HTTPS URL that returns bytes whose hash matches the on-chain commitment, which is all it cares about.
 
 ## What lives where
 
@@ -55,11 +55,14 @@ The on-chain footprint stays tiny; the off-chain footprint, which is most of the
 
 Cascade itself is permanent: the bytes survive forever. The URL embedded in the on-chain `VerifiableURI` points at whichever gateway you configure, so readers depend on **that domain being reachable** to retrieve the metadata. The hash binding guarantees the gateway can't tamper with the bytes, only deny service.
 
-In production this means you should either:
+Three options for production:
 
-- Point at the public Lumera-operated cascade-api gateway, **or**
-- Run your own cascade-api behind a domain you control, **or**
-- Configure multiple readers with a Cascade-aware URL resolver that talks to the Supernode network directly.
+1. **Use the public Lumera-operated gateway (`api.lumera.help`).** The gateway is operator-funded and ready for integrations.
+
+2. **Self-host a cascade api on a custom domain.** The on-chain URL references the self-hosted instance rather than the public gateway.
+
+3. **Use a multi-gateway URL resolver.** The resolver queries cascade api gateways in order. If one gateway returns an error, it moves to the next. The `cascade://` URL scheme builds that fallback into the resolver, removing the need for client-side retry code.
+
 
 
 

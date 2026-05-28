@@ -6,3 +6,7 @@ node_modules
 .env.local
 .env.*.local
 *.txt
+
+lukso-profile-backup
+lukso-profile-backup/
+lukso-fetch-profile.cjs
