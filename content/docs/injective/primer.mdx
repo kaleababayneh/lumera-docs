@@ -1,7 +1,6 @@
 ---
 title: Injective primer
-description: A short, integration-focused tour of Injective — the chain facts, networks, CosmWasm, and the Keplr wallet setup that matter when wiring an Injective dApp to Cascade.
-icon: BookOpen
+description: A short, integration-focused tour of Injective.
 ---
 
 ## What is Injective?
@@ -26,10 +25,10 @@ For Cascade integration purposes, three facts about Injective matter:
 | **Coin denom** | `inj` (18 decimals → INJ) | same |
 | **Gas price** | `500000000inj` (≈0.5 Gwei equivalent) | similar |
 | **Faucet** | [testnet.faucet.injective.network](https://testnet.faucet.injective.network) | [inj.supply](https://inj.supply) |
-
+{/* 
 <Callout>
 The public endpoints above are fine for development. For production, run your own node or use a dedicated RPC provider — Injective's docs warn against high-traffic use of the shared sentries.
-</Callout>
+</Callout> */}
 
 ## CosmWasm on Injective
 
@@ -53,7 +52,7 @@ You get back a `code_id`; instantiate with `injectived tx wasm instantiate <code
 
 ## The native orderbook
 
-Injective has a chain-level orderbook for spot and derivatives markets. If you're building a product where price discovery matters — a derivatives market with permanent settlement evidence, a perpetual with permanent funding-rate justifications — the orderbook is the natural fit. Cascade's role is unchanged: permanent storage for the receipts, the oracle inputs, and the dispute justifications, with `action_id` pointers held in the matching contract.
+Injective has a chain-level orderbook for spot and derivatives markets. If you're building a product where price discovery matters such as a derivatives market with permanent settlement evidence, a perpetual with permanent funding-rate justifications, the orderbook is the natural fit. Cascade's serves as a permanent storage for the receipts, the oracle inputs, and the dispute justifications, with `action_id` pointers held in the matching contract.
 
 ## Wallets and signing
 
