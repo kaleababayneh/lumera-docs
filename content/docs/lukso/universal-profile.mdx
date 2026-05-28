@@ -285,17 +285,17 @@ const erc725 = new ERC725(
 
 const data = await erc725.fetchData("LSP3Profile");
 console.log(data.value);
-// {
-//   LSP3Profile: {
-//     name: "Alice",
-//     profileImage: [
-//       { width: 256, height: 256, url: "https://api.lumera.help/download/15823", verification: { ... } },
-//       { width: 512, height: 512, url: "https://api.lumera.help/download/15824", verification: { ... } },
-//       ...
-//     ],
-//     ...
-//   }
-// }
+{
+  LSP3Profile: {
+    name: "Alice",
+    profileImage: [
+      { width: 256, height: 256, url: "https://api.lumera.help/download/15823", verification: { ... } },
+      { width: 512, height: 512, url: "https://api.lumera.help/download/15824", verification: { ... } },
+      ...
+    ],
+    ...
+  }
+}
 ```
 
 `fetchData` does four things in one call: pulls the on-chain bytes, decodes the `VerifiableURI`, fetches the JSON via HTTPS, and verifies the keccak256 hash matches the on-chain commitment. If the hash doesn't match, it throws. Per-image verification is the caller's responsibility.
