@@ -4,9 +4,9 @@ description: Use Lumera Cascade as the permanent storage layer for apps built on
 icon: Network
 ---
 
-[Injective](https://injective.com) is a Cosmos Layer-1 with a native orderbook module, sub-second finality, CosmWasm 2.0 smart contracts, and full IBC connectivity. Most Injective apps keep their state on-chain and pin large supporting data — trade receipts, NFT media and metadata, governance attachments, oracle evidence — to IPFS or a cloud bucket. That supporting data lives only as long as someone keeps paying to host it.
+[Injective](https://injective.com) is a Cosmos Layer-1 with a native orderbook module, sub-second finality, CosmWasm 2.0 smart contracts, and full IBC connectivity. Most Injective apps keep their state on-chain and pin large supporting data such as trade receipts, NFT media and metadata, governance attachments, oracle evidence to IPFS or a cloud bucket. That supporting data lives only as long as someone keeps paying to host it.
 
-Cascade is a permanent, decentralised storage layer. Injective stays the layer for trading, state machines, escrow, and bonds; Cascade becomes the layer for everything those state machines *reference* — without bloating the chain and without a recurring hosting bill.
+Cascade is a permanent, decentralised storage layer. Injective stays the layer for trading, state machines, escrow, and bonds while cascade becomes the layer for everything those state machines *reference* without bloating the chain and without a recurring hosting bill.
 
 ## Why this fits
 
@@ -15,7 +15,7 @@ Cascade is a permanent, decentralised storage layer. Injective stays the layer f
 | Persistence | Pin-dependent; a lapsed pin loses the data | Permanent, enforced by protocol |
 | Pricing | Recurring per-month bill | Pay once, on-chain, in `ulume` |
 | Redundancy | None by default | RaptorQ erasure coding across Supernodes |
-| Self-healing | No | Yes — automatic chunk restoration |
+| Self-healing | No | Yes, automatic chunk restoration |
 | Verifiability | Hash-only at best | Hash **and** on-chain `action_id` |
 
 Cascade does not replace anything on Injective. It augments contract state with permanent, content-addressed payloads that your contracts reference by `action_id`.
