@@ -1,6 +1,6 @@
 ---
 title: Lukso primer
-description: A short tour of Universal Profiles, LSP standards, and the on-chain data shapes that make Cascade a drop-in storage layer.
+description: A short tour of Universal Profiles, LSP standards, and Cascade as a drop-in storage layer.
 icon: BookOpen
 ---
 
@@ -17,7 +17,7 @@ What sets Lukso apart from other EVM chains is the **LSP standards stack**, a se
 A Universal Profile (UP) is **not a normal EOA wallet**. It is a smart-contract account that conforms to:
 
 - [**LSP-0 ERC725Account**](https://docs.lukso.tech/standards/accounts/lsp0-erc725account) the contract account standard. Implements `setData`, `getData`, `execute`, plus a generic ownership model.
-- [**LSP-1 Universal Receiver**](https://docs.lukso.tech/standards/accounts/lsp1-universal-receiver) a notification hook that fires when the account receives anything (assets, vaults, arbitrary data). Out of scope for storage.
+- [**LSP-1 Universal Receiver**](https://docs.lukso.tech/standards/accounts/lsp1-universal-receiver) a notification hook that fires when the account receives anything (assets, vaults, arbitrary data). The UP browser extension listens for these events and updates the UI accordingly.
 - [**LSP-6 Key Manager**](https://docs.lukso.tech/standards/access-control/lsp6-key-manager) separates the controller key (e.g. your browser-extension EOA) from the UP itself, so you can sign without giving the controller "ownership" of the UP outright.
 
 So when a user "connects their Universal Profile", what the dApp actually sees is the UP's contract address. Transactions originating from that address are routed by the UP browser extension through the controller key into a `setData` or `execute` call on the UP.
@@ -33,7 +33,7 @@ function getData(bytes32 dataKey) external view returns (bytes memory);
 
 This is the **ERC725Y** part of the standard. Every piece of structured data on a UP, an asset contract, or a vault, lives in this mapping under a deterministic key. The keys are 32-byte hashes derived from the data's name (e.g. `keccak256("LSP3Profile")[0:32]`). The values are arbitrary bytes whose interpretation depends on the standard.
 
-You don't compute these keys by hand: [`@erc725/erc725.js`](https://www.npmjs.com/package/@erc725/erc725.js) ships a JSON schema for every standard key and handles the encoding for you.
+[`@erc725/erc725.js`](https://www.npmjs.com/package/@erc725/erc725.js) ships a JSON schema for every standard key and handles the encoding. There is no manual computation required.
 
 ## LSP-2: the schema and `VerifiableURI`
 
@@ -45,7 +45,7 @@ You don't compute these keys by hand: [`@erc725/erc725.js`](https://www.npmjs.co
         which hash function     hash of the JSON body the URI serves
 ```
 
-The two `method-id`s you'll see in the wild:
+The two `method-id`s in common use:
 
 | Method | Method ID | Hash function | Typical URL |
 |---|---|---|---|
@@ -65,7 +65,7 @@ These are the standards that reference off-chain JSON, the ones where Cascade ha
 | **LSP-8 per-token** | LSP-8 contract | `LSP4Metadata` via `setDataForTokenId(tokenId, ...)` | same shape as LSP-4, scoped to one tokenId |
 | [**LSP-9** Vault](https://docs.lukso.tech/standards/accounts/lsp9-vault) | Vault contract | `LSP3Profile` (vaults reuse the LSP-3 shape) | same shape as LSP-3 |
 
-Other LSPs you may encounter, none of which are Cascade-relevant on their own:
+ Other LSPs you may encounter{/*, none of which are Cascade-relevant on their own */}:
 
 - **LSP-5 ReceivedAssets** / **LSP-10 ReceivedVaults** ERC725Y arrays of contract addresses the UP holds. Auto-managed by the LSP-1 receiver delegate.
 - **LSP-7 Digital Asset** / **LSP-8 Identifiable Digital Asset** fungible / non-fungible token contracts. The **contracts** are on-chain; their `LSP4Metadata` is what touches Cascade.
@@ -73,7 +73,7 @@ Other LSPs you may encounter, none of which are Cascade-relevant on their own:
 - **LSP-23 Linked Contracts Factory** used to deploy a UP + Key Manager pair atomically.
 - **LSP-26 Follower System** social graph contract.
 
-## A worked example: where a profile picture actually lives
+## An example walkthrough
 
 Take a UP with a profile picture set. The full retrieval path:
 
