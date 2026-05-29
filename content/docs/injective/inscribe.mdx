@@ -42,14 +42,14 @@ Inscribe ships as a versioned set of three independently-deployable CosmWasm 2.0
 | `bond-vault` | `39446` | Bond custody by `(market, role, addr)`; locks, releases, and slashes bonds atomically |
 | `voter-registry` | `39447` | Bonded voter set; deterministic, accuracy-weighted committee sampling |
 
-A market locks a proposer or challenger bond by emitting a `CosmosMsg::Wasm` to `bond-vault` in the same transaction — the standard CosmWasm pattern for atomic funds-plus-state changes. The full `InstantiateMsg` / `ExecuteMsg` / `QueryMsg` surface lives in the [repo](https://github.com/kaleababayneh/inscribe).
+A market locks a proposer or challenger bond by emitting a `CosmosMsg::Wasm` to `bond-vault` in the same transaction (the standard CosmWasm pattern for atomic funds-plus-state changes). The full `InstantiateMsg` / `ExecuteMsg` / `QueryMsg` surface lives in the [repo](https://github.com/kaleababayneh/inscribe).
 
 ### The services
 
 Both Go binaries live in one module and run independently:
 
-- **`inscribe-indexer`** — a poll-and-mirror loop. Every ~10s it lists `inscribe-market-v2` instances via Injective LCD, smart-queries each market's state, mirrors it into Postgres, and eagerly resolves every referenced Cascade CID into a `cascade_cache` table. It is **stateless across restarts**: drop the tables and it refills from chain state within minutes. Polling (not websockets) is chosen because it recovers from any disconnect by simply running another tick.
-- **`inscribe-api`** — a read-only HTTP surface over the indexer's Postgres tables, plus the one write route `POST /cascade/upload` that forwards to the cascade-api. Its `/markets/{addr}/audit` endpoint resolves every CID a market references and returns them inline as one JSON blob, so the audit viewer renders without 30 separate browser round-trips.
+- **`inscribe-indexer`** a poll-and-mirror loop. Every ~10s it lists `inscribe-market-v2` instances via Injective LCD, smart-queries each market's state, mirrors it into Postgres, and eagerly resolves every referenced Cascade CID into a `cascade_cache` table. It is **stateless across restarts**: drop the tables and it refills from chain state within minutes. Polling (not websockets) is chosen because it recovers from any disconnect by simply running another tick.
+- **`inscribe-api`** a read-only HTTP surface over the indexer's Postgres tables, plus the one write route `POST /cascade/upload` that forwards to the cascade-api. Its `/markets/{addr}/audit` endpoint resolves every CID a market references and returns them inline as one JSON blob, so the audit viewer renders without 30 separate browser round-trips.
 
 ## How a market moves
 
@@ -57,21 +57,21 @@ Every market is a finite state machine. Funds and chain-height windows gate the 
 
 <Diagram name="inscribe-state-machine" />
 
-- **Open** — bettors stake `inj` into a YES or NO pool (pari-mutuel; the same address may hold both sides), and anyone may submit evidence CIDs.
-- **Proposed** — after the settlement block, anyone posts a verdict with a justification CID and a bond. If the challenge window passes uncontested, `finalize_uncontested` releases the bond and the verdict stands.
-- **Challenged** — a counter-verdict with its own bond moves the market to a dispute.
-- **Voting** — `request_committee` samples a committee from `voter-registry`, weighted by `bond × accuracy`, seeded from a block hash drawn *after* the challenge was filed. Each member votes with a mandatory justification CID — silent votes are not allowed.
-- **Final** — `tally` counts votes, slashes the losing bond to the winner, updates voter accuracy, and records the settlement. Winning bettors `redeem` their pro-rata share; an `Invalid` resolution refunds everyone 1:1.
+- **Open:** bettors stake `inj` into a YES or NO pool (pari-mutuel; the same address may hold both sides), and anyone may submit evidence CIDs.
+- **Proposed:** after the settlement block, anyone posts a verdict with a justification CID and a bond. If the challenge window passes uncontested, `finalize_uncontested` releases the bond and the verdict stands.
+- **Challenged:** a counter-verdict with its own bond moves the market to a dispute.
+- **Voting:** `request_committee` samples a committee from `voter-registry`, weighted by `bond × accuracy`, seeded from a block hash drawn *after* the challenge was filed. Each member votes with a mandatory justification CID.
+- **Final:** `tally` counts votes, slashes the losing bond to the winner, updates voter accuracy, and records the settlement. Winning bettors `redeem` their pro-rata share; an `Invalid` resolution refunds everyone 1:1.
 
-Every verdict, challenge, and vote requires a justification artifact uploaded to Cascade *before* the on-chain call is accepted. The contract never verifies that a citation is sound — but the citation is permanent and public, so a bad-faith actor cannot un-cite later.
+Every verdict, challenge, and vote requires a justification artifact uploaded to Cascade *before* the on-chain call is accepted. The contract never verifies that a citation is sound but the citation is permanent and public, so a bad-faith actor cannot un-cite later.
 
 ## Re-litigation: the property that needs permanence
 
-Once a market resolves, the bets are paid and the verdict is on-chain — but the truth question stays open forever. Anyone, including people who weren't around when the market existed, can fetch the full record by `spec_cid` (spec, evidence pool, every justification, the canonical settlement record), form an independent assessment, and upload a **counter-argument** to the same market's Cascade namespace. It doesn't change the on-chain verdict and doesn't pay out; it becomes a permanent companion record that future markets and scholarship can cite.
+Once a market resolves, the bets are paid and the verdict is on-chain but the truth question stays open forever. Anyone, including people who weren't around when the market existed, can fetch the full record by `spec_cid` (spec, evidence pool, every justification, the canonical settlement record), form an independent assessment, and upload a **counter-argument** to the same market's Cascade namespace. It doesn't change the on-chain verdict and doesn't pay out; it becomes a permanent companion record that future markets and scholarship can cite.
 
-This is the property no other prediction-market protocol has: **the markets close, but the truth conversation does not.** Cascade is the substrate that makes it possible; Injective is the venue where bets pay out. It only works because the artifacts are genuinely permanent — which is exactly what Cascade provides and IPFS pinning does not.
+This is the property no other prediction-market protocol has: **the markets close, but the truth conversation does not.** Cascade is the substrate that makes it possible; Injective is the venue where bets pay out. It only works because the artifacts are genuinely permanent which is exactly what Cascade provides and IPFS pinning does not.
 
-## What's deployed today
+## What's deployed
 
 | Component | Where | Status |
 |---|---|---|
@@ -85,7 +85,7 @@ Wasm checksums are byte-deterministic via `cosmwasm/optimizer` and verifiable wi
 
 ## What to take from it
 
-Inscribe is *one* shape of Injective × Cascade product. The reusable lessons — the contract conventions, the indexer's eager-resolve loop, the state-machine-driven frontend, and the pitfalls to design around — are generalized in [Build your own integration](/docs/injective/build-your-own).
+Inscribe is *one* shape of Injective × Cascade product. The reusable lessons, the contract conventions, the indexer's eager-resolve loop, the state-machine-driven frontend, and the pitfalls to design around are generalized in [Build your own integration](/docs/injective/build-your-own).
 
 ## Next steps
 
