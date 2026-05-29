@@ -24,7 +24,7 @@ The most important call you make. The options are detailed in [Cascade from Inje
 | Users already need a Lumera address for other reasons | You're OK funding `ulume` at the operator level | Indexers and trustless readers need the artifact guaranteed-present |
 | You want zero server-side custody | You want a single key you can monitor and rotate | You accept the IBC round-trip latency and operational complexity |
 
-**Start with Pattern B** — it's the fastest path to a working product and the one the reference implementation uses for everything. Reach for A when on-chain provenance to the user's key is a requirement, and reserve C for contract-deterministic canonical writes.
+**Start with Pattern B.** It's the fastest path to a working product and the one the reference implementation uses for everything. Reach for A when on-chain provenance to the user's key is a requirement, and reserve C for contract-deterministic canonical writes.
 
 ## Contract-side conventions
 
@@ -121,7 +121,7 @@ Injective uses `eth_secp256k1`; Lumera uses standard `secp256k1`. Derived from t
 
 ### Indexer lag
 
-A 10-second poll interval means the UI can see stale state for up to 10 seconds after a tx confirms. Mitigate with optimistic local updates, a shorter interval (at the cost of more LCD load), or the simple `refresh-after-12s` pattern — fine for testnet UX, but fragile under heavy load.
+A 10-second poll interval means the UI can see stale state for up to 10 seconds after a tx confirms. Mitigate with optimistic local updates, a shorter interval (at the cost of more LCD load), or the simple `refresh-after-12s` pattern, which is fine for testnet UX but fragile under heavy load.
 
 ### IBC latency (only if you use Pattern C)
 
@@ -135,7 +135,7 @@ The "anyone can fetch the full record forever" property depends on at least one 
 
 Beyond prediction markets, the same Injective × Cascade pattern is a natural fit for:
 
-- **NFT marketplaces** where metadata permanence matters the contract holds the token + an `action_id`; metadata and media live on Cascade.
+- **NFT marketplaces** where metadata permanence matters: the contract holds the token + an `action_id`; metadata and media live on Cascade.
 - **DAOs** where proposals, debate threads, and voting rationale need to be archival. Snapshot's "proposals on IPFS" pattern, but permanent.
 - **DeFi protocols** publishing oracle inputs with a permanent receipts trail (Chainlink-style feeds where the input set is part of the audit).
 - **Audit / compliance logs** that need decade-scale verifiability, signed by the on-chain contract.
