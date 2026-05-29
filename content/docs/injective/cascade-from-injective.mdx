@@ -4,11 +4,11 @@ description: How any Injective dApp uses Cascade as its permanent storage layer.
 icon: Cable
 ---
 
-This is the reusable primitive the rest of this section builds on. Whatever you're shipping — an NFT marketplace, a DAO, a derivatives venue, prediction markets — the shape is the same: **Injective holds state and pointers, Cascade holds the bytes, and an `action_id` ties them together**. The only thing that varies is *who signs the Cascade write*.
+This is the reusable primitive the rest of this section builds on. The shape is the same whether you're shipping an NFT marketplace, a DAO, a derivatives venue, or prediction markets: **Injective holds state and pointers, Cascade holds the bytes, and an `action_id` ties them together**.
 
 ## The `action_id` pointer pattern
 
-Cascade's unit of storage is an **action**. A `MsgRequestAction` on Lumera registers an artifact's metadata and returns a numeric `action_id`; the file bytes are streamed to a Supernode against that ID. Once stored, the artifact is retrievable forever by `GET /download/<action_id>` against any cascade-aware gateway. See [How Cascade Works](/docs/getting-started/how-cascade-works) for the full lifecycle.
+Cascade's unit of storage is an **action**. A `MsgRequestAction` on Lumera registers an artifact's metadata and returns a numeric `action_id`. Once stored, the artifact is retrievable forever by `GET /download/<action_id>` against any cascade-aware gateway. See [How Cascade Works](/docs/getting-started/how-cascade-works) for the full lifecycle.
 
 Inside your Injective contract, every Cascade artifact is referenced by a single value: that `action_id`, stored as a `String` in CosmWasm state.
 
@@ -20,11 +20,11 @@ pub struct StoredArtifact {
 }
 ```
 
-That single `String` is the entirety of the cross-chain coupling. The contract enforces only *that the field is non-empty* — it does not enforce *that the artifact resolves*, because it cannot read across chains synchronously. Resolution and integrity are read-time concerns, handled by an indexer or the frontend, off the consensus path.
+That single `String` is the entirety of the cross-chain coupling. The contract enforces only *that the field is non-empty*. It does not enforce *that the artifact resolves*, because it cannot read across chains synchronously. Resolution and integrity are read-time concerns, handled by an indexer or the frontend, off the consensus path.
 
 ## Two ways to write to Cascade
 
-There are two production patterns for getting bytes onto Cascade from an Injective context. They are **not** mutually exclusive — many deployments use both, choosing per artifact type.
+There are two production patterns for getting bytes onto Cascade from an Injective context. They are **not** mutually exclusive. Many deployments use both, choosing per artifact type.
 
 ### Pattern A: user-signed (the user signs the Lumera tx)
 
@@ -32,25 +32,25 @@ The user holds both an `inj1…` and a `lumera1…` address in their wallet. The
 
 <Diagram name="injective-pattern-a" />
 
-Choose this when **provenance matters** — every artifact carries a direct, on-chain link back to the user's own Lumera key. The cost is one extra signature and a small `ulume` fee the user pays (see [Network Configuration](/docs/reference/network-config) for faucets). The [Quick Start](/docs/getting-started/quick-start) covers the upload half with `@lumera-protocol/sdk-js`.
+Choose this when **provenance matters** where every artifact carries a direct, on-chain link back to the user's own Lumera key. The cost is one extra signature and a small `ulume` fee the user pays.
 
 ### Pattern B: server-signed via cascade-api (recommended)
 
-A backend holds one funded Lumera signing key and uploads on behalf of users. The user signs **only** the Injective transaction; the upload is a server-side HTTP call. The simplest way to run this is to forward to the **Lumera-operated cascade-api at `api.lumera.help`**, which holds the Lumera key, signs `MsgRequestAction`, and pays the `ulume` fee for you.
+A backend holds funded Lumera signing key and uploads on behalf of users. The user signs **only** the Injective transaction, the upload is a server-side HTTP call. The simplest way to run this is to forward to the **Lumera-operated cascade-api at `api.lumera.help`**, which holds the Lumera key, signs `MsgRequestAction`, and pays the `ulume` fee for you.
 
 <Diagram name="injective-pattern-b" />
 
 Choose this when **UX matters**: one signature instead of two, no Lumera address required for the user, and a single rate-limited signing key you can monitor and rotate. This is the path the [Inscribe reference implementation](/docs/injective/inscribe) uses end-to-end, and it's the fastest way to ship.
 
-The trade-off is provenance: every artifact is signed by the operator's key, not the user's. If you need on-chain proof that *user X* uploaded *artifact Y*, record the binding on Injective — have your contract store `(user, action_id)` so the pairing is the on-chain proof rather than the Lumera signature.
+The trade-off is provenance: every artifact is signed by the operator's key, not the user's. If you need on-chain proof that *user X* uploaded *artifact Y*, record the binding on Injective by having your contract store `(user, action_id)` so the pairing is the on-chain proof rather than the Lumera signature.
 
 #### The server-side forward, in detail
 
-A minimal backend just streams the multipart body to the cascade-api and returns its response — the browser sends the file, the backend forwards it under its bearer token, and the cascade-api signs `MsgRequestAction`, broadcasts on Lumera, and replies with `action_id` + `tx_hash` + `block_height` + `task_id` (typically 6–15s). The backend relays that response back to the browser, which then submits the `action_id` on Injective.
+A minimal backend just streams the multipart body to the cascade-api and returns its response. The browser sends the file, the backend forwards it under its bearer token, and the cascade-api signs `MsgRequestAction`, broadcasts on Lumera, and replies with `action_id` + `tx_hash` + `block_height` + `task_id` (typically 6–15s). The backend relays that response back to the browser, which then submits the `action_id` on Injective.
 
 <Diagram name="injective-server-forward" />
 
-There is **no IBC round-trip** on this path — the cascade-api signs on Lumera directly. The bearer token is your operator key, scoped by the cascade-api's quota.
+There is **no IBC round-trip** on this path. The cascade-api signs on Lumera directly. The bearer token is your operator key, scoped by the cascade-api's quota.
 
 If you'd rather hold the Lumera key yourself instead of using the hosted cascade-api, the equivalent with `@lumera-protocol/sdk-js` is:
 
@@ -78,7 +78,7 @@ const result = await client.Cascade.uploader.uploadFile(file, {
 There is a third pattern, where a CosmWasm contract on Injective writes to Cascade **autonomously** over IBC: the contract packs a `MsgRequestAction`, sends it across the IBC channel to a registered [Interchain Account](/docs/concepts/interchain-accounts) on Lumera, and the ICA executes it.
 
 <Callout type="warn">
-**This is not on the hot path, and you should not reach for it first.** An earlier prototype of the reference implementation dispatched Cascade writes this way via [`cw-ica-controller`](https://github.com/srdtrk/cw-ica-controller) and waited for a Hermes relayer. That works when the relayer is healthy but degrades to multi-minute waits when it is backed up. The current architecture has no IBC step — it uses Pattern B. Reserve Pattern C for canonical, contract-only artifacts where there is genuinely no user in the loop and the *contract itself* must be the signer.
+**This is not on the hot path, and you should not reach for it first.** An earlier prototype of the reference implementation dispatched Cascade writes this way via [`cw-ica-controller`](https://github.com/srdtrk/cw-ica-controller) and waited for a Hermes relayer. Reserve Pattern C for canonical, contract-only artifacts where there is genuinely no user in the loop and the *contract itself* must be the signer.
 </Callout>
 
 **Rule of thumb:** use **A** when on-chain provenance to the user's key is required, **B** for everything else (and as your default), and consider **C** only for contract-deterministic canonical writes where IBC latency is acceptable.
@@ -92,8 +92,6 @@ Reading is independent of the write pattern. Once an artifact has an `action_id`
 | `GET https://api.lumera.help/download/{action_id}` | none | raw bytes, `Content-Type` sniffed |
 | `GET <your-backend>/cascade/{action_id}` | your choice | raw bytes, ideally with an immutable cache header |
 | Lumera SDK | wallet signature | reconstructed bytes streamed |
-
-For dApp reads you want the public HTTPS gateway. Because Cascade content is content-addressed, you can cache it with `Cache-Control: public, max-age=31536000, immutable` — once you have a CID's bytes, they are correct forever, so there is no invalidation strategy to design.
 
 ## Wiring the pointer into your contract
 
@@ -145,7 +143,7 @@ A Cascade upload costs roughly **10–15k `ulume`** on testnet. At a fresh fauce
 ## Next steps
 
 <Cards>
-  <Card title="Inscribe — a reference implementation" href="/docs/injective/inscribe" />
+  <Card title="Inscribe (a reference implementation)" href="/docs/injective/inscribe" />
   <Card title="Build your own integration" href="/docs/injective/build-your-own" />
   <Card title="Injective primer" href="/docs/injective/primer" />
 </Cards>
