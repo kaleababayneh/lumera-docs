@@ -53,7 +53,7 @@ You get back a `code_id`; instantiate with `injectived tx wasm instantiate <code
 
 ## The native orderbook
 
-Injective has a chain-level orderbook for spot and derivatives markets. If you're building a product where price discovery matters such as a derivatives market with permanent settlement evidence, a perpetual with permanent funding-rate justifications, the orderbook is the natural fit. Cascade's serves as a permanent storage for the receipts, the oracle inputs, and the dispute justifications, with `action_id` pointers held in the matching contract.
+Injective has a chain-level orderbook for spot and derivatives markets. If you're building a product where price discovery matters — a derivatives market with permanent settlement evidence, or a perpetual with permanent funding-rate justifications, the orderbook is the natural fit. Cascade serves as permanent storage for the receipts, the oracle inputs, and the dispute justifications, with `action_id` pointers held in the matching contract.
 
 ## Wallets and signing
 
@@ -122,7 +122,7 @@ Many integrations avoid this entirely by signing Cascade writes server-side (the
 
 Injective is IBC-connected, and in principle a CosmWasm contract on Injective can drive an [ICS-27 Interchain Account](/docs/concepts/interchain-accounts) on Lumera to write to Cascade autonomously. **You almost certainly do not need this.** The IBC round-trip adds 30–60s of latency on the happy path and degrades when the relayer is backed up, so it is the wrong tool for any user-facing flow.
 
-The recommended integration paths doesn't involve IBC. They are either server-signed via the cascade-api, or user-signed from a wallet. Treat ICA as an advanced option reserved for the narrow case where a *contract itself* must be the signer of a canonical write with no user in the loop. It is covered, with that framing, in [Cascade from Injective](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced).
+The recommended integration paths don't involve IBC: they are either server-signed via the cascade-api, or user-signed from a wallet. Treat ICA as an advanced option reserved for the narrow case where a *contract itself* must be the signer of a canonical write with no user in the loop. It is covered, with that framing, in [Cascade from Injective](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced).
 
 ## Tools you will use
 

@@ -63,13 +63,13 @@ Every market is a finite state machine. Funds and chain-height windows gate the 
 - **Voting:** `request_committee` samples a committee from `voter-registry`, weighted by `bond × accuracy`, seeded from a block hash drawn *after* the challenge was filed. Each member votes with a mandatory justification CID.
 - **Final:** `tally` counts votes, slashes the losing bond to the winner, updates voter accuracy, and records the settlement. Winning bettors `redeem` their pro-rata share; an `Invalid` resolution refunds everyone 1:1.
 
-Every verdict, challenge, and vote requires a justification artifact uploaded to Cascade *before* the on-chain call is accepted. The contract never verifies that a citation is sound but the citation is permanent and public, so a bad-faith actor cannot un-cite later.
+Every verdict, challenge, and vote requires a justification artifact uploaded to Cascade *before* the on-chain call is accepted. The contract never verifies that a citation is sound, but the citation is permanent and public, so a bad-faith actor cannot un-cite later.
 
 ## Re-litigation: the property that needs permanence
 
 Once a market resolves, the bets are paid and the verdict is on-chain but the truth question stays open forever. Anyone, including people who weren't around when the market existed, can fetch the full record by `spec_cid` (spec, evidence pool, every justification, the canonical settlement record), form an independent assessment, and upload a **counter-argument** to the same market's Cascade namespace. It doesn't change the on-chain verdict and doesn't pay out; it becomes a permanent companion record that future markets and scholarship can cite.
 
-This is the property no other prediction-market protocol has: **the markets close, but the truth conversation does not.** Cascade is the substrate that makes it possible; Injective is the venue where bets pay out. It only works because the artifacts are genuinely permanent which is exactly what Cascade provides and IPFS pinning does not.
+This is the property no other prediction-market protocol has: **the markets close, but the truth conversation does not.** Cascade is the substrate that makes it possible; Injective is the venue where bets pay out. It only works because the artifacts are genuinely permanent, exactly what Cascade provides and IPFS pinning does not.
 
 ## What's deployed
 

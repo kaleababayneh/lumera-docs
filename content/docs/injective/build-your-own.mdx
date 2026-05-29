@@ -4,7 +4,7 @@ description: Reusable patterns for any Injective × Cascade product
 icon: Construction
 ---
 
-This page is the recipe book for building a different one: the architecture every integration shares, the conventions that make it clean, and the pitfalls worth a deliberate decision up front.
+[Inscribe](/docs/injective/inscribe) is one shape of an Injective × Cascade product. This page is the recipe book for building your own: the architecture every integration shares, the conventions that make it clean, and the pitfalls worth a deliberate decision up front.
 
 ## The shape every integration takes
 
@@ -24,7 +24,7 @@ The most important call you make. The options are detailed in [Cascade from Inje
 | Users already need a Lumera address for other reasons | You're OK funding `ulume` at the operator level | Indexers and trustless readers need the artifact guaranteed-present |
 | You want zero server-side custody | You want a single key you can monitor and rotate | You accept the IBC round-trip latency and operational complexity |
 
-**Start with Pattern B**  it's the fastest path to a working product and the one the reference implementation uses for everything. Reach for A when on-chain provenance to the user's key is a requirement, and reserve C for contract-deterministic canonical writes.
+**Start with Pattern B** — it's the fastest path to a working product and the one the reference implementation uses for everything. Reach for A when on-chain provenance to the user's key is a requirement, and reserve C for contract-deterministic canonical writes.
 
 ## Contract-side conventions
 
@@ -62,7 +62,7 @@ A read-only client with no indexer should be able to drive a viewer from contrac
 ListArtifacts {},
 ```
 
-A developer can then query the chain, get every CID, fetch each from a Cascade gateway, and render the full state without a need for indexer.
+A developer can then query the chain, get every CID, fetch each from a Cascade gateway, and render the full state without an indexer.
 
 ### 4. State machines, not free-form
 
@@ -115,13 +115,13 @@ In Pattern B, your `POST /cascade/upload` depends on one cascade-api endpoint ho
 
 Every Cascade write spends ~10–15k `ulume`; a 1M-`ulume` balance covers ~70 uploads. Monitor your service key's balance and alert before exhaustion. If you expose uploads to users, add per-user quotas, an open upload endpoint is a way to drain your key.
 
-### eth_secp256k1 vs secp256k1
+### `eth_secp256k1` vs `secp256k1`
 
 Injective uses `eth_secp256k1`; Lumera uses standard `secp256k1`. Derived from the same Keplr mnemonic, the user has **two different addresses** (different `coinType` paths). Any UI that surfaces both must not confuse them.
 
 ### Indexer lag
 
-A 10-second poll interval means the UI can see stale state for up to 10 seconds after a tx confirms. Mitigate with optimistic local updates, a shorter interval (at the cost of more LCD load), or the simple `refresh-after-12s` pattern. The simple pattern is fine for testnet UX and fragile under heavy load.
+A 10-second poll interval means the UI can see stale state for up to 10 seconds after a tx confirms. Mitigate with optimistic local updates, a shorter interval (at the cost of more LCD load), or the simple `refresh-after-12s` pattern — fine for testnet UX, but fragile under heavy load.
 
 ### IBC latency (only if you use Pattern C)
 

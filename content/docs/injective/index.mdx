@@ -6,7 +6,7 @@ icon: Network
 
 [Injective](https://injective.com) is a Cosmos Layer-1 with a native orderbook module, sub-second finality, CosmWasm 2.0 smart contracts, and full IBC connectivity. Most Injective apps keep their state on-chain and pin large supporting data such as trade receipts, NFT media and metadata, governance attachments, oracle evidence to IPFS or a cloud bucket. That supporting data lives only as long as someone keeps paying to host it.
 
-Cascade is a permanent, decentralised storage layer. Injective stays the layer for trading, state machines, escrow, and bonds while cascade becomes the layer for everything those state machines *reference* without bloating the chain and without a recurring hosting bill.
+Cascade is a permanent, decentralised storage layer. Injective stays the layer for trading, state machines, escrow, and bonds; Cascade becomes the layer for everything those state machines *reference*  without bloating the chain or paying a recurring hosting bill.
 
 ## Why this fits
 
@@ -45,7 +45,7 @@ Cascade stores data as **actions**. A `MsgRequestAction` on Lumera registers the
 The only design decision that varies between integrations is **who signs the Cascade write**. Either the backend signs through the Lumera-operated cascade-api, or the end user signs directly from a wallet. Both paths are covered in [Cascade from Injective](/docs/injective/cascade-from-injective).
 
 <Callout>
-**Reference implementation.** [Inscribe](/docs/injective/inscribe) is a permanent, re-litigatable  prediction markets live on the Injective testnet. If you prefer to learn from a complete worked example, read it after the primer and the integration patterns.
+**Reference implementation.** [Inscribe](/docs/injective/inscribe) is a live Injective testnet dApp for permanent, re-litigatable prediction markets. If you prefer to learn from a complete worked example, read it after the primer and the integration patterns.
 </Callout>
 
 ## Next steps

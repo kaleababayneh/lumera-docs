@@ -36,7 +36,7 @@ Choose this when **provenance matters** where every artifact carries a direct, o
 
 ### Pattern B: server-signed via cascade-api (recommended)
 
-A backend holds funded Lumera signing key and uploads on behalf of users. The user signs **only** the Injective transaction, the upload is a server-side HTTP call. The simplest way to run this is to forward to the **Lumera-operated cascade-api at `api.lumera.help`**, which holds the Lumera key, signs `MsgRequestAction`, and pays the `ulume` fee for you.
+A backend holds a funded Lumera signing key and uploads on behalf of users. The user signs **only** the Injective transaction, the upload is a server-side HTTP call. The simplest way to run this is to forward to the **Lumera-operated cascade-api at `api.lumera.help`**, which holds the Lumera key, signs `MsgRequestAction`, and pays the `ulume` fee for you.
 
 <Diagram name="injective-pattern-b" />
 
@@ -138,7 +138,7 @@ Cascade writes are paid in `ulume`. Which account pays depends on the pattern:
 | Your service's Lumera key (Pattern B) | Each `MsgRequestAction` your service signs on behalf of users | [Faucet](/docs/faucet); monitor balance and alert before exhaustion |
 | The ICA's `lumera1…` (Pattern C) | Each Cascade write the contract triggers | Top up over IBC from your Injective treasury |
 
-A Cascade upload costs roughly **10–15k `ulume`** on testnet. 
+A Cascade upload costs roughly **10–15k `ulume`** on testnet.
 
 ## Next steps
 
