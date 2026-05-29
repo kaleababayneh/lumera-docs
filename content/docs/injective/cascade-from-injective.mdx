@@ -126,7 +126,7 @@ Ok(Response::new()
 ListArtifacts {},
 ```
 
-That's the essential contract-side surface: the contract does not download from Cascade, does not verify the artifact, does not even care that it's a Cascade CID — it holds a string, and verification and resolution belong to the indexer and the frontend. For production designs, [Build your own integration](/docs/injective/build-your-own#contract-side-conventions) adds two more conventions — modelling the workflow as a state machine, and locking funds atomically with the CID write.
+That's the essential contract-side surface: the contract does not download from Cascade, does not verify the artifact, does not even care that it's a Cascade CID. It holds a string, and verification and resolution belong to the indexer and the frontend. For production designs, [Build your own integration](/docs/injective/build-your-own#contract-side-conventions) adds two more conventions: modelling the workflow as a state machine, and locking funds atomically with the CID write.
 
 ## Funding the writes
 
@@ -138,7 +138,7 @@ Cascade writes are paid in `ulume`. Which account pays depends on the pattern:
 | Your service's Lumera key (Pattern B) | Each `MsgRequestAction` your service signs on behalf of users | [Faucet](/docs/faucet); monitor balance and alert before exhaustion |
 | The ICA's `lumera1…` (Pattern C) | Each Cascade write the contract triggers | Top up over IBC from your Injective treasury |
 
-A Cascade upload costs roughly **10–15k `ulume`** on testnet. At a fresh faucet balance of `1,000,000 ulume`, that's ~70 uploads before a refill — plan capacity accordingly.
+A Cascade upload costs roughly **10–15k `ulume`** on testnet. 
 
 ## Next steps
 
