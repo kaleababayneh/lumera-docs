@@ -1,12 +1,12 @@
 ---
 title: Inscribe (a reference implementation)
-description: A complete, live Injective × Cascade dApp, permanent, re-litigatable prediction markets on the Injective testnet.  
+description: A live Injective × Cascade dApp for permanent, re-litigatable prediction markets.
 icon: ScrollText
 ---
 
-**Inscribe** is a live `injective-888` dApp that exercises the full [Injective × Cascade](/docs/injective) pattern: permanent, re-litigatable prediction markets where every claim, every piece of evidence, and every voter's justification is stored forever on Cascade. It is the worked example this section points to — read the [primer](/docs/injective/primer) and [integration patterns](/docs/injective/cascade-from-injective) first, then come here to see them assembled.
+**Inscribe** is a live `injective-888` dApp that exercises the full [Injective × Cascade](/docs/injective) pattern: permanent, re-litigatable prediction markets where every claim, every piece of evidence, and every voter's justification is stored forever on Cascade.
 
-This page is a tour of *how it's built*, not a betting tutorial. For the message-by-message contract reference and the deploy/CLI scripts, see the [Inscribe repository](https://github.com/kaleababayneh/inscribe).
+This page is a tour of *how it's built*. For the message-by-message contract reference and the deploy/CLI scripts, see the [Inscribe repository](https://github.com/kaleababayneh/inscribe).
 
 ## The idea
 
@@ -20,7 +20,7 @@ Inscribe fixes this by making three artifacts permanent on Cascade, one set per 
 | **Evidence pool** | each submission is its own `action_id` | citations, source metadata, claim role |
 | **Justifications** | proposer, challenger, and every voter upload reasoning before acting | verdict + cited evidence CIDs + written explanation |
 
-Settlement is an **optimistic, bonded human oracle** — no AI, no automated truth-detection. The protocol's contribution is making every input and every reasoning step permanent and citable forever, so a market resolved today can be re-litigated by anyone years later with the full decision trail intact.
+Settlement is an **optimistic, bonded human oracle**. There is no AI, no automated truth-detection. The protocol's contribution is making every input and every reasoning step permanent and citable forever, so a market resolved today can be re-litigated by anyone years later with the full decision trail intact.
 
 ## Architecture
 
@@ -29,7 +29,7 @@ Injective holds the state machine, the escrow, and the bonds. Cascade holds ever
 <Diagram name="inscribe-architecture" />
 
 <Callout>
-**No Interchain Account, no IBC relayer on the hot path.** Every Cascade write is a direct HTTPS call to the cascade-api, which signs on Lumera. An earlier prototype dispatched writes from a contract via `cw-ica-controller` and a Hermes relayer; that added a 30–60s IBC round-trip and was removed. See [Pattern C](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced) for why the contract-driven path is reserved for canonical, contract-only writes.
+**No Interchain Account is involved.** Every Cascade write is a direct HTTPS call to the cascade-api, which signs on Lumera.
 </Callout>
 
 ### The three contracts
