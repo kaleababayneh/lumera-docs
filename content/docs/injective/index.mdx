@@ -36,11 +36,11 @@ The split is the same for every integration: Injective holds the small, consensu
 | Audit and compliance logs | | ✓ |
 | Pointers (`action_id`) tying the two together | ✓ | |
 
-The Injective contract holds only the `action_id` for each artifact. The bytes live on Cascade. That pairing is what makes the system both cheap to operate and permanent to read.
+That split is what makes the system both cheap to operate and permanent to read.
 
 ## How the integration works
 
-Cascade stores data as **actions**. A `MsgRequestAction` on Lumera registers the data and returns a numeric `action_id`. The bytes are then streamed to the Supernode network against that ID and become retrievable forever. In an Injective contract, each piece of Cascade-stored data is referenced by that single `action_id`, stored as an opaque `String`.
+Cascade stores data as **actions**. A `MsgRequestAction` on Lumera registers the data and returns a numeric `action_id`, and the bytes are then streamed to the Supernode network against that ID, becoming retrievable forever.
 
 The only design decision that varies between integrations is **who signs the Cascade write**. Either the backend signs through the Lumera-operated cascade-api, or the end user signs directly from a wallet. Both paths are covered in [Cascade from Injective](/docs/injective/cascade-from-injective).
 

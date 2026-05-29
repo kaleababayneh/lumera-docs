@@ -24,7 +24,7 @@ The most important call you make. The options are detailed in [Cascade from Inje
 | Users already need a Lumera address for other reasons | You're OK funding `ulume` at the operator level | Indexers and trustless readers need the artifact guaranteed-present |
 | You want zero server-side custody | You want a single key you can monitor and rotate | You accept the IBC round-trip latency and operational complexity |
 
-**Start with Pattern B.** It's the fastest path to a working product and the one the reference implementation uses for everything. Reach for A when on-chain provenance to the user's key is a requirement, and reserve C for contract-deterministic canonical writes.
+**Start with Pattern B.** It's the fastest path to a working product and the one the reference implementation uses for everything; the table above covers when to deviate.
 
 ## Contract-side conventions
 
@@ -125,7 +125,7 @@ A 10-second poll interval means the UI can see stale state for up to 10 seconds 
 
 ### IBC latency (only if you use Pattern C)
 
-A contract-driven Cascade write over ICA is a **30–60s round-trip in the happy path** and can stall on relayer hiccups. Never put it on a user's hot path. Defer it to canonical artifacts that don't gate user actions or use Pattern B with a fast server, which is what the reference implementation does.
+A contract-driven Cascade write over ICA is a slow IBC round-trip that can stall on relayer hiccups (see the [primer's note on IBC](/docs/injective/primer#a-note-on-ibc-and-interchain-accounts) for the latency). Never put it on a user's hot path: defer it to canonical artifacts that don't gate user actions, or use Pattern B with a fast server, as the reference implementation does.
 
 ### Re-litigation needs gateway redundancy
 

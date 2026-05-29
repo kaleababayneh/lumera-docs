@@ -95,9 +95,7 @@ Reading is independent of the write pattern. Once an artifact has an `action_id`
 
 ## Wiring the pointer into your contract
 
-The Cascade integration on the CosmWasm side is small. Three conventions cover almost everything:
-
-**1. Accept a CID at write time, validate non-empty:**
+The Cascade integration on the CosmWasm side is small. Accept the `action_id` as an opaque `String` at write time and validate only that it is non-empty:
 
 ```rust
 pub fn exec_submit(
@@ -110,23 +108,9 @@ pub fn exec_submit(
 }
 ```
 
-**2. Emit the CID as a structured event attribute so an indexer can pick it up:**
+From there, two conventions make the data easy to consume: emit the CID as a `wasm` event attribute so an indexer can pick it up, and expose CIDs in queries so a read-only client can drive a viewer without one. That is the essential contract-side surface: the contract does not download from Cascade, does not verify the artifact, does not even care that it's a Cascade CID. It holds a string; verification and resolution belong to the indexer and the frontend.
 
-```rust
-Ok(Response::new()
-    .add_attribute("action", "submit")
-    .add_attribute("cid", cid)
-    .add_attribute("submitter", info.sender))
-```
-
-**3. Expose CIDs in queries so a read-only client can drive a viewer without an indexer:**
-
-```rust
-#[returns(Vec<StoredArtifact>)]
-ListArtifacts {},
-```
-
-That's the essential contract-side surface: the contract does not download from Cascade, does not verify the artifact, does not even care that it's a Cascade CID. It holds a string, and verification and resolution belong to the indexer and the frontend. For production designs, [Build your own integration](/docs/injective/build-your-own#contract-side-conventions) adds two more conventions: modelling the workflow as a state machine, and locking funds atomically with the CID write.
+[Build your own integration](/docs/injective/build-your-own#contract-side-conventions) has the code for both, plus two production conventions: modelling the workflow as a state machine, and locking funds atomically with the CID write.
 
 ## Funding the writes
 
@@ -135,7 +119,7 @@ Cascade writes are paid in `ulume`. Which account pays depends on the pattern:
 | Account | What it pays for | How to fund |
 |---|---|---|
 | The user's `lumera1…` (Pattern A) | Each `MsgRequestAction` they sign | [Faucet](/docs/faucet) |
-| Your service's Lumera key (Pattern B) | Each `MsgRequestAction` your service signs on behalf of users | [Faucet](/docs/faucet); monitor balance and alert before exhaustion |
+| Your service's Lumera key (Pattern B) | Each `MsgRequestAction` your service signs on behalf of users | [Faucet](/docs/faucet) |
 | The ICA's `lumera1…` (Pattern C) | Each Cascade write the contract triggers | Top up over IBC from your Injective treasury |
 
 A Cascade upload costs roughly **10–15k `ulume`** on testnet.
