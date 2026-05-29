@@ -114,7 +114,7 @@ Once you have a `SigningCosmWasmClient`, contract calls look like any other Cosm
 
 ## Cross-chain signing
 
-If your dApp asks users to sign Cascade writes themselves (the user-driven pattern), a session needs **two addresses**: an `inj1…` address for Injective contract calls, and a `lumera1…` address for Cascade uploads. Both can come from the same Keplr extension — the user enables the Injective chain (`eth_secp256k1`) for Injective and the Lumera chain (standard `secp256k1`) for Cascade. They derive from different BIP-44 paths, so the addresses differ across the two chains.
+If your dApp asks users to sign Cascade writes themselves (the user-driven pattern), a session needs **two addresses**: an `inj1…` address for Injective contract calls, and a `lumera1…` address for Cascade uploads. Both can come from the same Keplr extension. The user enables the Injective chain (`eth_secp256k1`) for Injective and the Lumera chain (standard `secp256k1`) for Cascade. They derive from different BIP-44 paths, so the addresses differ across the two chains.
 
 Many integrations avoid this entirely by signing Cascade writes server-side (the cascade-api path), so the user only ever signs on Injective. See [Cascade from Injective](/docs/injective/cascade-from-injective) for both options.
 
@@ -122,7 +122,7 @@ Many integrations avoid this entirely by signing Cascade writes server-side (the
 
 Injective is IBC-connected, and in principle a CosmWasm contract on Injective can drive an [ICS-27 Interchain Account](/docs/concepts/interchain-accounts) on Lumera to write to Cascade autonomously. **You almost certainly do not need this.** The IBC round-trip adds 30–60s of latency on the happy path and degrades when the relayer is backed up, so it is the wrong tool for any user-facing flow.
 
-The recommended integration paths — server-signed via the cascade-api, or user-signed from a wallet — have no IBC step at all. Treat ICA as an advanced option reserved for the narrow case where a *contract itself* must be the signer of a canonical write with no user in the loop. It is covered, with that framing, in [Cascade from Injective](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced).
+The recommended integration paths doesn't involve IBC. They are either server-signed via the cascade-api, or user-signed from a wallet. Treat ICA as an advanced option reserved for the narrow case where a *contract itself* must be the signer of a canonical write with no user in the loop. It is covered, with that framing, in [Cascade from Injective](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced).
 
 ## Tools you will use
 
