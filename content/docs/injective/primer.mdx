@@ -120,7 +120,7 @@ Many integrations avoid this entirely by signing Cascade writes server-side (the
 
 ## A note on IBC and Interchain Accounts
 
-Injective is IBC-connected, and in principle a CosmWasm contract on Injective can drive an [ICS-27 Interchain Account](/docs/concepts/interchain-accounts) on Lumera to write to Cascade autonomously. **You almost certainly do not need this.** The IBC round-trip adds 30–60s of latency on the happy path and degrades when the relayer is backed up, so it is the wrong tool for any user-facing flow.
+Injective is IBC-connected, and in principle a CosmWasm contract on Injective can drive an [ICS-27 Interchain Account](/docs/concepts/interchain-accounts) on Lumera to write to Cascade autonomously. **You almost certainly do not need this.** The IBC round-trip adds 30–60s of latency and degrades when the relayer is backed up, so it is the wrong tool for any user-facing flow.
 
 The recommended integration paths don't involve IBC: they are either server-signed via the cascade-api, or user-signed from a wallet. Treat ICA as an advanced option reserved for the narrow case where a *contract itself* must be the signer of a canonical write with no user in the loop. It is covered, with that framing, in [Cascade from Injective](/docs/injective/cascade-from-injective#pattern-c-contract-driven-via-ica-advanced).
 
