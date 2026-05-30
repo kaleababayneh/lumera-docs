@@ -91,7 +91,7 @@ export const injectiveTestnet: ChainInfo = {
 The two things that differ from a standard Cosmos chain registration are `bip44.coinType: 60` and the `features: ['eth-address-gen', 'eth-key-sign']` array. Without `eth-key-sign`, Keplr signs over the wrong digest and Injective rejects every transaction.
 
 <Callout type="warn">
-**Amino only.** Injective's `eth_secp256k1` keys are not direct-mode-friendly under the current cosmjs build. Use `keplr.getOfflineSignerOnlyAmino(chainId)` rather than `getOfflineSigner`. If you use `SigningCosmWasmClient` with the standard direct-mode signer, you'll get opaque signature-mismatch errors.
+Injective's `eth_secp256k1` keys are not direct-mode-friendly under the current cosmjs build. Use `keplr.getOfflineSignerOnlyAmino(chainId)` rather than `getOfflineSigner`. If you use `SigningCosmWasmClient` with the standard direct-mode signer, you'll get opaque signature-mismatch errors.
 </Callout>
 
 The signing client wires up as:
