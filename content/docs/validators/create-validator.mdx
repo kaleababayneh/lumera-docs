@@ -82,7 +82,7 @@ You need at least **1 LUME** (1,000,000 ulume) to create a validator, plus extra
 ### Get your validator public key
 
 ```bash
-lumerad tendermint show-validator
+lumerad comet show-validator
 ```
 
 ### Create the validator config file
@@ -90,7 +90,7 @@ lumerad tendermint show-validator
 ```bash
 cat > ~/validator.json <<EOF
 {
-  "pubkey": $(lumerad tendermint show-validator),
+  "pubkey": $(lumerad comet show-validator),
   "amount": "1000000ulume",
   "moniker": "YOUR_MONIKER",
   "commission-rate": "0.10",
@@ -156,7 +156,7 @@ lumerad status 2>&1 | jq '.sync_info | {latest_block_height, catching_up}'
 lumerad query staking validator $(lumerad keys show validator --bech val -a) | grep moniker
 
 # Signing blocks?
-lumerad query slashing signing-info $(lumerad tendermint show-validator)
+lumerad query slashing signing-info $(lumerad comet show-validator)
 
 # Balance?
 lumerad query bank balances $(lumerad keys show validator -a)
