@@ -92,14 +92,44 @@ message MsgRequestAction {
 
 ## Fee Model
 
-Cascade storage fees are calculated based on file size and current network parameters:
+Each Cascade storage pays a **one-time storage fee** in `ulume` (1 LUME = 1,000,000 ulume). The fee is a pure function of file size, so you can estimate it before uploading:
 
-```ts
-const fee = await client.Blockchain.getActionFee(fileSizeInBytes);
-// Returns: { fee: string } in ulume
+```
+fee = base_action_fee + fee_per_kbyte × ceil(fileBytes / 1024)
 ```
 
-The fee is paid once at action registration time. There are no recurring charges. The protocol burns 20% of the fee and distributes the remaining 80% to Supernodes over time.
+File size is rounded **up** to the next whole kilobyte (`(bytes + 1023) / 1024`), matching the Supernode-side verification. Both values are on-chain `x/action` parameters (adjustable by governance); the current mainnet values are:
+
+| Parameter | Mainnet value | In LUME |
+|-----------|---------------|---------|
+| `base_action_fee` | `10000` ulume | 0.01 LUME |
+| `fee_per_kbyte` | `10` ulume | 0.00001 LUME / KB |
+
+So every successful storage adds `10000 + 10 × sizeKB` ulume to what you've spent:
+
+| File size | Storage fee (ulume) | In LUME |
+|-----------|---------------------|---------|
+| 1 KB | 10,010 | 0.01001 |
+| 256 KB | 12,560 | 0.01256 |
+| 1 MB (1,024 KB) | 20,240 | 0.02024 |
+| 10 MB (10,240 KB) | 112,400 | 0.11240 |
+| 100 MB (102,400 KB) | 1,024,000 | 1.02400 |
+| 1 GB (1,048,576 KB) | 10,485,760 | 10.48576 |
+
+Query the exact amount from the chain instead of hardcoding it. The SDK expects the size in **KB, rounded up**, and returns the fee in `ulume`:
+
+```ts
+const fileSizeKb = Math.ceil(file.length / 1024);
+const { amount } = await client.Blockchain.Action.getActionFee(fileSizeKb);
+// amount: string, in ulume — the SDK sets this as the action `price`
+```
+
+The fee is **escrowed** at registration (`MsgRequestAction`) and released only after the action reaches `DONE`. In case the upload fails, the fee is returned to the user. 
+The fee is paid once, with no recurring charges.
+
+<Callout type="info">
+  This storage fee is separate from the **gas fee** (min gas price `0.025ulume`) charged on every transaction.
+</Callout>
 
 ## Security Model
 
