@@ -98,7 +98,7 @@ Each Cascade storage pays a **one-time storage fee** in `ulume` (1 LUME = 1,000,
 fee = base_action_fee + fee_per_kbyte × ceil(fileBytes / 1024)
 ```
 
-File size is rounded **up** to the next whole kilobyte (`(bytes + 1023) / 1024`), matching the Supernode-side verification. Both values are on-chain `x/action` parameters (adjustable by governance); the current mainnet values are:
+File size is rounded **up** to the next whole kilobyte (`(bytes + 1023) / 1024`).
 
 | Parameter | Mainnet value | In LUME |
 |-----------|---------------|---------|
