@@ -13,43 +13,7 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y build-essential jq curl git wget lz4 make gcc
 ```
 
-<Callout type="warn">
-If `apt upgrade` hangs or the SSH connection drops, reconnect and run:
-
-```bash
-sudo killall unattended-upgrade unattended-upgrades 2>/dev/null
-sudo dpkg --configure -a
-```
-
-Then re-run the install command above.
-</Callout>
-
-## Step 2: Add Swap
-
-Check current memory first:
-
-```bash
-free -h           # total RAM + existing swap
-swapon --show     # active swap files (empty if none)
-```
-
-If you already have ≥16 GB RAM or existing swap, skip to Step 3.
-
-Building from source can exceed 8 GB RAM. If your server has 8 GB or less, add swap:
-
-```bash
-sudo fallocate -l 4G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-
-# Make permanent
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-```
-
-Verify with `free -h`  you should see ~4 GB swap.
-
-## Step 3: Install Go
+## Step 2: Install Go
 
 ```bash
 wget -q https://golang.org/dl/go1.23.4.linux-amd64.tar.gz -O /tmp/go.tar.gz
@@ -73,7 +37,7 @@ go version
 # go version go1.23.4 linux/amd64
 ```
 
-## Step 4: Build lumerad
+## Step 3: Build lumerad
 
 The binary must be built from source with a one-line patch. This patch prevents a panic caused by a governance upgrade plan (`v1.0.0`) that exists in the chain state but has no matching binary release.
 
@@ -116,7 +80,7 @@ lumerad version
 </Callout>
 */}
 
-## Step 5: Initialize the Node
+## Step 4: Initialize the Node
 
 ```bash
 lumerad init "YOUR_MONIKER" --chain-id lumera-testnet-2
@@ -143,7 +107,7 @@ cp ~/.lumera/config/priv_validator_key.json ~/lumera-key-backup/
 **These files ARE your validator identity.** If you lose them, you lose your validator. Copy them off the server to a secure location immediately.
 </Callout>
 
-## Step 6: Configure the Node
+## Step 5: Configure the Node
 
 ### Seeds and minimum gas price
 
@@ -155,27 +119,13 @@ sed -i 's/^minimum-gas-prices *=.*/minimum-gas-prices = "0.025ulume"/' \
   ~/.lumera/config/app.toml
 ```
 
-### Enable pruning
-
-Saves disk space by removing old state:
-
-```bash
-sed -i \
-  -e 's|^pruning *=.*|pruning = "custom"|' \
-  -e 's|^pruning-keep-recent *=.*|pruning-keep-recent = "100"|' \
-  -e 's|^pruning-interval *=.*|pruning-interval = "10"|' \
-  ~/.lumera/config/app.toml
-
-sed -i 's|^indexer *=.*|indexer = "null"|' ~/.lumera/config/config.toml
-```
-
 ### Enable Prometheus metrics (optional)
 
 ```bash
 sed -i 's/^prometheus *= *false/prometheus = true/' ~/.lumera/config/config.toml
 ```
 
-## Step 7: Download the Snapshot
+## Step 6: Download the Snapshot
 
 Syncing from a snapshot gets you to a recent block height in minutes instead of days.
 
@@ -196,7 +146,7 @@ curl -o - -L https://snapshots.polkachu.com/testnet-snapshots/lumera/lumera_XXXX
 
 Replace `lumera_XXXXXXX.tar.lz4` with the current filename from the Polkachu page. This downloads and extracts in one step it takes 5–30 minutes depending on network speed.
 
-## Step 8: Create the Systemd Service
+## Step 7: Create the Systemd Service
 
 ```bash
 sudo tee /etc/systemd/system/lumera.service > /dev/null <<EOF
@@ -219,7 +169,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable lumera
 ```
 
-## Step 9: Start and Verify
+## Step 8: Start and Verify
 
 ```bash
 sudo systemctl start lumera
@@ -246,7 +196,7 @@ lumerad status 2>&1 | jq '.sync_info | {latest_block_height, catching_up}'
 
 Wait until `catching_up` is `false`. With the snapshot, this should take only a few minutes.
 
-## Step 10: Set Up Firewall
+## Step 9: Set Up Firewall
 
 ```bash
 sudo ufw default deny incoming
